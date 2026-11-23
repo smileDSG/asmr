@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 慢慢放松</title>
+<link rel="stylesheet" href="theme.css?v=2">
+<style>
+  .home-wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 22px 112px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== 首屏月夜主卡片（克制、柔和、不催促） ===== */
+  .calm-hero {
+    position: relative;
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid rgba(218, 200, 255, 0.16);
+    background: #171226;
+    min-height: 248px;
+    padding: 24px 24px 26px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 18px 48px rgba(6, 4, 14, 0.45);
+  }
+  .calm-hero-bg {
+    position: absolute;
+    inset: 0;
+    background-image: url(img/night-lake.webp);
+    background-size: cover;
+    background-position: right center;
+    filter: saturate(0.92) brightness(0.88);
+    transition: background-image 0.9s ease, transform 1.2s ease;
+    z-index: 0;
+  }
+  .calm-hero.playing .calm-hero-bg {
+    transform: scale(1.03);
+  }
+  .calm-hero-veil {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(95deg, rgba(20, 14, 34, 0.88) 0%, rgba(20, 14, 34, 0.62) 48%, rgba(20, 14, 34, 0.18) 100%),
+      linear-gradient(180deg, rgba(16, 11, 28, 0.18) 0%, rgba(16, 11, 28, 0.52) 100%);
+    z-index: 1;
+  }
+  .calm-hero-top {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .calm-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: rgba(235, 224, 255, 0.88);
+    letter-spacing: 0.4px;
+  }
+  .calm-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .calm-tool-btn {
+    background: rgba(18, 13, 30, 0.48);
+    border: 1px solid rgba(218, 200, 255, 0.18);
+    color: rgba(232, 220, 255, 0.82);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 11.5px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .calm-tool-btn:hover,
+  .calm-tool-btn.on {
+    background: rgba(var(--y-accent-rgb), 0.26);
+    border-color: rgba(218, 200, 255, 0.46);
+    color: #fff;
+  }
+
+  .calm-hero-body {
+    position: relative;
+    z-index: 2;
+    margin-top: 22px;
+    max-width: 78%;
+  }
+  .calm-title {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    line-height: 1.28;
+    color: #ffffff;
+    text-shadow: 0 2px 16px rgba(10, 6, 22, 0.45);
+  }
+  .calm-sub {
+    margin: 10px 0 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: rgba(232, 222, 250, 0.78);
+  }
+  .calm-cta-row {
+    position: relative;
+    z-index: 2;
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .calm-play-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #d7c7ff, #b99ef8);
+    color: #19122b;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 22px;
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(164, 134, 245, 0.28);
+    transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.25s ease;
+  }
+  .calm-play-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+    box-shadow: 0 10px 28px rgba(164, 134, 245, 0.36);
+  }
+  .calm-play-btn.playing {
+    background: rgba(215, 199, 255, 0.2);
+    color: #f3ecff;
+    border: 1px solid rgba(215, 199, 255, 0.48);
+    box-shadow: none;
+  }
+  .calm-status {
+    font-size: 12px;
+    color: rgba(226, 214, 250, 0.76);
+  }
+
+  /* ===== 上次听过 快捷续播条 ===== */
+  .last-bar {
+    margin-top: 14px;
+    background: rgba(24, 19, 39, 0.76);
+    border: 1px solid rgba(218, 200, 255, 0.13);
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color 0.25s ease;
+  }
+  .last-bar.playing {
+    border-color: rgba(var(--y-accent-rgb), 0.48);
+  }
+  .last-left {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-width: 0;
+  }
+  .last-ico {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 50%;
+    background: rgba(var(--y-accent-rgb), 0.14);
+    border: 1px solid rgba(218, 200, 255, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #dfd0ff;
+  }
+  .last-info {
+    min-width: 0;
+  }
+  .last-title {
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #f4eeff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .last-meta {
+    margin-top: 3px;
+    font-size: 12px;
+    color: rgba(206, 194, 232, 0.65);
+  }
+  .last-play-btn {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(218, 200, 255, 0.18);
+    color: #efe7ff;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .last-play-btn:hover,
+  .last-bar.playing .last-play-btn {
+    background: rgba(var(--y-accent-rgb), 0.24);
+    border-color: rgba(218, 200, 255, 0.45);
+  }
+
+  /* ===== 声音试听分区 ===== */
+  .listen-sec {
+    margin-top: 24px;
+  }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 2px 13px;
+  }
+  .sec-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f3ecff;
+    letter-spacing: 0.5px;
+  }
+  .sec-more {
+    font-size: 13px;
+    color: #c9b2ff;
+    text-decoration: none;
+    opacity: 0.9;
+  }
+  .sec-more:hover {
+    opacity: 1;
+    text-decoration: underline;
+  }
+
+  .cat-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .cat-tab {
+    background: rgba(24, 19, 39, 0.66);
+    border: 1px solid rgba(218, 200, 255, 0.14);
+    color: rgba(218, 208, 240, 0.78);
+    border-radius: 13px;
+    padding: 10px 8px;
+    font-size: 13px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .cat-tab:hover {
+    border-color: rgba(218, 200, 255, 0.3);
+    color: #fff;
+  }
+  .cat-tab.on {
+    background: rgba(var(--y-accent-rgb), 0.26);
+    border-color: rgba(218, 200, 255, 0.46);
+    color: #ffffff;
+    font-weight: 500;
+  }
+
+  .sound-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .sound-card {
+    background: rgba(24, 19, 39, 0.72);
+    border: 1px solid rgba(218, 200, 255, 0.13);
+    border-radius: 18px;
+    padding: 16px 15px 15px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    transition: transform 0.2s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+  .sound-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(218, 200, 255, 0.32);
+    background: rgba(31, 24, 50, 0.82);
+  }
+  .sound-card.on {
+    border-color: rgba(var(--y-accent-rgb), 0.66);
+    background: rgba(var(--y-accent-rgb), 0.14);
+    box-shadow: 0 8px 24px rgba(var(--y-accent-rgb), 0.18);
+  }
+  .sc-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .sc-badge {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(218, 200, 255, 0.16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+  }
+  .sc-text {
+    min-width: 0;
+  }
+  .sc-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: #f6f0ff;
+    line-height: 1.3;
+  }
+  .sc-desc {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: rgba(206, 194, 232, 0.68);
+  }
+  .sc-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-left: 54px;
+  }
+  .sc-play-label {
+    font-size: 12.5px;
+    color: #cfc0f6;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sound-card.on .sc-play-label {
+    color: #ffffff;
+    font-weight: 500;
+  }
+
+  @media (max-width: 520px) {
+    .calm-hero {
+      padding: 20px 18px 22px;
+      min-height: 230px;
+    }
+    .calm-hero-body {
+      max-width: 100%;
+    }
+    .calm-title {
+      font-size: 25px;
+    }
+    .sc-foot {
+      padding-left: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="home-wrap">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon">☾</div>
+      <div class="name">夜息</div>
+    </a>
+    <button class="pill-btn" id="testBtn">✦ 敏感点测试</button>
+  </div>
+
+  <!-- 月夜助眠主卡 -->
+  <section class="calm-hero" id="calmHero">
+    <div class="calm-hero-bg" id="heroBg"></div>
+    <div class="calm-hero-veil"></div>
+
+    <div class="calm-hero-top">
+      <span class="calm-eyebrow">🎧 助眠声音</span>
+      <div class="calm-tools">
+        <button type="button" class="calm-tool-btn" id="timerBtn" title="切换睡眠定时">⏱ 定时</button>
+        <button type="button" class="calm-tool-btn" id="lightsOutBtn" title="熄灯只留夜色与声音">☾ 熄灯</button>
+      </div>
+    </div>
+
+    <div class="calm-hero-body">
+      <h1 class="calm-title" id="heroTitle">夜色已深，慢慢放松</h1>
+      <p class="calm-sub" id="heroSub">戴上耳机，听着喜欢的声音慢慢入睡。</p>
+    </div>
+
+    <div class="calm-cta-row">
+      <button type="button" class="calm-play-btn" id="startSleepBtn">▶ 开始睡眠</button>
+      <span class="calm-status" id="sceneStatus"></span>
+    </div>
+  </section>
+
+  <!-- 上次听过 -->
+  <div class="last-bar" id="lastBar">
+    <div class="last-left">
+      <div class="last-ico" id="lastIco">☾</div>
+      <div class="last-info">
+        <div class="last-title" id="lastTitle">上次 · 城市夜雨</div>
+        <div class="last-meta" id="lastMeta">无人声 · 真实自然录音</div>
+      </div>
+    </div>
+    <button type="button" class="last-play-btn" id="lastPlayBtn" aria-label="继续播放">▶</button>
+  </div>
+
+  <!-- 声音试听 -->
+  <section class="listen-sec">
+    <div class="sec-head">
+      <div class="sec-title">声音试听</div>
+      <a class="sec-more" href="index.html">全部声音</a>
+    </div>
+
+    <div class="cat-tabs" id="catTabs">
+      <button type="button" class="cat-tab on" data-cat="nature">自然环境声</button>
+      <button type="button" class="cat-tab" data-cat="bed">持续底噪</button>
+      <button type="button" class="cat-tab" data-cat="asmr">ASMR 触发音</button>
+    </div>
+
+    <div class="sound-grid" id="soundGrid"></div>
+  </section>
+
+  <div class="foot">所有声音来自真实 CC0 自然录音 · 戴上耳机效果更好</div>
+</div>
+
+<!-- 熄灯纯享遮罩 -->
+<div class="lights-out-overlay" id="lightsOutOverlay" title="轻触任意处唤醒界面">
+  <div class="lights-out-moon">☾</div>
+  <div class="lights-out-title" id="lightsOutTitle">城市夜雨</div>
+  <div class="lights-out-timer" id="lightsOutTimer">轻触任意处唤醒</div>
+  <div class="lights-out-hint">晚安 · 声音将继续陪你</div>
+</div>
+
+<audio id="sceneAudio" loop preload="none"></audio>
+
+<div class="tabbar">
+  <a href="home.html" class="on"><span class="ti">☾</span>今晚</a>
+  <a href="agent.html"><span class="ti">✦</span>AI 配声</a>
+  <a href="index.html"><span class="ti">☰</span>DIY</a>
+  <a href="community.html"><span class="ti">♡</span>广场</a>
+</div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_catalog.js"></script>
+<script>
+var API = YEXI_API;
+initAuthBar("home.html");
+initAmbientStage("img/night-lake.webp", "#8e74e8");
+
+// 柔和的时段主标题（避免催促感）
+(function() {
+  var h = new Date().getHours();
+  var title = "夜色已深，慢慢放松";
+  if (h >= 0 && h < 5) {
+    title = "还没睡吗，放慢呼吸";
+  } else if (h >= 5 && h < 12) {
+    title = "清晨宁静，慢慢醒来";
+  } else if (h >= 12 && h < 18) {
+    title = "忙累了，歇一会儿";
+  } else if (h >= 18 && h < 22) {
+    title = "夜幕降临，放下疲惫";
+  }
+  document.getElementById("heroTitle").textContent = title;
+})();
+
+document.getElementById("testBtn").onclick = function() {
+  location.href = "ear_test.html";
+};
+
+(function() {
+  var btn = document.getElementById("testBtn");
+  var localProf = null;
+  try {
+    var raw = localStorage.getItem("yezi_ear_profile_v1");
+    localProf = raw ? JSON.parse(raw) : null;
+  } catch (e) {}
+  if (localProf && localProf.archetype_name) {
+    btn.textContent = "✦ " + localProf.archetype_name;
+  }
+  yGet("/api/ear_profile")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d && d.ear_profile && d.ear_profile.archetype_name) {
+        btn.textContent = "✦ " + d.ear_profile.archetype_name;
+        try {
+          localStorage.setItem("yezi_ear_profile_v1", JSON.stringify(d.ear_profile));
+        } catch (e) {}
+      }
+    })
+    .catch(function() {});
+})();
+
+// 3 个真实 CC0 声音分类（全部来自已验收素材库清单）
+var HOME_SOUNDS = {
+  nature: [
+    { path: "母带_城市夜雨_CC0.mp3", name: "窗边夜雨", desc: "雨点轻落在夜色里", icon: "🌧", img: "img/rain-window.jpg", accent: "#8e74e8" },
+    { path: "海浪_远海.hq.mp3", name: "海浪", desc: "海水一阵阵缓缓涌来", icon: "🌊", img: "img/night-lake-stars.jpg", accent: "#5889d6" },
+    { path: "鸟鸣_夜莺鸣叫_853566.hq.mp3", name: "树林鸟鸣", desc: "林间清亮轻柔的夜莺声", icon: "🌿", img: "img/dark-forest-lake.jpg", accent: "#5fa896" },
+    { path: "溪流.hq.mp3", name: "山涧溪流", desc: "清亮舒缓的山间流水", icon: "💧", img: "img/starry-mountain-lake.jpg", accent: "#59a5c7" },
+    { path: "虫鸣.hq.mp3", name: "夏夜虫鸣", desc: "像小时候院子里的夏夜", icon: "🌙", img: "img/moon-water.jpg", accent: "#9b85d6" },
+    { path: "夜风.hq.mp3", name: "林间夜风", desc: "轻轻拂过树梢的晚风", icon: "🌬", img: "img/dark-forest-lake.jpg", accent: "#6d94b8" }
+  ],
+  bed: [
+    { path: "柔和雨.hq.mp3", name: "柔和雨幕", desc: "绵密轻柔，像盖着薄毯", icon: "☁", img: "img/warm-bedroom.jpg", accent: "#b88ce8" },
+    { path: "雨中低鸣.hq.mp3", name: "暖夜低鸣", desc: "柔和低频包裹感", icon: "✨", img: "img/warm-bedroom.jpg", accent: "#c48ad4" },
+    { path: "海浪_黑海.hq.mp3", name: "深沉黑海", desc: "更厚重低沉的夜海潮声", icon: "🌑", img: "img/night-lake-stars.jpg", accent: "#4a6fb8" },
+    { path: "炉火_壁炉低燃_836535.hq.mp3", name: "壁炉低燃", desc: "暖融融的炉火轻燃声", icon: "🔥", img: "img/warm-bedroom.jpg", accent: "#d99b66" },
+    { path: "帐篷雨_小帐篷大雨_592996.hq.mp3", name: "帐篷大雨", desc: "躲在小帐篷里听雨落", icon: "⛺", img: "img/rain-window.jpg", accent: "#7f8ce0" },
+    { path: "微风_麦田柔风_447810.hq.mp3", name: "麦田柔风", desc: "均匀平稳的风拂麦浪", icon: "🌾", img: "img/moon-water.jpg", accent: "#88b498" }
+  ],
+  asmr: [
+    { path: "ASMR_翻书单人_360781.hq.mp3", name: "轻柔翻书", desc: "安静翻过纸页的沙沙声", icon: "📖", img: "img/warm-bedroom.jpg", accent: "#c9a882" },
+    { path: "ASMR_铅笔写字柔_336381.hq.mp3", name: "铅笔写字", desc: "笔尖轻划纸面的温柔节奏", icon: "✏️", img: "img/warm-bedroom.jpg", accent: "#b4a0e8" },
+    { path: "ASMR_采耳_690078.hq.mp3", name: "采耳轻触", desc: "贴近耳畔的细微轻柔触感", icon: "🪶", img: "img/night-lake.webp", accent: "#a88ce8" },
+    { path: "ASMR_羽毛轻拂_708086.hq.mp3", name: "羽毛轻拂", desc: "极轻柔的羽毛扫过耳边", icon: "🕊", img: "img/night-lake.webp", accent: "#90b8e8" },
+    { path: "ASMR_轻柔梳头_825798.hq.mp3", name: "轻柔梳头", desc: "缓慢轻刷的放松节奏", icon: "✨", img: "img/warm-bedroom.jpg", accent: "#c494d8" },
+    { path: "ASMR_指尖轻敲刮擦_866230.hq.mp3", name: "指尖轻敲", desc: "清脆克制的指尖轻敲声", icon: "🫧", img: "img/night-lake.webp", accent: "#7fa8d8" }
+  ]
+};
+
+function findHomeSound(path) {
+  var keys = ["nature", "bed", "asmr"];
+  for (var k = 0; k < keys.length; k++) {
+    var list = HOME_SOUNDS[keys[k]];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].path === path) return list[i];
+    }
+  }
+  return ySoundMeta(path);
+}
+
+var activeCat = "nature";
+var sceneAudio = document.getElementById("sceneAudio");
+var calmHero = document.getElementById("calmHero");
+var lastBar = document.getElementById("lastBar");
+var startSleepBtn = document.getElementById("startSleepBtn");
+var lastPlayBtn = document.getElementById("lastPlayBtn");
+var sceneStatus = document.getElementById("sceneStatus");
+
+function loadLastSound() {
+  try {
+    var saved = localStorage.getItem("yexi_last_sound_path");
+    if (saved) return findHomeSound(saved);
+  } catch (e) {}
+  return HOME_SOUNDS.nature[0];
+}
+
+var selectedScene = loadLastSound();
+
+// 睡眠定时（0 -> 15 -> 30 -> 60 -> 0）
+var TIMER_STEPS = [0, 15, 30, 60];
+var timerStepIdx = 0;
+var sleepTimerId = null;
+var sleepEndAt = 0;
+var timerBtn = document.getElementById("timerBtn");
+
+function renderState(scene, playing) {
+  calmHero.classList.toggle("playing", playing);
+  lastBar.classList.toggle("playing", playing);
+
+  document.getElementById("lastTitle").textContent = "上次 · " + scene.name;
+  document.getElementById("lastIco").textContent = scene.icon || "☾";
+  document.getElementById("lightsOutTitle").textContent = scene.name;
+
+  var mins = TIMER_STEPS[timerStepIdx];
+  document.getElementById("lastMeta").textContent = "无人声 · " + (mins > 0 ? (mins + " 分钟定时") : "真实自然录音");
+
+  if (playing) {
+    startSleepBtn.textContent = "❚❚ 暂停播放";
+    startSleepBtn.classList.add("playing");
+    lastPlayBtn.textContent = "❚❚";
+    document.getElementById("heroSub").textContent = "正在轻声播放「" + scene.name + "」· 安心闭上眼睛。";
+  } else {
+    startSleepBtn.textContent = "▶ 开始睡眠";
+    startSleepBtn.classList.remove("playing");
+    lastPlayBtn.textContent = "▶";
+    document.getElementById("heroSub").textContent = "戴上耳机，听着喜欢的声音慢慢入睡。";
+  }
+
+  ySetAmbient(playing ? scene.img : "img/night-lake.webp", "#8e74e8", playing);
+  syncSoundCards(scene.path, playing);
+}
+
+function syncSoundCards(activePath, playing) {
+  var cards = document.querySelectorAll(".sound-card");
+  for (var i = 0; i < cards.length; i++) {
+    var isThis = cards[i].getAttribute("data-path") === activePath;
+    cards[i].classList.toggle("on", isThis && playing);
+    var lbl = cards[i].querySelector(".sc-play-label");
+    if (lbl) {
+      lbl.textContent = (isThis && playing) ? "❚❚ 正在试听" : "▶ 试听";
+    }
+  }
+}
+
+function renderSoundGrid(catKey) {
+  activeCat = catKey;
+  var list = HOME_SOUNDS[catKey] || HOME_SOUNDS.nature;
+  var grid = document.getElementById("soundGrid");
+  grid.innerHTML = "";
+  var isPlaying = !!(sceneAudio.src && !sceneAudio.paused);
+
+  for (var i = 0; i < list.length; i++) {
+    (function(s) {
+      var on = isPlaying && selectedScene.path === s.path;
+      var card = document.createElement("div");
+      card.className = "sound-card" + (on ? " on" : "");
+      card.setAttribute("data-path", s.path);
+      card.innerHTML =
+        '<div class="sc-top">' +
+          '<div class="sc-badge" style="color:' + (s.accent || "#d8c4ff") + '">' + (s.icon || "☾") + '</div>' +
+          '<div class="sc-text">' +
+            '<div class="sc-name">' + s.name + '</div>' +
+            '<div class="sc-desc">' + s.desc + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sc-foot">' +
+          '<span class="sc-play-label">' + (on ? "❚❚ 正在试听" : "▶ 试听") + '</span>' +
+        '</div>';
+      card.onclick = function() { playScene(s); };
+      grid.appendChild(card);
+    })(list[i]);
+  }
+}
+
+(function() {
+  var tabs = document.querySelectorAll("#catTabs .cat-tab");
+  for (var i = 0; i < tabs.length; i++) {
+    (function(tab) {
+      tab.onclick = function() {
+        for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove("on");
+        tab.classList.add("on");
+        renderSoundGrid(tab.getAttribute("data-cat"));
+      };
+    })(tabs[i]);
+  }
+})();
+
+function playScene(s) {
+  if (selectedScene.path === s.path && sceneAudio.src && !sceneAudio.paused) {
+    sceneAudio.pause();
+    renderState(s, false);
+    sceneStatus.textContent = "已暂停";
+    return;
+  }
+  if (selectedScene.path === s.path && sceneAudio.src && sceneAudio.paused) {
+    sceneAudio.play().catch(function() {});
+    renderState(s, true);
+    sceneStatus.textContent = "";
+    return;
+  }
+
+  selectedScene = s;
+  try {
+    localStorage.setItem("yexi_last_sound_path", s.path);
+  } catch (e) {}
+  renderState(s, false);
+  sceneStatus.textContent = "正在铺开「" + s.name + "」…";
+
+  yPost("/api/play", { items: [{ path: s.path, weight: 1.0 }], title: s.name })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (d.error) {
+        sceneStatus.textContent = d.error;
+        return;
+      }
+      sceneAudio.src = API + d.audio;
+      sceneAudio.volume = 1;
+      sceneAudio.play().catch(function() {});
+      renderState(s, true);
+      sceneStatus.textContent = "";
+      sessionStorage.setItem("yezi_play", JSON.stringify({
+        title: s.name,
+        audio: d.audio,
+        items: d.items
+      }));
+    })
+    .catch(function() {
+      sceneStatus.textContent = "本地音频服务未开启";
+    });
+}
+
+startSleepBtn.onclick = function() {
+  playScene(selectedScene);
+};
+lastPlayBtn.onclick = function() {
+  playScene(selectedScene);
+};
+
+function clearSleepTimer() {
+  if (sleepTimerId) {
+    clearInterval(sleepTimerId);
+    sleepTimerId = null;
+  }
+  sceneAudio.volume = 1;
+}
+
+timerBtn.onclick = function() {
+  timerStepIdx = (timerStepIdx + 1) % TIMER_STEPS.length;
+  var mins = TIMER_STEPS[timerStepIdx];
+  clearSleepTimer();
+
+  if (mins <= 0) {
+    timerBtn.textContent = "⏱ 定时";
+    timerBtn.classList.remove("on");
+    document.getElementById("lightsOutTimer").textContent = "轻触任意处唤醒";
+    renderState(selectedScene, !!(sceneAudio.src && !sceneAudio.paused));
+    return;
+  }
+
+  timerBtn.classList.add("on");
+  sleepEndAt = Date.now() + mins * 60 * 1000;
+  if (sceneAudio.paused) playScene(selectedScene);
+  renderState(selectedScene, true);
+
+  var tick = function() {
+    var left = Math.max(0, (sleepEndAt - Date.now()) / 1000);
+    if (left <= 60) {
+      sceneAudio.volume = Math.max(0, left / 60);
+    } else {
+      sceneAudio.volume = 1;
+    }
+    var m = Math.floor(left / 60);
+    var s = Math.floor(left % 60);
+    var label = m + ":" + (s < 10 ? "0" : "") + s;
+    timerBtn.textContent = "⏱ " + label;
+    document.getElementById("lightsOutTimer").textContent = "将在 " + label + " 后渐弱熄声";
+    if (left <= 0) {
+      clearSleepTimer();
+      sceneAudio.pause();
+      timerStepIdx = 0;
+      timerBtn.textContent = "⏱ 定时";
+      timerBtn.classList.remove("on");
+      document.getElementById("lightsOutTimer").textContent = "晚安，已轻轻停下";
+      renderState(selectedScene, false);
+    }
+  };
+  tick();
+  sleepTimerId = setInterval(tick, 1000);
+};
+
+document.getElementById("lightsOutBtn").onclick = function() {
+  if (sceneAudio.paused) playScene(selectedScene);
+  document.body.classList.add("lights-out");
+};
+document.getElementById("lightsOutOverlay").onclick = function() {
+  document.body.classList.remove("lights-out");
+};
+
+renderSoundGrid("nature");
+renderState(selectedScene, false);
+</script>
+</body>
+</html>

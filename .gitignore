@@ -1,0 +1,63 @@
+# ===== 密钥和账号数据：绝对不能上传 =====
+qwen_key.txt
+stability_key.txt
+*.key
+.env
+.env.*
+data/*.db
+data/*.db-wal
+data/*.db-shm
+memory/*.json
+
+# ===== 实验产物和音频缓存：体积大、非成品 =====
+agent_output/
+ai_samples/
+ai_samples_v2/
+ai_samples_v3/
+rain_candidates/
+rain_candidates_v2/
+rain_quiet/
+raw_generated/
+raw_generated_v2/
+rejected/
+candidates_v3/
+final_output/
+final_output_v2/
+freesound_previews/
+reference_audio/
+verify_hq.mp3
+候选*.mp3
+雨声_*.wav
+雨声_*.mp3
+output_*.wav
+raw_rain_30s.wav
+sound_*.wav
+
+# ===== 部署副本和临时文件 =====
+deploy/
+__pycache__/
+*.pyc
+*.log
+*.zip
+probe_search.html
+
+# ===== 第三方/竞品素材：授权不清，不进公开仓库 =====
+夜息参考/
+竞品参考/
+moodist_src/
+moodist.zip
+img/night-lake.webp
+product_site/img/night-lake.webp
+
+# ===== 编辑器/系统/工具内部文件 =====
+.DS_Store
+Thumbs.db
+*.swp
+.genie
+*.genie
+.workbuddy/
+.wbapp_*
+*.workbuddy.cn
+
+# 说明：下面这些是项目成品，保留上传
+# 核心 py、product_site/、product_assets/、scene_assets/、各 .md 文档、requirements.txt

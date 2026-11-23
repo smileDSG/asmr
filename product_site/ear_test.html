@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 30 秒耳朵盲测</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  .wrap-test {
+    position: relative;
+    z-index: 1;
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 18px 112px;
+  }
+
+  .test-head {
+    text-align: center;
+    padding: 6px 6px 18px;
+  }
+  .test-head h1 {
+    margin: 0;
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: #fff;
+  }
+  .test-head p {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--y-text-sub);
+  }
+
+  .progress-wrap {
+    margin-bottom: 16px;
+  }
+  .progress-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--y-text-sub);
+    margin-bottom: 8px;
+  }
+  .progress-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 25%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #bfa2f8, var(--y-accent));
+    box-shadow: 0 0 14px rgba(var(--y-accent-rgb), 0.55);
+    transition: width 0.35s ease;
+  }
+
+  .round-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0 0 4px;
+  }
+  .round-sub {
+    font-size: 12.5px;
+    color: var(--y-text-sub);
+    margin: 0 0 14px;
+  }
+
+  .ab-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 580px) {
+    .ab-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .ab-card {
+    position: relative;
+    overflow: hidden;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 205px;
+    transition: border-color 0.3s ease, box-shadow 0.35s ease, transform 0.2s ease;
+  }
+  .ab-card.playing {
+    border-color: rgba(var(--y-accent-rgb), 0.78);
+    box-shadow: 0 14px 40px rgba(var(--y-accent-rgb), 0.24);
+  }
+  .ab-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.24;
+    filter: saturate(0.8) brightness(0.7);
+    z-index: 0;
+    transition: opacity 0.4s ease;
+  }
+  .ab-card.playing .ab-bg {
+    opacity: 0.4;
+  }
+  .ab-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .ab-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .ab-badge {
+    font-size: 11px;
+    color: #efe5ff;
+    background: rgba(var(--y-accent-rgb), 0.22);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.45);
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+  .ab-ico {
+    font-size: 20px;
+  }
+  .ab-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    margin: 4px 0;
+  }
+  .ab-desc {
+    font-size: 12.5px;
+    color: var(--y-text-sub);
+    line-height: 1.55;
+  }
+  .ab-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .ab-actions .y-btn-ghost,
+  .ab-actions .y-btn-primary {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .round-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--y-text-muted);
+  }
+  .back-step-btn {
+    background: transparent;
+    border: none;
+    color: #cdb8ff;
+    font-size: 12.5px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 4px 2px;
+  }
+  .back-step-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* 耳朵人格报告结果页 */
+  .result-hero {
+    padding: 22px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .result-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.26;
+    filter: blur(8px) saturate(0.8);
+    z-index: 0;
+  }
+  .result-body {
+    position: relative;
+    z-index: 1;
+  }
+  .result-orb {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f5edff, rgba(var(--y-accent-rgb), 0.78) 62%, #3b266f);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    box-shadow: 0 10px 34px rgba(var(--y-accent-rgb), 0.44);
+  }
+  .result-kicker {
+    font-size: 11.5px;
+    color: #d6c2ff;
+    letter-spacing: 1px;
+  }
+  .result-title {
+    margin: 6px 0 8px;
+    font-size: 26px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 1.5px;
+  }
+  .result-tagline {
+    font-size: 13.5px;
+    color: #dfd4f5;
+    max-width: 460px;
+    margin: 0 auto 18px;
+    line-height: 1.65;
+  }
+
+  .dim-card {
+    background: rgba(11, 8, 20, 0.5);
+    border: 1px solid rgba(218, 200, 255, 0.14);
+    border-radius: 16px;
+    padding: 14px 16px;
+    text-align: left;
+    margin-bottom: 14px;
+  }
+  .dim-row + .dim-row {
+    margin-top: 10px;
+  }
+  .dim-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #e6dcff;
+    margin-bottom: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .dim-bar {
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .dim-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #cbb0ff, var(--y-accent));
+    transition: width 0.5s ease;
+  }
+
+  .recipe-box {
+    background: rgba(var(--y-accent-rgb), 0.12);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.34);
+    border-radius: 15px;
+    padding: 13px 15px;
+    text-align: left;
+    margin-bottom: 16px;
+  }
+  .recipe-box-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .recipe-box-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #efe5ff;
+  }
+  .recipe-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .recipe-pill {
+    font-size: 11.5px;
+    color: #efe5ff;
+    background: rgba(14, 10, 26, 0.52);
+    border: 1px solid rgba(218, 200, 255, 0.18);
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+
+  .result-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 9px;
+  }
+  .result-actions .y-btn-primary,
+  .result-actions .y-btn-ghost {
+    padding: 11px 12px;
+    font-size: 13px;
+    text-align: center;
+  }
+  .result-status {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #d6c2ff;
+    min-height: 18px;
+  }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="wrap-test">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon">☾</div>
+      <div class="name">夜息</div>
+    </a>
+  </div>
+
+  <!-- 盲测进行中视图 -->
+  <div id="quizView">
+    <div class="test-head">
+      <h1>30 秒听觉盲测</h1>
+      <p>不用会描述声音，听一听选更舒服的那段，生成你的专属耳朵人格</p>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-meta">
+        <span id="stepLabel">第 1 / 4 组</span>
+        <span id="roundDimLabel">雨幕质感</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="glass" style="padding: 16px;">
+      <h2 class="round-title" id="roundTitle">哪一种雨声更让你松弛？</h2>
+      <div class="round-sub" id="roundSub">各听几秒，凭第一直觉点「选这段」即可</div>
+
+      <div class="ab-grid" id="abGrid"></div>
+
+      <div class="round-foot">
+        <button type="button" class="back-step-btn" id="prevBtn">‹ 上一组</button>
+        <span id="previewHint">真实 CC0 录音 · 零音质篡改</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 耳朵人格报告结果视图 -->
+  <div id="resultView" style="display:none">
+    <div class="glass result-hero">
+      <div class="result-bg" id="resultBg"></div>
+      <div class="result-body">
+        <div class="result-orb" id="resultIcon">🌧</div>
+        <div class="result-kicker">☾ 你的夜息耳朵人格</div>
+        <h1 class="result-title" id="resultTitle">屋檐避雨型</h1>
+        <div class="result-tagline" id="resultTagline"></div>
+
+        <div class="dim-card" id="dimCard"></div>
+
+        <div class="recipe-box">
+          <div class="recipe-box-head">
+            <span class="recipe-box-title">✦ 专属起眠声景配方</span>
+            <button type="button" class="y-btn-ghost" id="playReportBtn" style="padding:5px 12px;font-size:12px;">▶ 试听专属声景</button>
+          </div>
+          <div class="recipe-pills" id="resultRecipePills"></div>
+        </div>
+
+        <div class="result-actions">
+          <button type="button" class="y-btn-primary" id="toDiyBtn">☰ 带进 DIY 精调</button>
+          <button type="button" class="y-btn-primary" id="toAgentBtn">✦ 按档案 AI 配声</button>
+          <button type="button" class="y-btn-ghost" id="savePosterBtn">🖼 保存耳朵人格海报</button>
+          <button type="button" class="y-btn-ghost" id="retestBtn">↻ 重新测试</button>
+        </div>
+        <div class="result-status" id="resultStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">测出的偏好会自动写入你的耳朵档案 · 让 AI 和调音台越来越懂你</div>
+</div>
+
+<div class="tabbar">
+  <a href="home.html" class="on"><span class="ti">☾</span>今晚</a>
+  <a href="agent.html"><span class="ti">✦</span>AI 配声</a>
+  <a href="index.html"><span class="ti">☰</span>DIY</a>
+  <a href="community.html"><span class="ti">♡</span>广场</a>
+</div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_catalog.js"></script>
+<script src="yexi_mixer.js"></script>
+<script>
+var API = YEXI_API;
+var EAR_PROFILE_KEY = "yezi_ear_profile_v1";
+initAuthBar("ear_test.html");
+initAmbientStage("img/moon-water.jpg", "#8e74e8");
+
+var ROUNDS = [
+  {
+    dim: "雨幕质感",
+    title: "哪一种雨声更让你的耳朵松弛？",
+    sub: "A 绵密平滑 · B 有细碎雨滴颗粒",
+    a: {
+      path: "柔和雨.hq.mp3",
+      badge: "方案 A · 绵密轻柔",
+      title: "绵密细雨幕",
+      desc: "像隔着薄窗帘听雨，平滑柔和，没有明显雨滴击打点"
+    },
+    b: {
+      path: "备选_大雨打树叶_CC0.mp3",
+      badge: "方案 B · 细碎颗粒",
+      title: "雨落枝叶声",
+      desc: "听得见雨滴落到树叶上的清晰颗粒感，层次更分明"
+    }
+  },
+  {
+    dim: "空间距离",
+    title: "你更喜欢哪种空间包裹感？",
+    sub: "A 在身旁窗边 · B 在远处开阔海岸",
+    a: {
+      path: "母带_城市夜雨_CC0.mp3",
+      badge: "方案 A · 窗边贴近",
+      title: "窗边夜雨声",
+      desc: "像躺在被窝里听窗外屋檐与街巷落雨，亲近有安全感"
+    },
+    b: {
+      path: "海浪_远海.hq.mp3",
+      badge: "方案 B · 远方开阔",
+      title: "远方夜海潮汐",
+      desc: "声音从远处海面一层层推来，视野开阔，适合彻底放空"
+    }
+  },
+  {
+    dim: "深夜氛围",
+    title: "夜深时，哪种自然背景更安心？",
+    sub: "A 几乎静止的微风 · B 带一点夏夜生机",
+    a: {
+      path: "夜风.hq.mp3",
+      badge: "方案 A · 林梢静风",
+      title: "林间拂过晚风",
+      desc: "极简平稳的风声流动，没有太多变化，让思绪缓缓停下来"
+    },
+    b: {
+      path: "虫鸣.hq.mp3",
+      badge: "方案 B · 夏夜生机",
+      title: "夏夜院落虫鸣",
+      desc: "像小时候外婆家夏夜纳凉，有一点点温柔的生命气息"
+    }
+  },
+  {
+    dim: "音色底色",
+    title: "最后一组，哪种质感更合胃口？",
+    sub: "A 暖厚低频包裹 · B 清澈流水透亮",
+    a: {
+      path: "雨中低鸣.hq.mp3",
+      badge: "方案 A · 暖厚低频",
+      title: "暖夜低鸣雨底",
+      desc: "低频温暖绵厚，像一条厚毛毯轻轻盖住思绪"
+    },
+    b: {
+      path: "溪流.hq.mp3",
+      badge: "方案 B · 清澈流水",
+      title: "山涧清亮溪流",
+      desc: "清透流动的山间小溪，帮人从杂乱思绪里清醒放空"
+    }
+  }
+];
+
+var ARCHETYPES = {
+  eaves_rain: {
+    id: "eaves_rain",
+    name: "屋檐避雨型",
+    icon: "🌧",
+    tagline: "你喜欢稳稳当当、贴近身旁的夜雨，最能帮思绪安全着陆。",
+    prompt: "睡不着，想要窗外下雨的声音，暖一点、稳一点",
+    intent: { scene: "rain", mood: "sleep", warmth: "warm", dynamics: "steady" },
+    img: "img/rain-window.jpg",
+    accent: "#8e74e8",
+    tracks: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.65, pan: 0, mode: "loop", density: 0.4 },
+      { path: "柔和雨.hq.mp3", weight: 0.35, pan: -0.2, mode: "loop", density: 0.4 }
+    ]
+  },
+  forest_drops: {
+    id: "forest_drops",
+    name: "林间听滴型",
+    icon: "🍃",
+    tagline: "你对细微颗粒与自然层次很敏锐，喜欢有画面感的森林雨夜。",
+    prompt: "想要雨落在树叶上的声音，加一点林间轻风，柔和好睡",
+    intent: { scene: "rain", mood: "relax", warmth: "neutral", dynamics: "gentle" },
+    img: "img/dark-forest-lake.jpg",
+    accent: "#5fa896",
+    tracks: [
+      { path: "柔和雨.hq.mp3", weight: 0.6, pan: 0, mode: "loop", density: 0.4 },
+      { path: "备选_大雨打树叶_CC0.mp3", weight: 0.45, pan: -0.32, mode: "loop", density: 0.4 },
+      { path: "夜风.hq.mp3", weight: 0.3, pan: 0.34, mode: "loop", density: 0.4 }
+    ]
+  },
+  deep_ocean: {
+    id: "deep_ocean",
+    name: "深海放空型",
+    icon: "🌊",
+    tagline: "你不喜欢过于贴近耳边的声音，宽阔远方的海浪更能带走疲惫。",
+    prompt: "太累了，想听远处的海浪和夜风，什么都不想",
+    intent: { scene: "ocean", mood: "calm", warmth: "neutral", dynamics: "steady" },
+    img: "img/night-lake-stars.jpg",
+    accent: "#5889d6",
+    tracks: [
+      { path: "海浪_远海.hq.mp3", weight: 0.75, pan: 0, mode: "loop", density: 0.4 },
+      { path: "夜风.hq.mp3", weight: 0.32, pan: 0.36, mode: "loop", density: 0.4 }
+    ]
+  },
+  summer_yard: {
+    id: "summer_yard",
+    name: "夏夜纳凉型",
+    icon: "🌙",
+    tagline: "完全静止反而容易胡思乱想，一点柔和虫鸣与晚风更有陪伴感。",
+    prompt: "夏天的晚上，有轻雨、虫鸣和一点微风",
+    intent: { scene: "forest", mood: "relax", warmth: "warm", dynamics: "gentle" },
+    img: "img/moon-water.jpg",
+    accent: "#9b85d6",
+    tracks: [
+      { path: "乡村小雨.hq.mp3", weight: 0.5, pan: -0.1, mode: "loop", density: 0.4 },
+      { path: "虫鸣.hq.mp3", weight: 0.45, pan: -0.4, mode: "intermittent", density: 0.5 },
+      { path: "夜风.hq.mp3", weight: 0.3, pan: 0.36, mode: "loop", density: 0.4 }
+    ]
+  },
+  mountain_stream: {
+    id: "mountain_stream",
+    name: "山涧清泉型",
+    icon: "💧",
+    tagline: "清亮透澈的流动水声，帮你从繁杂思绪里慢慢抽离。",
+    prompt: "想听山里小溪流水配林间微风，清澈安静",
+    intent: { scene: "stream", mood: "focus", warmth: "cool", dynamics: "steady" },
+    img: "img/starry-mountain-lake.jpg",
+    accent: "#59a5c7",
+    tracks: [
+      { path: "溪流.hq.mp3", weight: 0.72, pan: -0.16, mode: "loop", density: 0.4 },
+      { path: "夜风.hq.mp3", weight: 0.34, pan: 0.36, mode: "loop", density: 0.4 }
+    ]
+  },
+  warm_blanket: {
+    id: "warm_blanket",
+    name: "暖毯星夜型",
+    icon: "✨",
+    tagline: "你偏爱最高浓度的暖厚包裹感，像钻进一条绵软的夜间毛毯。",
+    prompt: "非常想睡着，要城市夜雨加暖一点的低频包裹感",
+    intent: { scene: "mix", mood: "sleep", warmth: "warm", dynamics: "steady" },
+    img: "img/warm-bedroom.jpg",
+    accent: "#c48ad4",
+    tracks: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.62, pan: 0, mode: "loop", density: 0.4 },
+      { path: "雨中低鸣.hq.mp3", weight: 0.38, pan: 0, mode: "loop", density: 0.4 }
+    ]
+  }
+};
+
+var currentStep = 0;
+var answers = [];
+var previewAudio = new Audio();
+previewAudio.loop = true;
+var playingSide = "";
+var currentProfile = null;
+var reportMixer = null;
+var reportPlaying = false;
+
+if (typeof YexiMixer !== "undefined" && YexiMixer.isSupported()) {
+  reportMixer = new YexiMixer({ apiBase: API });
+}
+
+function stopAbPreview() {
+  previewAudio.pause();
+  previewAudio.removeAttribute("src");
+  playingSide = "";
+  var cards = document.querySelectorAll(".ab-card");
+  for (var i = 0; i < cards.length; i++) {
+    cards[i].classList.remove("playing");
+  }
+  var btns = document.querySelectorAll(".ab-play-btn");
+  for (var j = 0; j < btns.length; j++) {
+    btns[j].textContent = "▶ 试听";
+  }
+}
+
+function stopReportPreview() {
+  reportPlaying = false;
+  if (reportMixer) reportMixer.setPlaying(false);
+  var btn = document.getElementById("playReportBtn");
+  if (btn) btn.textContent = "▶ 试听专属声景";
+}
+
+function toggleAbPreview(side, opt) {
+  var meta = ySoundMeta(opt.path);
+  if (playingSide === side && !previewAudio.paused) {
+    stopAbPreview();
+    ySetAmbient(meta.img, meta.accent, false);
+    document.getElementById("previewHint").textContent = "已暂停试听";
+    return;
+  }
+  stopAbPreview();
+  playingSide = side;
+  previewAudio.src = API + "/api/asset?name=" + encodeURIComponent(opt.path);
+  previewAudio.play().catch(function() {});
+
+  var card = document.getElementById("abCard_" + side);
+  var btn = document.getElementById("abPlay_" + side);
+  if (card) card.classList.add("playing");
+  if (btn) btn.textContent = "❚❚ 暂停";
+  ySetAmbient(meta.img, meta.accent, true);
+  document.getElementById("previewHint").textContent = "正在试听「" + opt.title + "」";
+}
+
+function renderRound() {
+  stopAbPreview();
+  var r = ROUNDS[currentStep];
+  document.getElementById("stepLabel").textContent = "第 " + (currentStep + 1) + " / " + ROUNDS.length + " 组";
+  document.getElementById("roundDimLabel").textContent = r.dim;
+  document.getElementById("progressFill").style.width = (((currentStep + 1) / ROUNDS.length) * 100) + "%";
+  document.getElementById("roundTitle").textContent = r.title;
+  document.getElementById("roundSub").textContent = r.sub;
+  document.getElementById("prevBtn").disabled = currentStep === 0;
+  document.getElementById("previewHint").textContent = "真实 CC0 录音 · 零音质篡改";
+
+  var grid = document.getElementById("abGrid");
+  grid.innerHTML = "";
+
+  var sides = ["a", "b"];
+  for (var i = 0; i < sides.length; i++) {
+    (function(side) {
+      var opt = r[side];
+      var meta = ySoundMeta(opt.path);
+      var card = document.createElement("div");
+      card.className = "glass ab-card";
+      card.id = "abCard_" + side;
+      card.innerHTML =
+        '<div class="ab-bg" style="background-image:url(' + meta.img + ')"></div>' +
+        '<div class="ab-inner">' +
+          '<div>' +
+            '<div class="ab-top">' +
+              '<span class="ab-badge">' + yEscape(opt.badge) + '</span>' +
+              '<span class="ab-ico">' + meta.icon + '</span>' +
+            '</div>' +
+            '<div class="ab-name">' + yEscape(opt.title) + '</div>' +
+            '<div class="ab-desc">' + yEscape(opt.desc) + '</div>' +
+          '</div>' +
+          '<div class="ab-actions">' +
+            '<button type="button" class="y-btn-ghost ab-play-btn" id="abPlay_' + side + '">▶ 试听</button>' +
+            '<button type="button" class="y-btn-primary" id="abPick_' + side + '">选这段 ›</button>' +
+          '</div>' +
+        '</div>';
+      grid.appendChild(card);
+
+      document.getElementById("abPlay_" + side).onclick = function() {
+        toggleAbPreview(side, opt);
+      };
+      document.getElementById("abPick_" + side).onclick = function() {
+        pickOption(side);
+      };
+    })(sides[i]);
+  }
+}
+
+function computeProfile(ans) {
+  var c0 = ans[0] || "a";
+  var c1 = ans[1] || "a";
+  var c2 = ans[2] || "a";
+  var c3 = ans[3] || "a";
+
+  var warmth = 30 + (c0 === "a" ? 25 : 0) + (c1 === "a" ? 18 : 0) + (c3 === "a" ? 24 : 0);
+  var crisp  = 28 + (c0 === "b" ? 28 : 0) + (c2 === "b" ? 14 : 0) + (c3 === "b" ? 24 : 0);
+  var space  = 32 + (c1 === "b" ? 36 : 0) + (c2 === "a" ? 24 : 0);
+  var nature = 30 + (c0 === "b" ? 20 : 0) + (c2 === "b" ? 30 : 0) + (c3 === "b" ? 16 : 0);
+
+  var archKey = "eaves_rain";
+  if (c0 === "a" && c1 === "a" && c3 === "a") {
+    archKey = "warm_blanket";
+  } else if (c0 === "a" && c1 === "a" && c3 === "b") {
+    archKey = "eaves_rain";
+  } else if (c1 === "b" && c2 === "a" && c3 === "a") {
+    archKey = "deep_ocean";
+  } else if (c1 === "b" && c2 === "b" && c3 === "a") {
+    archKey = "deep_ocean";
+  } else if (c2 === "b") {
+    archKey = "summer_yard";
+  } else if (c0 === "b" && c2 === "a") {
+    archKey = "forest_drops";
+  } else {
+    archKey = "mountain_stream";
+  }
+
+  var arch = ARCHETYPES[archKey];
+  return {
+    archetype_id: arch.id,
+    archetype_name: arch.name,
+    icon: arch.icon,
+    tagline: arch.tagline,
+    prompt: arch.prompt,
+    intent: arch.intent,
+    img: arch.img,
+    accent: arch.accent,
+    scores: {
+      warmth: Math.min(100, warmth),
+      crisp: Math.min(100, crisp),
+      space: Math.min(100, space),
+      nature: Math.min(100, nature)
+    },
+    tracks: arch.tracks
+  };
+}
+
+function pickOption(side) {
+  stopAbPreview();
+  answers[currentStep] = side;
+  if (currentStep + 1 < ROUNDS.length) {
+    currentStep += 1;
+    renderRound();
+    return;
+  }
+  var profile = computeProfile(answers);
+  saveAndShowReport(profile);
+}
+
+function saveLocalProfile(p) {
+  try {
+    localStorage.setItem(EAR_PROFILE_KEY, JSON.stringify(p));
+  } catch (e) {}
+}
+
+function saveAndShowReport(profile) {
+  currentProfile = profile;
+  saveLocalProfile(profile);
+  showReport(profile, "正在写入你的耳朵档案…");
+
+  yPost("/api/ear_profile", profile)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d && d.ok && d.ear_profile) {
+        currentProfile = mergeVisualMeta(d.ear_profile);
+        saveLocalProfile(currentProfile);
+        document.getElementById("resultStatus").textContent = "已写入你的夜息耳朵档案 · AI 配声与推荐将自动参考此偏好";
+      }
+    })
+    .catch(function() {
+      document.getElementById("resultStatus").textContent = "已暂存在本机浏览器，后续可直接带进 DIY 或保存海报";
+    });
+}
+
+function mergeVisualMeta(prof) {
+  if (!prof) return null;
+  var arch = ARCHETYPES[prof.archetype_id];
+  var lead = (prof.tracks && prof.tracks.length) ? ySoundMeta(prof.tracks[0].path) : ySoundMeta("");
+  prof.img = prof.img || (arch ? arch.img : lead.img);
+  prof.accent = prof.accent || (arch ? arch.accent : lead.accent);
+  return prof;
+}
+
+function showReport(profile, statusMsg) {
+  stopAbPreview();
+  stopReportPreview();
+  currentProfile = mergeVisualMeta(profile);
+
+  document.getElementById("quizView").style.display = "none";
+  document.getElementById("resultView").style.display = "block";
+  document.getElementById("resultIcon").textContent = currentProfile.icon || "☾";
+  document.getElementById("resultTitle").textContent = currentProfile.archetype_name || "夜息聆听者";
+  document.getElementById("resultTagline").textContent = currentProfile.tagline || "";
+  document.getElementById("resultBg").style.backgroundImage = "url(" + (currentProfile.img || "img/moon-water.jpg") + ")";
+  document.getElementById("resultStatus").textContent = statusMsg || "已同步你的耳朵档案";
+
+  ySetAmbient(currentProfile.img || "img/moon-water.jpg", currentProfile.accent || "#8e74e8", false);
+
+  var DIMS = [
+    { key: "warmth", label: "暖厚包裹" },
+    { key: "crisp", label: "清脆颗粒" },
+    { key: "space", label: "空间开阔" },
+    { key: "nature", label: "自然生机" }
+  ];
+  var scores = currentProfile.scores || {};
+  var dimHtml = "";
+  for (var i = 0; i < DIMS.length; i++) {
+    var val = Math.max(0, Math.min(100, parseInt(scores[DIMS[i].key], 10) || 50));
+    dimHtml +=
+      '<div class="dim-row">' +
+        '<div class="dim-top"><span>' + DIMS[i].label + '</span><span>' + val + '%</span></div>' +
+        '<div class="dim-bar"><div class="dim-fill" style="width:' + val + '%"></div></div>' +
+      '</div>';
+  }
+  document.getElementById("dimCard").innerHTML = dimHtml;
+
+  var list = currentProfile.tracks || [];
+  var pillsHtml = "";
+  for (var j = 0; j < list.length; j++) {
+    var m = ySoundMeta(list[j].path);
+    var suffix = list[j].mode === "intermittent" ? ("偶发 " + Math.round((list[j].density || 0.4) * 100) + "%") : (Math.round((list[j].weight || 0) * 100) + "%");
+    pillsHtml += '<span class="recipe-pill">' + m.icon + ' ' + yEscape(m.name) + ' · ' + suffix + '</span>';
+  }
+  document.getElementById("resultRecipePills").innerHTML = pillsHtml;
+}
+
+document.getElementById("prevBtn").onclick = function() {
+  if (currentStep > 0) {
+    currentStep -= 1;
+    renderRound();
+  }
+};
+
+document.getElementById("playReportBtn").onclick = function() {
+  if (!currentProfile || !currentProfile.tracks || !reportMixer) return;
+  if (reportPlaying) {
+    stopReportPreview();
+    ySetAmbient(currentProfile.img, currentProfile.accent, false);
+    return;
+  }
+  reportPlaying = true;
+  reportMixer.syncTracks(currentProfile.tracks);
+  reportMixer.setMasterVolume(0.85);
+  reportMixer.setPlaying(true);
+  if (reportMixer.ctx && reportMixer.ctx.state === "suspended") {
+    reportMixer.ctx.resume().catch(function() {});
+  }
+  this.textContent = "❚❚ 暂停试听";
+  ySetAmbient(currentProfile.img, currentProfile.accent, true);
+};
+
+document.getElementById("toDiyBtn").onclick = function() {
+  if (!currentProfile) return;
+  stopReportPreview();
+  var code = yEncodeMix({ title: currentProfile.archetype_name + "专属", tracks: currentProfile.tracks });
+  if (code) {
+    location.href = "index.html#mix=" + encodeURIComponent(code);
+  } else {
+    location.href = "index.html";
+  }
+};
+
+document.getElementById("toAgentBtn").onclick = function() {
+  if (!currentProfile) return;
+  stopReportPreview();
+  var p = currentProfile.prompt || "睡不着，想要让我放松的自然声音";
+  location.href = "agent.html?say=" + encodeURIComponent(p) + "&auto=1";
+};
+
+document.getElementById("savePosterBtn").onclick = function() {
+  if (!currentProfile) return;
+  var st = document.getElementById("resultStatus");
+  st.textContent = "正在生成耳朵人格海报…";
+  yRenderEarReportPng(currentProfile, function() {
+    st.textContent = "已下载「" + currentProfile.archetype_name + "_耳朵人格报告.png」";
+  });
+};
+
+document.getElementById("retestBtn").onclick = function() {
+  stopReportPreview();
+  stopAbPreview();
+  currentStep = 0;
+  answers = [];
+  document.getElementById("resultView").style.display = "none";
+  document.getElementById("quizView").style.display = "block";
+  renderRound();
+};
+
+// 初始化：若有已存档案（且未传 ?retest=1），直接展示报告；否则从第 1 组开始
+var forceRetest = new URLSearchParams(location.search).get("retest") === "1";
+renderRound();
+
+if (!forceRetest) {
+  var localSaved = null;
+  try {
+    var rawLocal = localStorage.getItem(EAR_PROFILE_KEY);
+    localSaved = rawLocal ? JSON.parse(rawLocal) : null;
+  } catch (e) {}
+
+  yGet("/api/ear_profile")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var prof = (d && d.ear_profile && d.ear_profile.archetype_id) ? d.ear_profile : localSaved;
+      if (prof && prof.archetype_id && currentStep === 0 && answers.length === 0) {
+        saveLocalProfile(prof);
+        showReport(prof, "这是你上次测出的耳朵档案 · 点「重新测试」可再测一次");
+      }
+    })
+    .catch(function() {
+      if (localSaved && localSaved.archetype_id && currentStep === 0 && answers.length === 0) {
+        showReport(localSaved, "这是你上次测出的耳朵档案 · 点「重新测试」可再测一次");
+      }
+    });
+}
+</script>
+</body>
+</html>

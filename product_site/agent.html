@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · AI 配声</title>
+<link rel="stylesheet" href="theme.css?v=2">
+<style>
+  .wrap-agent {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 22px 104px;
+    transition: opacity 0.55s ease;
+  }
+  .wrap-agent.in-chat {
+    padding-bottom: 220px;
+  }
+
+  /* 极简无框一行页头：把空间留给核心操作区 */
+  .agent-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 2px 2px 12px;
+    min-height: 44px;
+  }
+  .agent-head-left {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .agent-head h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #fff;
+  }
+  .agent-sub {
+    font-size: 12px;
+    color: var(--y-text-sub);
+  }
+  .agent-mem-tag {
+    font-size: 11px;
+    color: #cbeedf;
+  }
+  .new-chat-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(218, 200, 255, 0.22);
+    color: #dfd1ff;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: inherit;
+    display: none;
+    flex: 0 0 auto;
+  }
+  .new-chat-btn.show {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .new-chat-btn:hover {
+    background: rgba(var(--y-accent-rgb), 0.2);
+    border-color: rgba(218, 200, 255, 0.45);
+  }
+
+  /* 阶段一：首屏绝对主角 —— 提示词设计台 */
+  .designer-box.hide {
+    display: none;
+  }
+  .designer-card {
+    padding: 16px;
+    border-color: rgba(var(--y-accent-rgb), 0.30);
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.36), 0 0 40px rgba(var(--y-accent-rgb), 0.10);
+  }
+  .designer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .designer-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .designer-tools {
+    display: flex;
+    gap: 6px;
+  }
+  .tiny-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(218, 200, 255, 0.18);
+    color: var(--y-text-sub);
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .tiny-btn:hover {
+    color: #fff;
+    border-color: rgba(218, 200, 255, 0.45);
+  }
+
+  #promptDraft {
+    min-height: 92px;
+    font-size: 15px;
+    padding: 13px 14px;
+    line-height: 1.6;
+  }
+
+  .builder-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .builder-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .builder-dim {
+    width: 32px;
+    flex: 0 0 32px;
+    font-size: 11px;
+    color: var(--y-text-muted);
+  }
+  .builder-chips {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .dim-chip {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(218, 200, 255, 0.15);
+    border-radius: 16px;
+    padding: 5px 11px;
+    font-size: 12px;
+    color: #d6c9ef;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .dim-chip:hover {
+    border-color: rgba(var(--y-accent-rgb), 0.55);
+    color: #fff;
+  }
+  .dim-chip.on {
+    background: rgba(var(--y-accent-rgb), 0.30);
+    border-color: rgba(var(--y-accent-rgb), 0.78);
+    color: #fff;
+  }
+
+  .designer-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .designer-actions .y-btn-primary {
+    flex: 1.5;
+    min-width: 170px;
+  }
+  .designer-actions .y-btn-ghost {
+    flex: 0.9;
+    min-width: 118px;
+  }
+  .designer-err {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #ff9eb5;
+    min-height: 16px;
+  }
+  .designer-err:empty {
+    display: none;
+  }
+
+  /* 对话时间线 */
+  .chat-stream {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .msg-user-wrap {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .msg-user {
+    max-width: 84%;
+    padding: 9px 14px;
+    border-radius: 17px 17px 5px 17px;
+    background: linear-gradient(135deg, rgba(var(--y-accent-rgb), 0.55), rgba(88, 60, 158, 0.72));
+    border: 1px solid rgba(235, 224, 255, 0.28);
+    color: #fff;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  /* 简洁思考状态气泡 */
+  .msg-thinking {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 10px 14px;
+    border-radius: 16px 16px 16px 5px;
+    background: rgba(21, 15, 36, 0.72);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.34);
+    font-size: 12.5px;
+    color: #e4d6ff;
+  }
+
+  /* 阶段二：聚焦核心问题的 AI 追问卡片 */
+  .msg-ask-box {
+    padding: 15px;
+    border-radius: 18px 18px 18px 6px;
+    background: rgba(21, 15, 36, 0.76);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.38);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  }
+  .collected-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 9px;
+  }
+  .col-pill {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(142, 224, 197, 0.42);
+    background: rgba(142, 224, 197, 0.11);
+    color: #cef7e8;
+  }
+  .ask-question {
+    font-size: 15.5px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.48;
+    margin-bottom: 12px;
+  }
+  .qa-options {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  @media (min-width: 500px) {
+    .qa-options {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .qa-opt-btn {
+    text-align: left;
+    padding: 11px 13px;
+    border-radius: 13px;
+    background: rgba(var(--y-accent-rgb), 0.14);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.36);
+    color: #f4eeff;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  }
+  .qa-opt-btn:hover:not(:disabled) {
+    background: rgba(var(--y-accent-rgb), 0.30);
+    border-color: rgba(226, 212, 255, 0.65);
+    transform: translateY(-1px);
+  }
+  .qa-opt-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .qa-opt-btn.picked {
+    opacity: 1;
+    background: rgba(142, 224, 197, 0.20);
+    border-color: rgba(142, 224, 197, 0.65);
+    color: #e4fff5;
+  }
+  .qa-skip-row {
+    margin-top: 9px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .qa-skip-btn {
+    background: transparent;
+    border: none;
+    color: #c8b6ee;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 3px 4px;
+  }
+  .qa-skip-btn:hover:not(:disabled) {
+    color: #fff;
+  }
+  .qa-skip-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  /* 阶段三：声景版本卡居主位 + 折叠思考 */
+  .msg-ai-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .ver-card {
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(18, 13, 32, 0.80);
+    border: 1px solid rgba(218, 200, 255, 0.20);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+    transition: border-color 0.35s ease, box-shadow 0.35s ease;
+  }
+  .ver-card.is-playing-card {
+    border-color: rgba(var(--y-accent-rgb), 0.76);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42), 0 0 32px rgba(var(--y-accent-rgb), 0.24);
+  }
+  .ver-hero {
+    position: relative;
+    padding: 14px 15px;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    background-size: cover;
+    background-position: center;
+  }
+  .ver-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(14, 10, 26, 0.84), rgba(14, 10, 26, 0.68));
+  }
+  .ver-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+  .ver-orb-wrap {
+    position: relative;
+    width: 50px;
+    height: 50px;
+    flex: 0 0 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ver-orb-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--y-accent-rgb), 0.48);
+    opacity: 0.2;
+    pointer-events: none;
+  }
+  .ver-card.is-playing-card .ver-orb-ring {
+    opacity: 0.9;
+    animation: yBreath 3.8s ease-in-out infinite;
+  }
+  .ver-play-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 1px solid rgba(242, 234, 255, 0.45);
+    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28), rgba(var(--y-accent-rgb), 0.68));
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(var(--y-accent-rgb), 0.36);
+  }
+  .ver-head-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .ver-title-line {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .ver-num {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #1f1136;
+    background: #e2d0ff;
+    border-radius: 7px;
+    padding: 1px 6px;
+  }
+  .ver-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .ver-mode-badge {
+    margin-left: auto;
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(218, 200, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    color: #d6c9ef;
+  }
+  .ver-mode-badge.ai {
+    border-color: rgba(142, 224, 197, 0.45);
+    background: rgba(142, 224, 197, 0.14);
+    color: #cef7e8;
+  }
+  .ver-final-sub {
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: #ccefe2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ver-tracks {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .ver-contains-head {
+    font-size: 12px;
+    color: #dfd1ff;
+    padding: 2px 2px 4px;
+    font-weight: 500;
+  }
+  .ver-track-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(218, 200, 255, 0.09);
+  }
+  .vt-layer {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    flex: 0 0 auto;
+    opacity: 0.9;
+  }
+  .vt-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .vt-name {
+    font-size: 12.5px;
+    color: #fff;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .vt-desc {
+    font-size: 11px;
+    color: var(--y-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .vt-right {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+  }
+  .vt-pos {
+    font-size: 10.5px;
+    color: #d6c2ff;
+    white-space: nowrap;
+  }
+  .vt-bar-wrap {
+    width: 42px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(218, 200, 255, 0.14);
+    overflow: hidden;
+  }
+  .vt-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #bfa2f8, #8ee0c5);
+  }
+  .vt-pct {
+    font-size: 11px;
+    color: var(--y-text-sub);
+    min-width: 30px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .ver-reply-note {
+    padding: 0 14px 10px;
+    font-size: 12px;
+    color: var(--y-text-sub);
+    line-height: 1.5;
+  }
+
+  .ver-actions {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    padding: 2px 14px 12px;
+  }
+  .ver-act-btn {
+    border: 1px solid rgba(218, 200, 255, 0.22);
+    background: rgba(255, 255, 255, 0.045);
+    color: #efe5ff;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .ver-act-btn:hover {
+    background: rgba(var(--y-accent-rgb), 0.2);
+    border-color: rgba(var(--y-accent-rgb), 0.58);
+  }
+  .ver-act-btn.on {
+    background: rgba(142, 224, 197, 0.18);
+    border-color: rgba(142, 224, 197, 0.62);
+    color: #d9fff1;
+  }
+  .ver-act-btn.primary {
+    background: rgba(var(--y-accent-rgb), 0.26);
+    border-color: rgba(var(--y-accent-rgb), 0.62);
+  }
+
+  .followup-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .followup-strip .y-chip {
+    font-size: 11.5px;
+    padding: 5px 12px;
+  }
+
+  /* 底部悬浮操作区 */
+  .agent-dock-fixed {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(86px + env(safe-area-inset-bottom));
+    max-width: 860px;
+    margin: 0 auto;
+    z-index: 38;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    pointer-events: none;
+    transition: opacity 0.55s ease;
+  }
+  .agent-dock-fixed > * {
+    pointer-events: auto;
+  }
+  .mini-bar {
+    display: none;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 11px;
+    border-radius: 15px;
+    background: rgba(16, 12, 28, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(218, 200, 255, 0.2);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.44);
+  }
+  .mini-bar.show {
+    display: flex;
+  }
+  .mini-play-btn {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(226, 212, 255, 0.36);
+    background: rgba(var(--y-accent-rgb), 0.28);
+    color: #fff;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mini-title {
+    font-size: 12px;
+    color: #fff;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+  }
+  .mini-vol-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 60px;
+  }
+  .mini-vol-pct {
+    font-size: 10.5px;
+    color: var(--y-text-muted);
+    min-width: 28px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .mini-tools {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+  }
+  .mini-tools .hero-tool-btn {
+    padding: 4px 9px;
+    font-size: 11px;
+  }
+
+  .chat-dock-box {
+    display: none;
+    padding: 6px;
+    border-radius: 22px;
+    background: rgba(16, 12, 28, 0.90);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.42);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+  .chat-dock-box.show {
+    display: block;
+  }
+  .chat-dock-box .ai-capsule {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 2px 4px 2px 10px;
+  }
+  .chat-dock-status {
+    font-size: 11px;
+    color: #d6c2ff;
+    padding: 2px 12px 3px;
+    min-height: 16px;
+  }
+  .chat-dock-status.err {
+    color: #ff9eb5;
+  }
+  .chat-dock-status:empty {
+    display: none;
+  }
+
+  body.lights-out .wrap-agent,
+  body.lights-out .agent-dock-fixed {
+    opacity: 0;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="wrap-agent" id="wrapAgent">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon">☾</div>
+      <div class="name">夜息</div>
+    </a>
+    <a class="pill-link" id="earBadgeLink" href="ear_test.html">✦ 敏感点测试</a>
+  </div>
+
+  <!-- 极简一行页头 -->
+  <header class="agent-head">
+    <div class="agent-head-left">
+      <h1>✦ AI 配声</h1>
+      <span class="agent-sub">写提示词 · AI 问 1 题就配好</span>
+      <span class="agent-mem-tag" id="profileHintTag"></span>
+    </div>
+    <button type="button" class="new-chat-btn" id="newChatBtn">↺ 重来</button>
+  </header>
+
+  <!-- 阶段一：首屏主操作区（提示词设计台） -->
+  <section class="designer-box" id="promptDesigner">
+    <div class="glass designer-card">
+      <div class="designer-head">
+        <div class="designer-title">✎ 写下想要的夜色</div>
+        <div class="designer-tools">
+          <button type="button" class="tiny-btn" id="randomDraftBtn">随机</button>
+          <button type="button" class="tiny-btn" id="clearDraftBtn">清空</button>
+        </div>
+      </div>
+
+      <textarea class="y-textarea" id="promptDraft" placeholder="例：睡不着，想要窗外暖一点的雨，别打雷"></textarea>
+
+      <div class="builder-rows" id="promptBuilderGrid"></div>
+
+      <div class="designer-actions">
+        <button type="button" class="y-btn-primary" id="startQaBtn">✦ 开始 AI 问答配声</button>
+        <button type="button" class="y-btn-ghost" id="skipQaBtn">⚡ 直接生成</button>
+      </div>
+      <div class="designer-err" id="designerStatus"></div>
+    </div>
+  </section>
+
+  <!-- 阶段二 & 三：问答流 + 嵌入式版本卡 -->
+  <section class="chat-stream" id="chatStream"></section>
+</div>
+
+<!-- 底部悬浮：迷你播放条 + 对话继续输入栏 -->
+<div class="agent-dock-fixed">
+  <div class="mini-bar" id="miniBar">
+    <button type="button" class="mini-play-btn" id="miniPlayBtn" aria-label="播放或暂停">▶</button>
+    <div class="mini-title" id="miniTitle">未开始</div>
+    <div class="mini-vol-wrap">
+      <input type="range" class="y-slider" id="masterVol" min="0" max="100" value="85" aria-label="总音量">
+      <span class="mini-vol-pct" id="masterVolPct">85%</span>
+    </div>
+    <div class="mini-tools">
+      <button type="button" class="hero-tool-btn" id="timerBtn" title="点击切换睡眠定时">⏱ 定时</button>
+      <button type="button" class="hero-tool-btn" id="lightsOutBtn" title="熄灭界面只留夜色与声音">☾ 熄灯</button>
+    </div>
+  </div>
+
+  <div class="chat-dock-box" id="chatDockBox">
+    <div class="ai-capsule">
+      <span class="ai-capsule-ico">✦</span>
+      <input id="say" type="text" placeholder="可直接点选项，或自己打字回答…" autocomplete="off">
+      <button type="button" class="ai-go" id="genBtn">✦ 回答</button>
+    </div>
+    <div class="chat-dock-status" id="status"></div>
+  </div>
+</div>
+
+<!-- 熄灯纯享遮罩 -->
+<div class="lights-out-overlay" id="lightsOutOverlay" title="轻触任意处唤醒界面">
+  <div class="lights-out-moon">☾</div>
+  <div class="lights-out-title" id="lightsOutTitle">夜息 AI 配声</div>
+  <div class="lights-out-timer" id="lightsOutTimer">轻触任意处唤醒</div>
+  <div class="lights-out-hint">晚安 · 声音将继续陪你</div>
+</div>
+
+<div class="tabbar">
+  <a href="home.html"><span class="ti">☾</span>今晚</a>
+  <a href="agent.html" class="on"><span class="ti">✦</span>AI 配声</a>
+  <a href="index.html"><span class="ti">☰</span>DIY</a>
+  <a href="community.html"><span class="ti">♡</span>广场</a>
+</div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_catalog.js"></script>
+<script src="yexi_mixer.js"></script>
+<script>
+var API = YEXI_API;
+initAuthBar("agent.html");
+initAmbientStage("img/moon-water.jpg", "#8e74e8");
+
+var PROMPT_DIMS = [
+  { label: "画面", chips: ["夜雨", "远海浪", "夏夜虫鸣", "山涧溪流"] },
+  { label: "听感", chips: ["暖一点", "轻柔不吵", "雨打树叶", "清透干净"] },
+  { label: "细节", chips: ["别打雷", "加点夜风", "偶尔点缀", "稳一点"] }
+];
+
+var RANDOM_DRAFTS = [
+  "失眠睡不着，想要窗外夜雨",
+  "好累想放空，想要远海浪",
+  "深夜写东西，想要山涧溪流，清透干净",
+  "想要夏夜虫鸣的感觉，轻柔不吵"
+];
+
+var COLLECTED_LABELS = [
+  { key: "state", name: "状态" },
+  { key: "scene", name: "画面" },
+  { key: "texture", name: "听感" },
+  { key: "spatial_rhythm", name: "节奏" },
+  { key: "avoid", name: "避雷" }
+];
+
+var versions = [];
+var chatHistory = [];
+var initialPrompt = "";
+var qaRound = 0;
+var inConversation = false;
+var activeVersionIdx = -1;
+var isPlaying = false;
+var isSending = false;
+var masterVolume = 0.85;
+var fadeFactor = 1.0;
+var fallbackAudio = null;
+var usingFallback = false;
+var randDraftIdx = 0;
+
+var TIMER_STEPS = [0, 15, 30, 60];
+var timerStepIdx = 0;
+var sleepTimerId = null;
+var sleepEndAt = 0;
+
+var wrapAgent = document.getElementById("wrapAgent");
+var promptDesigner = document.getElementById("promptDesigner");
+var promptDraft = document.getElementById("promptDraft");
+var startQaBtn = document.getElementById("startQaBtn");
+var skipQaBtn = document.getElementById("skipQaBtn");
+var designerStatus = document.getElementById("designerStatus");
+var chatDockBox = document.getElementById("chatDockBox");
+var sayInput = document.getElementById("say");
+var genBtn = document.getElementById("genBtn");
+var statusEl = document.getElementById("status");
+var chatStream = document.getElementById("chatStream");
+var newChatBtn = document.getElementById("newChatBtn");
+var miniBar = document.getElementById("miniBar");
+var miniPlayBtn = document.getElementById("miniPlayBtn");
+var miniTitle = document.getElementById("miniTitle");
+var timerBtn = document.getElementById("timerBtn");
+
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function setStatus(msg, isErr) {
+  statusEl.textContent = msg || "";
+  statusEl.className = "chat-dock-status" + (isErr ? " err" : "");
+}
+
+function formatPanLabel(pan) {
+  var pct = Math.round(Math.abs(pan || 0) * 100);
+  if (pct < 8) return "正中";
+  return (pan < 0 ? "左 " : "右 ") + pct + "%";
+}
+
+function enrichTracks(items) {
+  var out = [];
+  for (var i = 0; i < (items || []).length; i++) {
+    var it = items[i];
+    if (!it || !it.path) continue;
+    var base = String(it.path).split("/").pop().split("\\").pop();
+    var w = parseFloat(it.weight);
+    if (!base || isNaN(w) || w <= 0) continue;
+    var m = ySoundMeta(base);
+    out.push({
+      path: base,
+      weight: clamp(w, 0.08, 1.0),
+      pan: typeof it.pan === "number" ? clamp(it.pan, -0.9, 0.9) : (m.defaultPan || 0),
+      mode: it.mode === "intermittent" ? "intermittent" : (it.mode === "loop" ? "loop" : (m.defaultMode || "loop")),
+      density: typeof it.density === "number" ? clamp(it.density, 0.15, 0.85) : (m.defaultDensity || 0.4),
+      role_note: String(it.role_note || m.desc || "")
+    });
+  }
+  return out;
+}
+
+// ===== 阶段一：3 行 12 词块拼装器 =====
+function renderPromptBuilder() {
+  var grid = document.getElementById("promptBuilderGrid");
+  grid.innerHTML = "";
+  for (var i = 0; i < PROMPT_DIMS.length; i++) {
+    (function(dim) {
+      var row = document.createElement("div");
+      row.className = "builder-row";
+      var label = document.createElement("div");
+      label.className = "builder-dim";
+      label.textContent = dim.label;
+      var chips = document.createElement("div");
+      chips.className = "builder-chips";
+
+      for (var j = 0; j < dim.chips.length; j++) {
+        (function(text) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "dim-chip";
+          b.setAttribute("data-chip", text);
+          b.textContent = text;
+          b.onclick = function() { toggleDraftChip(text); };
+          chips.appendChild(b);
+        })(dim.chips[j]);
+      }
+
+      row.appendChild(label);
+      row.appendChild(chips);
+      grid.appendChild(row);
+    })(PROMPT_DIMS[i]);
+  }
+}
+
+function toggleDraftChip(chipText) {
+  var val = promptDraft.value.trim();
+  if (val.indexOf(chipText) !== -1) {
+    var parts = val.split(/[，,；;]+/);
+    var kept = [];
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i].trim();
+      if (!p || p === chipText) continue;
+      var cleaned = p.replace(chipText, "").replace(/^[，,\s]+|[，,\s]+$/g, "");
+      if (cleaned) kept.push(cleaned);
+    }
+    promptDraft.value = kept.join("，");
+  } else {
+    promptDraft.value = val ? (val.replace(/[，,；;\s]+$/, "") + "，" + chipText) : chipText;
+  }
+  syncBuilderChipsFromDraft();
+}
+
+function syncBuilderChipsFromDraft() {
+  var val = promptDraft.value;
+  var chips = document.getElementById("promptBuilderGrid").querySelectorAll(".dim-chip");
+  for (var i = 0; i < chips.length; i++) {
+    var txt = chips[i].getAttribute("data-chip");
+    chips[i].classList.toggle("on", val.indexOf(txt) !== -1);
+  }
+}
+
+promptDraft.addEventListener("input", syncBuilderChipsFromDraft);
+
+document.getElementById("randomDraftBtn").onclick = function() {
+  promptDraft.value = RANDOM_DRAFTS[randDraftIdx % RANDOM_DRAFTS.length];
+  randDraftIdx += 1;
+  syncBuilderChipsFromDraft();
+};
+document.getElementById("clearDraftBtn").onclick = function() {
+  promptDraft.value = "";
+  syncBuilderChipsFromDraft();
+  promptDraft.focus();
+};
+
+// ===== Web Audio 分层引擎 =====
+var mixer = null;
+if (typeof YexiMixer !== "undefined" && YexiMixer.isSupported()) {
+  mixer = new YexiMixer({
+    apiBase: API,
+    onError: function() {
+      if (fallbackAudio && fallbackAudio.src && !usingFallback) {
+        usingFallback = true;
+        if (mixer) mixer.setPlaying(false);
+        fallbackAudio.volume = clamp(masterVolume * fadeFactor, 0, 1);
+        if (isPlaying) fallbackAudio.play().catch(function() {});
+      }
+    }
+  });
+}
+
+function getActiveVersion() {
+  if (activeVersionIdx >= 0 && activeVersionIdx < versions.length) {
+    return versions[activeVersionIdx];
+  }
+  return null;
+}
+
+function syncEngine() {
+  var ver = getActiveVersion();
+  var effectiveVol = clamp(masterVolume * fadeFactor, 0, 1);
+  if (usingFallback && fallbackAudio) {
+    fallbackAudio.volume = effectiveVol;
+    return;
+  }
+  if (mixer && ver) {
+    mixer.setMasterVolume(effectiveVol);
+    mixer.syncTracks(ver.tracks);
+  }
+}
+
+function findLeadTrack(tracks) {
+  if (!tracks || tracks.length === 0) return null;
+  var best = tracks[0];
+  for (var i = 1; i < tracks.length; i++) {
+    if (tracks[i].weight > best.weight) best = tracks[i];
+  }
+  return best;
+}
+
+function updatePlaybackUI() {
+  var ver = getActiveVersion();
+  wrapAgent.classList.toggle("in-chat", inConversation);
+  promptDesigner.classList.toggle("hide", inConversation);
+  chatDockBox.classList.toggle("show", inConversation);
+  newChatBtn.classList.toggle("show", inConversation);
+
+  miniBar.classList.toggle("show", versions.length > 0);
+  miniPlayBtn.textContent = isPlaying ? "❚❚" : "▶";
+
+  if (ver) {
+    miniTitle.textContent = "v" + ver.verNum + " · " + ver.title;
+    document.getElementById("lightsOutTitle").textContent = ver.title;
+    var lead = findLeadTrack(ver.tracks);
+    if (lead) {
+      var meta = ySoundMeta(lead.path);
+      ySetAmbient(meta.img, meta.accent, isPlaying);
+    }
+  } else {
+    ySetAmbient("img/moon-water.jpg", "#8e74e8", false);
+  }
+
+  var cards = chatStream.querySelectorAll(".ver-card");
+  for (var i = 0; i < cards.length; i++) {
+    var idx = parseInt(cards[i].getAttribute("data-ver-idx"), 10);
+    var activeNow = isPlaying && idx === activeVersionIdx;
+    cards[i].classList.toggle("is-playing-card", activeNow);
+    var pBtn = cards[i].querySelector(".ver-play-btn");
+    if (pBtn) pBtn.textContent = activeNow ? "❚❚" : "▶";
+  }
+
+  if (versions.length > 0) {
+    sayInput.placeholder = "哪里不合适？继续说就能改（如：太吵、加夜风、不要雷）";
+    genBtn.textContent = "✦ 调整";
+  } else {
+    sayInput.placeholder = "可直接点选项，或自己打字回答…";
+    genBtn.textContent = "✦ 回答";
+  }
+}
+
+function updateMediaSession(ver) {
+  if (!("mediaSession" in navigator) || !ver) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: ver.title,
+      artist: "夜息 AI 配声",
+      album: "AI 自然助眠"
+    });
+    navigator.mediaSession.setActionHandler("play", function() { playVersion(activeVersionIdx); });
+    navigator.mediaSession.setActionHandler("pause", function() { pauseAll(); });
+  } catch (e) {}
+}
+
+function pauseAll() {
+  isPlaying = false;
+  if (mixer) mixer.setPlaying(false);
+  if (fallbackAudio) fallbackAudio.pause();
+  updatePlaybackUI();
+}
+
+function playVersion(idx) {
+  if (idx < 0 || idx >= versions.length) return;
+  var ver = versions[idx];
+  if (activeVersionIdx === idx && isPlaying) {
+    pauseAll();
+    return;
+  }
+
+  activeVersionIdx = idx;
+  usingFallback = false;
+  if (fallbackAudio && fallbackAudio.src) {
+    fallbackAudio.pause();
+  }
+
+  isPlaying = true;
+  var effectiveVol = clamp(masterVolume * fadeFactor, 0, 1);
+
+  if (mixer) {
+    mixer.syncTracks(ver.tracks);
+    mixer.setMasterVolume(effectiveVol);
+    mixer.setPlaying(true);
+    if (mixer.ctx && mixer.ctx.state === "suspended") {
+      mixer.ctx.resume().then(function() {
+        if (mixer.ctx && mixer.ctx.state === "suspended" && isPlaying) {
+          isPlaying = false;
+          mixer.setPlaying(false);
+          updatePlaybackUI();
+          setStatus("已配好 · 点卡片 ▶ 试听", false);
+        }
+      }).catch(function() {});
+    }
+  } else if (fallbackAudio && fallbackAudio.src) {
+    usingFallback = true;
+    fallbackAudio.volume = effectiveVol;
+    fallbackAudio.play().catch(function() {
+      isPlaying = false;
+      updatePlaybackUI();
+    });
+  }
+
+  updateMediaSession(ver);
+  updatePlaybackUI();
+}
+
+// ===== 渲染精简对话与卡片 =====
+function appendUserBubble(text) {
+  var wrap = document.createElement("div");
+  wrap.className = "msg-user-wrap";
+  wrap.innerHTML = '<div class="msg-user">' + yEscape(text) + '</div>';
+  chatStream.appendChild(wrap);
+  wrap.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function createThinkingBubble(inQaPhase) {
+  var el = document.createElement("div");
+  el.className = "msg-thinking";
+  el.innerHTML = '<span class="spin"></span><span>' + (inQaPhase ? "AI 正在看你的提示词…" : "AI 正在编排声景…") + '</span>';
+  chatStream.appendChild(el);
+  el.scrollIntoView({ behavior: "smooth", block: "end" });
+  return {
+    stop: function() {
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+  };
+}
+
+function lockPreviousAskBoxes(pickedOption) {
+  var boxes = chatStream.querySelectorAll(".msg-ask-box");
+  for (var i = 0; i < boxes.length; i++) {
+    var btns = boxes[i].querySelectorAll(".qa-opt-btn");
+    for (var j = 0; j < btns.length; j++) {
+      if (pickedOption && btns[j].getAttribute("data-opt") === pickedOption && i === boxes.length - 1) {
+        btns[j].classList.add("picked");
+      }
+      btns[j].disabled = true;
+    }
+    var skips = boxes[i].querySelectorAll(".qa-skip-btn");
+    for (var k = 0; k < skips.length; k++) {
+      skips[k].disabled = true;
+    }
+  }
+}
+
+function clearOldFollowups() {
+  var olds = chatStream.querySelectorAll(".followup-strip");
+  for (var i = 0; i < olds.length; i++) {
+    if (olds[i].parentNode) olds[i].parentNode.removeChild(olds[i]);
+  }
+}
+
+function renderConfirmedPillsHtml(collected) {
+  var c = collected || {};
+  var html = "";
+  for (var i = 0; i < COLLECTED_LABELS.length; i++) {
+    var item = COLLECTED_LABELS[i];
+    var val = c[item.key];
+    if (val) {
+      html += '<span class="col-pill">✓ ' + yEscape(val) + '</span>';
+    }
+  }
+  return html;
+}
+
+function appendAskCard(d) {
+  lockPreviousAskBoxes("");
+  var box = document.createElement("div");
+  box.className = "msg-ask-box";
+
+  var confirmedHtml = renderConfirmedPillsHtml(d.collected);
+  var opts = d.options || [];
+  var optsHtml = "";
+  for (var i = 0; i < opts.length; i++) {
+    optsHtml += '<button type="button" class="qa-opt-btn" data-opt="' + yEscape(opts[i]) + '">' + yEscape(opts[i]) + '</button>';
+  }
+
+  box.innerHTML =
+    (confirmedHtml ? '<div class="collected-strip">' + confirmedHtml + '</div>' : '') +
+    '<div class="ask-question">' + yEscape(d.question) + '</div>' +
+    '<div class="qa-options">' + optsHtml + '</div>' +
+    '<div class="qa-skip-row"><button type="button" class="qa-skip-btn">直接生成 ›</button></div>';
+
+  var optBtns = box.querySelectorAll(".qa-opt-btn");
+  for (var j = 0; j < optBtns.length; j++) {
+    (function(btn) {
+      btn.onclick = function() {
+        var chosen = btn.getAttribute("data-opt");
+        lockPreviousAskBoxes(chosen);
+        sendTurn(chosen, false);
+      };
+    })(optBtns[j]);
+  }
+  box.querySelector(".qa-skip-btn").onclick = function() {
+    lockPreviousAskBoxes("");
+    sendTurn("按目前信息直接帮我配", true);
+  };
+
+  chatStream.appendChild(box);
+  box.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function appendAiTurnCard(ver) {
+  var verIdx = versions.length - 1;
+  lockPreviousAskBoxes("");
+  clearOldFollowups();
+
+  var wrap = document.createElement("div");
+  wrap.className = "msg-ai-wrap";
+
+  // 1. 主角置顶：可播放声景版本卡（明确告知包含哪些声音与听感，零技术调试词）
+  var lead = findLeadTrack(ver.tracks);
+  var leadMeta = lead ? ySoundMeta(lead.path) : ySoundMeta("母带_城市夜雨_CC0.mp3");
+
+  var soundNames = [];
+  var tracksHtml = "";
+  for (var ti = 0; ti < ver.tracks.length; ti++) {
+    var tr = ver.tracks[ti];
+    var m = ySoundMeta(tr.path);
+    var layerInfo = YEXI_LAYERS[m.layer] || YEXI_LAYERS.texture;
+    var pct = Math.round(tr.weight * 100);
+    var posTxt = formatPanLabel(tr.pan) + (tr.mode === "intermittent" ? " · 偶发" : "");
+    var descTxt = tr.role_note || m.desc || "";
+    soundNames.push(m.name);
+    tracksHtml +=
+      '<div class="ver-track-row">' +
+        '<span class="vt-layer" style="color:' + layerInfo.color + '">' + layerInfo.badge + '</span>' +
+        '<div class="vt-meta">' +
+          '<div class="vt-name">' + m.icon + ' ' + yEscape(m.name) + '</div>' +
+          (descTxt ? '<div class="vt-desc">' + yEscape(descTxt) + '</div>' : '') +
+        '</div>' +
+        '<div class="vt-right">' +
+          '<span class="vt-pos">' + yEscape(posTxt) + '</span>' +
+          '<div class="vt-bar-wrap"><div class="vt-bar-fill" style="width:' + pct + '%"></div></div>' +
+          '<span class="vt-pct">' + pct + '%</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  var containsLine = "包含 " + soundNames.length + " 种自然声：" + soundNames.join(" + ");
+  var modeBadgeHtml = ver.aiPowered ?
+    '<span class="ver-mode-badge ai">✦ AI 定制</span>' :
+    '<span class="ver-mode-badge">快速匹配</span>';
+
+  var card = document.createElement("div");
+  card.className = "ver-card";
+  card.setAttribute("data-ver-idx", String(verIdx));
+  card.innerHTML =
+    '<div class="ver-hero" style="background-image:url(' + leadMeta.img + ')">' +
+      '<div class="ver-orb-wrap">' +
+        '<div class="ver-orb-ring"></div>' +
+        '<button type="button" class="ver-play-btn" aria-label="试听或暂停">▶</button>' +
+      '</div>' +
+      '<div class="ver-head-meta">' +
+        '<div class="ver-title-line">' +
+          '<span class="ver-num">v' + ver.verNum + '</span>' +
+          '<span class="ver-title">' + yEscape(ver.title) + '</span>' +
+          modeBadgeHtml +
+        '</div>' +
+        (ver.finalPrompt ? '<div class="ver-final-sub" title="' + yEscape(ver.finalPrompt) + '">✦ ' + yEscape(ver.finalPrompt) + '</div>' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="ver-tracks">' +
+      '<div class="ver-contains-head">' + yEscape(containsLine) + '</div>' +
+      tracksHtml +
+    '</div>' +
+    (ver.reply ? '<div class="ver-reply-note">' + yEscape(ver.reply) + '</div>' : '') +
+    '<div class="ver-actions">' +
+      '<button type="button" class="ver-act-btn" data-act="keep">♥ 就这个</button>' +
+      '<button type="button" class="ver-act-btn primary" data-act="diy">☰ 去 DIY 微调</button>' +
+      '<button type="button" class="ver-act-btn" data-act="player">☾ 全屏助眠</button>' +
+    '</div>';
+
+  card.querySelector(".ver-play-btn").onclick = function() { playVersion(verIdx); };
+  card.querySelector('[data-act="keep"]').onclick = function() { saveFeedbackGood(verIdx, this); };
+  card.querySelector('[data-act="diy"]').onclick = function() {
+    var code = yEncodeMix({ title: ver.title, tracks: ver.tracks });
+    location.href = code ? ("index.html#mix=" + encodeURIComponent(code)) : "index.html";
+  };
+  card.querySelector('[data-act="player"]').onclick = function() { openFullPlayer(ver); };
+
+  wrap.appendChild(card);
+
+  // 2. 3 个简短追问芯片
+  if (ver.followups && ver.followups.length > 0) {
+    var fStrip = document.createElement("div");
+    fStrip.className = "followup-strip";
+    for (var fi = 0; fi < ver.followups.length; fi++) {
+      (function(txt) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "y-chip";
+        chip.textContent = txt;
+        chip.onclick = function() { sendTurn(txt, true); };
+        fStrip.appendChild(chip);
+      })(ver.followups[fi]);
+    }
+    wrap.appendChild(fStrip);
+  }
+
+  chatStream.appendChild(wrap);
+  wrap.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+// ===== 核心：发起一轮问答或出稿/微调 =====
+function launchFromDesigner(forceCompose) {
+  var draft = promptDraft.value.trim();
+  if (!draft) {
+    designerStatus.textContent = "先写几句话或点几个词块";
+    promptDraft.focus();
+    return;
+  }
+  designerStatus.textContent = "";
+  initialPrompt = draft;
+  qaRound = 0;
+  sendTurn(draft, !!forceCompose);
+}
+
+function sendTurn(rawSay, forceCompose) {
+  var say = String(rawSay || "").trim();
+  if (!say || isSending) {
+    if (!say) {
+      setStatus("说说你的想法，或哪里需要调整", true);
+      sayInput.focus();
+    }
+    return;
+  }
+
+  isSending = true;
+  inConversation = true;
+  startQaBtn.disabled = true;
+  skipQaBtn.disabled = true;
+  genBtn.disabled = true;
+  sayInput.value = "";
+  setStatus("");
+  updatePlaybackUI();
+
+  appendUserBubble(say);
+  var thinker = createThinkingBubble(versions.length === 0 && !forceCompose);
+
+  var curVer = getActiveVersion() || (versions.length > 0 ? versions[versions.length - 1] : null);
+  var currentTracksPayload = curVer ? curVer.tracks : [];
+
+  yPost("/api/agent_chat", {
+    say: say,
+    initial_prompt: initialPrompt,
+    qa_round: qaRound,
+    force_compose: !!forceCompose,
+    current_tracks: currentTracksPayload,
+    history: chatHistory.slice(-6),
+    seconds: 30
+  })
+  .then(function(r) {
+    if (r.status === 404) {
+      return fallbackLegacyTurn(say, currentTracksPayload);
+    }
+    return r.json();
+  })
+  .then(function(d) {
+    thinker.stop();
+    isSending = false;
+    startQaBtn.disabled = false;
+    skipQaBtn.disabled = false;
+    genBtn.disabled = false;
+
+    if (!d || d.error) {
+      setStatus((d && d.error) || "编排失败，请再试一次", true);
+      return;
+    }
+
+    if (d.action === "ask" && versions.length === 0) {
+      chatHistory.push({ role: "user", content: say });
+      chatHistory.push({ role: "assistant", content: d.question || "" });
+      qaRound += 1;
+      appendAskCard(d);
+      updatePlaybackUI();
+      return;
+    }
+
+    var tracks = enrichTracks(d.tracks || []);
+    if (tracks.length === 0) {
+      setStatus("没找到合适声轨，请换个说法试试", true);
+      return;
+    }
+
+    fallbackAudio = new Audio(API + "/api/audio?t=" + Date.now());
+    fallbackAudio.loop = true;
+
+    var isAiPowered = typeof d.ai_powered === "boolean" ? d.ai_powered : (
+      String(d.source || "").indexOf("Qwen") !== -1 || String(d.source || "").indexOf("本地") !== -1
+    );
+
+    var ver = {
+      verNum: versions.length + 1,
+      say: say,
+      title: d.title || "夜息声景",
+      reply: d.reply || "已为你配好这版夜色。",
+      aiPowered: isAiPowered,
+      finalPrompt: d.final_prompt || initialPrompt || say,
+      collected: d.collected || {},
+      intent: d.intent || {},
+      tracks: tracks,
+      followups: d.followups || ["再轻柔一点", "加点夜风", "稳一点"],
+      kept: false
+    };
+    versions.push(ver);
+    chatHistory.push({ role: "user", content: say });
+    chatHistory.push({ role: "assistant", content: ver.reply });
+
+    appendAiTurnCard(ver);
+    playVersion(versions.length - 1);
+  })
+  .catch(function(e) {
+    thinker.stop();
+    isSending = false;
+    startQaBtn.disabled = false;
+    skipQaBtn.disabled = false;
+    genBtn.disabled = false;
+    setStatus("连接本地服务失败（" + e.message + "）", true);
+  });
+}
+
+function fallbackLegacyTurn(say, currentTracks) {
+  if (!currentTracks || currentTracks.length === 0) {
+    var combined = initialPrompt && initialPrompt !== say ? (initialPrompt + "，" + say) : say;
+    return yPost("/api/generate", { say: combined, seconds: 30 })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.error) return d;
+        var enriched = enrichTracks(d.items || []);
+        var names = [];
+        for (var i = 0; i < enriched.length; i++) {
+          names.push(ySoundMeta(enriched[i].path).name);
+        }
+        var srcTxt = String(d.source || "");
+        var isAi = typeof d.ai_powered === "boolean" ? d.ai_powered : (
+          srcTxt.indexOf("Qwen") !== -1 || srcTxt.indexOf("本地") !== -1
+        );
+        return {
+          ok: true,
+          action: "compose",
+          ai_powered: isAi,
+          title: d.scene_detail || (names[0] || "夜息声景"),
+          final_prompt: combined,
+          reply: "已选出 " + names.join(" + ") + "。",
+          intent: {
+            scene: d.scene, scene_detail: d.scene_detail,
+            mood: d.mood, warmth: d.warmth, dynamics: d.dynamics, avoid: d.avoid || []
+          },
+          tracks: enriched,
+          followups: ["太吵了轻一点", "声音太闷", "要稳一点"]
+        };
+      });
+  }
+
+  return yPost("/api/feedback", { feedback: say, seconds: 30, items: currentTracks })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) return d;
+      var enriched = enrichTracks(d.items || []);
+      var notes = d.notes || [];
+      return {
+        ok: true,
+        action: "compose",
+        ai_powered: false,
+        title: "微调版",
+        final_prompt: (initialPrompt ? initialPrompt + " · " : "") + say,
+        reply: notes.length ? ("已调整：" + notes.join("；") + "。") : "已为你微调配比。",
+        intent: {},
+        tracks: enriched,
+        followups: ["再轻柔一点", "声音杂了", "换城市夜雨"]
+      };
+    });
+}
+
+function saveFeedbackGood(verIdx, btn) {
+  var ver = versions[verIdx];
+  if (!ver) return;
+  btn.classList.add("on");
+  btn.textContent = "♥ 已记住";
+  yPost("/api/feedback", {
+    feedback: "满意",
+    items: ver.tracks,
+    say: ver.finalPrompt || ver.say || ver.title
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() {
+    ver.kept = true;
+    setStatus("已记入你的耳朵档案", false);
+    loadMemory();
+  })
+  .catch(function() {
+    btn.classList.remove("on");
+    btn.textContent = "♥ 就这个";
+    setStatus("本地服务未连接，未能保存", true);
+  });
+}
+
+function openFullPlayer(ver) {
+  yPost("/api/play", { items: ver.tracks, title: ver.title })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { setStatus(d.error, true); return; }
+      sessionStorage.setItem("yezi_play", JSON.stringify({
+        title: ver.title,
+        audio: d.audio,
+        items: d.items || ver.tracks
+      }));
+      pauseAll();
+      location.href = "player.html";
+    })
+    .catch(function() {
+      setStatus("本地服务未连接，无法进入全屏助眠页", true);
+    });
+}
+
+// ===== 耳朵档案与记忆 =====
+function applyEarProfileUI(prof, goodCount) {
+  var link = document.getElementById("earBadgeLink");
+  var tag = document.getElementById("profileHintTag");
+  if (prof && prof.archetype_name && link) {
+    link.textContent = "✦ " + prof.archetype_name;
+  }
+  if (tag) {
+    var parts = [];
+    if (prof && prof.archetype_name) parts.push(prof.archetype_name);
+    if (goodCount > 0) parts.push("已记 " + goodCount + " 次偏爱");
+    tag.textContent = parts.length ? ("· " + parts.join(" · ")) : "";
+  }
+}
+
+function loadMemory() {
+  var localProf = null;
+  try {
+    var raw = localStorage.getItem("yezi_ear_profile_v1");
+    if (raw) localProf = JSON.parse(raw);
+  } catch (e) {}
+  if (localProf) applyEarProfileUI(localProf, 0);
+
+  yGet("/api/memory")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var prof = (d && d.ear_profile) ? d.ear_profile : localProf;
+      if (d && d.ear_profile) {
+        try { localStorage.setItem("yezi_ear_profile_v1", JSON.stringify(d.ear_profile)); } catch (e) {}
+      }
+      applyEarProfileUI(prof, d.good_count || 0);
+    })
+    .catch(function() {});
+}
+
+// ===== 定时 / 熄灯 / 播放控制 =====
+function clearSleepTimer() {
+  if (sleepTimerId) {
+    clearInterval(sleepTimerId);
+    sleepTimerId = null;
+  }
+  fadeFactor = 1.0;
+  syncEngine();
+}
+
+timerBtn.onclick = function() {
+  timerStepIdx = (timerStepIdx + 1) % TIMER_STEPS.length;
+  var mins = TIMER_STEPS[timerStepIdx];
+  clearSleepTimer();
+
+  if (mins <= 0) {
+    timerBtn.textContent = "⏱ 定时";
+    timerBtn.classList.remove("on");
+    document.getElementById("lightsOutTimer").textContent = "轻触任意处唤醒";
+    setStatus("已关闭睡眠定时", false);
+    return;
+  }
+
+  timerBtn.classList.add("on");
+  sleepEndAt = Date.now() + mins * 60 * 1000;
+  if (!isPlaying && versions.length > 0) {
+    playVersion(activeVersionIdx >= 0 ? activeVersionIdx : versions.length - 1);
+  }
+
+  var tick = function() {
+    var left = Math.max(0, (sleepEndAt - Date.now()) / 1000);
+    fadeFactor = left <= 60 ? Math.max(0, left / 60) : 1.0;
+    syncEngine();
+
+    var m = Math.floor(left / 60);
+    var s = Math.floor(left % 60);
+    var label = m + ":" + (s < 10 ? "0" : "") + s;
+    timerBtn.textContent = "⏱ " + label;
+    document.getElementById("lightsOutTimer").textContent = "将在 " + label + " 后渐弱熄声";
+
+    if (left <= 0) {
+      clearSleepTimer();
+      pauseAll();
+      timerStepIdx = 0;
+      timerBtn.textContent = "⏱ 定时";
+      timerBtn.classList.remove("on");
+      document.getElementById("lightsOutTimer").textContent = "晚安，已轻轻停下";
+    }
+  };
+  tick();
+  sleepTimerId = setInterval(tick, 1000);
+};
+
+document.getElementById("lightsOutBtn").onclick = function() {
+  if (!isPlaying && versions.length > 0) {
+    playVersion(activeVersionIdx >= 0 ? activeVersionIdx : versions.length - 1);
+  }
+  document.body.classList.add("lights-out");
+};
+document.getElementById("lightsOutOverlay").onclick = function() {
+  document.body.classList.remove("lights-out");
+};
+
+miniPlayBtn.onclick = function() {
+  if (isPlaying) {
+    pauseAll();
+  } else if (versions.length > 0) {
+    playVersion(activeVersionIdx >= 0 ? activeVersionIdx : versions.length - 1);
+  }
+};
+
+document.getElementById("masterVol").oninput = function() {
+  var val = parseInt(this.value, 10) || 0;
+  masterVolume = val / 100;
+  document.getElementById("masterVolPct").textContent = val + "%";
+  syncEngine();
+};
+
+newChatBtn.onclick = function() {
+  pauseAll();
+  clearSleepTimer();
+  timerStepIdx = 0;
+  timerBtn.textContent = "⏱ 定时";
+  timerBtn.classList.remove("on");
+  versions = [];
+  chatHistory = [];
+  qaRound = 0;
+  inConversation = false;
+  activeVersionIdx = -1;
+  chatStream.innerHTML = "";
+  setStatus("");
+  updatePlaybackUI();
+  promptDraft.focus();
+};
+
+startQaBtn.onclick = function() { launchFromDesigner(false); };
+skipQaBtn.onclick = function() { launchFromDesigner(true); };
+
+genBtn.onclick = function() { sendTurn(sayInput.value, false); };
+sayInput.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") sendTurn(this.value, false);
+});
+
+// 初始化
+renderPromptBuilder();
+syncBuilderChipsFromDraft();
+updatePlaybackUI();
+loadMemory();
+
+var params = new URLSearchParams(location.search);
+var fromQuery = params.get("say");
+if (fromQuery) {
+  promptDraft.value = fromQuery;
+  syncBuilderChipsFromDraft();
+  if (params.get("auto") === "1") {
+    initialPrompt = fromQuery;
+    sendTurn(fromQuery, false);
+  } else {
+    promptDraft.focus();
+  }
+}
+</script>
+</body>
+</html>

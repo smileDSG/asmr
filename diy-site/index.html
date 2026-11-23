@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>声音调制台 · 自己配一段助眠音</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #ffffff;
+    color: #000000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; color: #000000; }
+  .sub { color: #000000; font-size: 14px; margin: 0 0 24px; }
+  .section-title { font-size: 15px; font-weight: 600; margin: 28px 0 12px; color: #000000; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .preset {
+    border: 1px solid #000000; background: #ffffff; color: #000000;
+    padding: 7px 14px; border-radius: 20px; cursor: pointer; font-size: 13px;
+  }
+  .preset:hover { background: #f0f0f0; }
+
+  .card {
+    border: 1px solid #d8d8d8; border-radius: 12px; padding: 14px 16px;
+    margin-bottom: 10px; background: #ffffff;
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .name { font-size: 15px; font-weight: 500; color: #000000; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .val { font-size: 13px; color: #000000; min-width: 34px; text-align: right; }
+  input[type=range] { width: 100%; accent-color: #000000; cursor: pointer; }
+
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+  .btn {
+    border: 1px solid #000000; background: #000000; color: #ffffff;
+    padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  }
+  .btn:hover { opacity: 0.82; }
+  .btn.ghost { background: #ffffff; color: #000000; }
+
+  .share { margin-top: 28px; border-top: 1px solid #e0e0e0; padding-top: 20px; }
+  .share p { font-size: 13px; color: #000000; margin: 0 0 10px; }
+  .linkbox {
+    width: 100%; border: 1px solid #d8d8d8; border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; color: #000000; background: #fafafa;
+    word-break: break-all;
+  }
+  .hint { font-size: 12px; color: #000000; margin-top: 8px; }
+  .status { font-size: 13px; color: #000000; margin-top: 12px; min-height: 20px; }
+  .foot { font-size: 12px; color: #000000; margin-top: 40px; border-top: 1px solid #e0e0e0; padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>声音调制台</h1>
+  <p class="sub">拖动滑块，配一段属于你的助眠音。调好了，把链接发给朋友就能分享你的配方。</p>
+
+  <div class="section-title">快速配方</div>
+  <div class="presets" id="presets"></div>
+
+  <div class="section-title">调音台</div>
+  <div id="cards"></div>
+
+  <div class="bar">
+    <button class="btn" id="playBtn">试听</button>
+    <button class="btn ghost" id="stopBtn">停止</button>
+    <button class="btn ghost" id="exportBtn">导出音频</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="share">
+    <p>你的配方链接（复制发给朋友，对方打开就是这段配方）：</p>
+    <div class="linkbox" id="linkBox">—</div>
+    <div class="bar">
+      <button class="btn ghost" id="copyBtn">复制链接</button>
+    </div>
+    <div class="hint">也可以把别人的配方链接粘贴到浏览器地址栏打开，直接加载他的配方。</div>
+  </div>
+
+  <div class="foot">
+    素材来自 CC0 免费音效库，可自由使用。全部在你浏览器本地合成，不上传任何数据。
+  </div>
+</div>
+
+<script>
+const SOUNDS = [
+  { key: 'sleep_rain',    name: '夜雨',   color: '#4a4a4a' },
+  { key: 'soft_fireplace',name: '壁炉',   color: '#7a5c3e' },
+  { key: 'ocean_waves',   name: '海浪',   color: '#3e6a7a' },
+  { key: 'gentle_wind',   name: '微风',   color: '#6a7a5c' },
+  { key: 'night_crickets',name: '虫鸣',   color: '#5c5a3e' },
+  { key: 'morning_forest',name: '晨林',   color: '#4a6a4a' }
+];
+
+const PRESETS = [
+  { name: '雨夜助眠',   vals: [60, 15, 0, 8, 0, 0] },
+  { name: '海边小屋',   vals: [0, 20, 70, 10, 0, 0] },
+  { name: '林间清晨',   vals: [0, 0, 0, 25, 0, 65] },
+  { name: '夏夜虫鸣',   vals: [20, 0, 0, 15, 55, 10] },
+  { name: '全音效',     vals: [40, 30, 30, 20, 20, 20] }
+];
+
+let volumes = [0, 0, 0, 0, 0, 0];
+let audioCtx = null;
+let buffers = [];
+let sources = [];
+let gainNodes = [];
+let loaded = false;
+
+const cardsEl = document.getElementById('cards');
+const statusEl = document.getElementById('status');
+
+function buildCards() {
+  SOUNDS.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<div class="card-head">' +
+        '<div class="name"><span class="dot" style="background:' + s.color + '"></span>' + s.name + '</div>' +
+        '<div class="val" id="val' + i + '">0</div>' +
+      '</div>' +
+      '<input type="range" min="0" max="100" value="0" id="slider' + i + '">';
+    cardsEl.appendChild(card);
+    document.getElementById('slider' + i).addEventListener('input', (e) => {
+      volumes[i] = Number(e.target.value);
+      document.getElementById('val' + i).textContent = volumes[i];
+      applyGain(i);
+      updateLink();
+    });
+  });
+}
+
+function buildPresets() {
+  const el = document.getElementById('presets');
+  PRESETS.forEach((p) => {
+    const b = document.createElement('button');
+    b.className = 'preset';
+    b.textContent = p.name;
+    b.onclick = () => {
+      volumes = p.vals.slice();
+      volumes.forEach((v, i) => {
+        document.getElementById('slider' + i).value = v;
+        document.getElementById('val' + i).textContent = v;
+        applyGain(i);
+      });
+      updateLink();
+      statusEl.textContent = '已载入配方：' + p.name;
+    };
+    el.appendChild(b);
+  });
+}
+
+function encodeRecipe() {
+  return volumes.join(',');
+}
+
+function updateLink() {
+  const base = location.href.split('#')[0];
+  document.getElementById('linkBox').textContent = base + '#r=' + encodeRecipe();
+}
+
+function loadFromHash() {
+  const m = location.hash.match(/r=([0-9,]+)/);
+  if (!m) return false;
+  const parts = m[1].split(',').map(Number);
+  if (parts.length !== SOUNDS.length) return false;
+  volumes = parts.map(v => Math.max(0, Math.min(100, isNaN(v) ? 0 : v)));
+  volumes.forEach((v, i) => {
+    document.getElementById('slider' + i).value = v;
+    document.getElementById('val' + i).textContent = v;
+  });
+  return true;
+}
+
+async function ensureLoaded() {
+  if (loaded) return;
+  statusEl.textContent = '正在加载音效…';
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  buffers = [];
+  for (const s of SOUNDS) {
+    const resp = await fetch('sounds/' + s.key + '.ogg');
+    const arr = await resp.arrayBuffer();
+    const buf = await audioCtx.decodeAudioData(arr);
+    buffers.push(buf);
+  }
+  loaded = true;
+  statusEl.textContent = '就绪，点「试听」开始';
+}
+
+function applyGain(i) {
+  if (!gainNodes[i] || !audioCtx) return;
+  const g = volumes[i] / 100 * 0.9;
+  gainNodes[i].gain.setTargetAtTime(g, audioCtx.currentTime, 0.05);
+}
+
+async function play() {
+  await ensureLoaded();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  stopSources();
+  sources = [];
+  gainNodes = [];
+  SOUNDS.forEach((s, i) => {
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffers[i];
+    src.loop = true;
+    const g = audioCtx.createGain();
+    g.gain.value = volumes[i] / 100 * 0.9;
+    src.connect(g);
+    g.connect(audioCtx.destination);
+    src.start();
+    sources.push(src);
+    gainNodes.push(g);
+  });
+  statusEl.textContent = '播放中…再次调整滑块可实时听到变化';
+}
+
+function stopSources() {
+  sources.forEach(src => { try { src.stop(); } catch (e) {} });
+  sources = [];
+  gainNodes = [];
+}
+
+function stop() {
+  stopSources();
+  statusEl.textContent = '已停止';
+}
+
+function floatToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const len = buffer.length;
+  const sampleRate = buffer.sampleRate;
+  const bytesPerSample = 2;
+  const dataSize = len * numCh * bytesPerSample;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+  function str(o, s) { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); }
+  str(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  str(8, 'WAVE');
+  str(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numCh * bytesPerSample, true);
+  view.setUint16(32, numCh * bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  str(36, 'data');
+  view.setUint32(40, dataSize, true);
+  const channels = [];
+  for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+  let off = 44;
+  for (let i = 0; i < len; i++) {
+    for (let c = 0; c < numCh; c++) {
+      let v = Math.max(-1, Math.min(1, channels[c][i]));
+      view.setInt16(off, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+      off += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+async function exportAudio() {
+  await ensureLoaded();
+  statusEl.textContent = '正在生成音频（约 30 秒）…';
+  const seconds = 30;
+  const rate = 22050;
+  const offline = new OfflineAudioContext(2, seconds * rate, rate);
+  let any = false;
+  SOUNDS.forEach((s, i) => {
+    if (volumes[i] <= 0) return;
+    any = true;
+    const src = offline.createBufferSource();
+    src.buffer = buffers[i];
+    src.loop = true;
+    const g = offline.createGain();
+    g.gain.value = volumes[i] / 100 * 0.9;
+    src.connect(g);
+    g.connect(offline.destination);
+    src.start(0);
+  });
+  if (!any) { statusEl.textContent = '请先调高至少一个音效'; return; }
+  const rendered = await offline.startRendering();
+  const blob = floatToWav(rendered);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '我的配方.wav';
+  a.click();
+  URL.revokeObjectURL(url);
+  statusEl.textContent = '已导出 30 秒音频';
+}
+
+buildCards();
+buildPresets();
+const hadRecipe = loadFromHash();
+updateLink();
+if (hadRecipe) statusEl.textContent = '已加载分享的配方，点「试听」听听看';
+else statusEl.textContent = '拖动滑块调配，或点上面的快速配方';
+
+document.getElementById('playBtn').onclick = play;
+document.getElementById('stopBtn').onclick = stop;
+document.getElementById('exportBtn').onclick = exportAudio;
+document.getElementById('copyBtn').onclick = async () => {
+  const text = document.getElementById('linkBox').textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = '链接已复制，发给朋友吧';
+  } catch (e) {
+    statusEl.textContent = '复制失败，请手动选中上面的链接复制';
+  }
+};
+</script>
+</body>
+</html>

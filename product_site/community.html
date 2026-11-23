@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>配方广场 · 夜息</title>
+<link rel="stylesheet" href="theme.css?v=2">
+<style>
+  .page-head {
+    padding: 4px 2px 14px;
+  }
+  .page-head h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    margin: 0;
+    color: #fff;
+  }
+  .intro {
+    color: var(--y-text-sub);
+    font-size: 13px;
+    margin: 6px 0 18px;
+    line-height: 1.7;
+  }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(218, 200, 255, 0.16);
+    border-radius: 18px;
+    padding: 7px 15px;
+    font-size: 12px;
+    color: #d2c6eb;
+    cursor: pointer;
+    transition: background 0.25s ease, border-color 0.25s ease;
+  }
+  .tab:hover {
+    border-color: rgba(var(--y-accent-rgb), 0.5);
+  }
+  .tab.sel {
+    background: linear-gradient(135deg, rgba(var(--y-accent-rgb), 0.78), #5a3fa0);
+    color: #fff;
+    border-color: transparent;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(var(--y-accent-rgb), 0.3);
+  }
+
+  .card {
+    padding: 0 16px 16px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .banner {
+    height: 102px;
+    margin: 0 -16px 14px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    filter: saturate(0.75) brightness(0.76);
+    transition: filter 0.5s ease;
+  }
+  .card:hover .banner {
+    filter: saturate(0.88) brightness(0.86);
+  }
+  .banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(16, 11, 29, 0.08) 0%, rgba(16, 11, 29, 0.92) 100%);
+  }
+  .banner .bt {
+    position: absolute;
+    left: 16px;
+    bottom: 10px;
+    z-index: 1;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  }
+  .card-h {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  .cover {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    background: rgba(var(--y-accent-rgb), 0.16);
+    border: 1px solid rgba(218, 200, 255, 0.16);
+  }
+  .meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .meta .a {
+    font-size: 12px;
+    color: var(--y-text-sub);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .new-badge {
+    font-size: 10.5px;
+    color: #efe5ff;
+    background: rgba(var(--y-accent-rgb), 0.28);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.62);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .remix-tag {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px;
+    color: #d7c7f5;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(218, 200, 255, 0.16);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+  .borrow-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: #eadfff;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(218, 200, 255, 0.22);
+    border-radius: 999px;
+    padding: 5px 11px;
+    cursor: pointer;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .borrow-btn:hover {
+    background: rgba(var(--y-accent-rgb), 0.18);
+    border-color: rgba(var(--y-accent-rgb), 0.52);
+  }
+  .borrow-btn.on {
+    background: rgba(var(--y-accent-rgb), 0.3);
+    border-color: rgba(var(--y-accent-rgb), 0.8);
+    color: #fff;
+  }
+  .del-post-btn {
+    background: transparent;
+    border: none;
+    color: #9e91ba;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 2px 5px;
+  }
+  .del-post-btn:hover {
+    color: #ffadc2;
+  }
+  .tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .tag {
+    font-size: 11px;
+    color: #d4c8ec;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(218, 200, 255, 0.14);
+    border-radius: 10px;
+    padding: 3px 9px;
+  }
+  .desc {
+    font-size: 13px;
+    color: var(--y-text-sub);
+    margin-bottom: 12px;
+    line-height: 1.65;
+  }
+  .recipe-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .param-pill {
+    font-size: 11px;
+    color: #e6dcff;
+    background: rgba(14, 10, 26, 0.56);
+    border: 1px solid rgba(var(--y-accent-rgb), 0.28);
+    border-radius: 10px;
+    padding: 4px 9px;
+    font-variant-numeric: tabular-nums;
+  }
+  .eval-section {
+    background: rgba(11, 8, 20, 0.42);
+    border: 1px solid rgba(218, 200, 255, 0.1);
+    border-radius: 13px;
+    padding: 9px 10px;
+    margin-bottom: 12px;
+  }
+  .eval-label {
+    font-size: 11px;
+    color: var(--y-text-muted);
+    margin-bottom: 7px;
+  }
+  .eval-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .eval-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #d6cae8;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(218, 200, 255, 0.16);
+    border-radius: 999px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .eval-pill:hover {
+    border-color: rgba(var(--y-accent-rgb), 0.48);
+    background: rgba(var(--y-accent-rgb), 0.14);
+  }
+  .eval-pill.on {
+    background: rgba(var(--y-accent-rgb), 0.28);
+    border-color: rgba(var(--y-accent-rgb), 0.78);
+    color: #fff;
+  }
+  .eval-cnt {
+    font-size: 10.5px;
+    opacity: 0.85;
+  }
+  .acts {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .acts button {
+    flex: 1 1 92px;
+    padding: 9px 10px;
+    font-size: 12.5px;
+  }
+  .mini {
+    font-size: 11px;
+    color: #d6c2ff;
+    margin-top: 10px;
+    min-height: 16px;
+  }
+  .note {
+    font-size: 11px;
+    color: var(--y-text-muted);
+    text-align: center;
+    margin-top: 22px;
+    line-height: 1.9;
+    border-top: 1px solid rgba(218, 200, 255, 0.1);
+    padding-top: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon">☾</div>
+      <div class="name">夜息</div>
+    </a>
+    <a href="index.html" class="pill-link">✦ 发一张配方</a>
+  </div>
+
+  <div class="page-head">
+    <h1>配方广场</h1>
+    <div class="intro">听众在这里留下一句听感印象或「借我一晚」，点喜欢的声音明信片可一键 Remix 带进 DIY 工坊。</div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="feed"></div>
+
+  <div class="note">
+    每张配方卡都公开精确配比参数 · 可保存成声音明信片，或点「↻ Remix 微调」保留原作者署名二次创作<br>
+    所有声层均来自真实 CC0 录音，可安心用于睡前收听或商业内容创作
+  </div>
+</div>
+
+<div class="tabbar">
+  <a href="home.html"><span class="ti">☾</span>今晚</a>
+  <a href="agent.html"><span class="ti">✦</span>AI 配声</a>
+  <a href="index.html"><span class="ti">☰</span>DIY</a>
+  <a href="community.html" class="on"><span class="ti">♡</span>广场</a>
+</div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_catalog.js"></script>
+<script>
+var API = YEXI_API;
+initAuthBar("community.html");
+initAmbientStage("img/night-lake-stars.jpg", "#8e74e8");
+
+var RECIPES = [
+  {
+    id: "r1", title: "窗边夜雨", author: "夜息", group: "雨声", icon: "🌧",
+    img: "img/rain-window.jpg", accent: "#8e74e8",
+    say: "睡不着，想要窗外下雨的声音，暖一点、稳一点", tags: ["雨声", "暖", "入睡", "稳"],
+    desc: "城市夜雨打底，混一点柔和雨。像躺在被窝里听窗外细雨，轻柔包裹。",
+    items: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.6, pan: 0, mode: "loop", density: 0.4 },
+      { path: "柔和雨.hq.mp3", weight: 0.4, pan: -0.2, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r2", title: "雨打树叶", author: "夜息", group: "雨声", icon: "🍃",
+    img: "img/dark-forest-lake.jpg", accent: "#5fa896",
+    say: "想要雨落在树叶上的声音，有细碎颗粒感", tags: ["雨声", "树叶", "颗粒"],
+    desc: "雨滴打在树叶上的细碎声，比纯雨幕多一点清脆层次。",
+    items: [
+      { path: "备选_大雨打树叶_CC0.mp3", weight: 0.7, pan: -0.25, mode: "loop", density: 0.4 },
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.3, pan: 0.1, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r3", title: "远海放空", author: "夜息", group: "自然", icon: "🌊",
+    img: "img/night-lake-stars.jpg", accent: "#5889d6",
+    say: "太累了，想听远处的海浪，什么都不想", tags: ["海浪", "放空", "自然"],
+    desc: "远处的海浪一层层推过来，声音从远处传来，适合放空和发呆。",
+    items: [
+      { path: "海浪_远海.hq.mp3", weight: 0.7, pan: 0, mode: "loop", density: 0.4 },
+      { path: "海浪_黑海.hq.mp3", weight: 0.3, pan: -0.22, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r4", title: "夏夜虫鸣", author: "夜息", group: "自然", icon: "🌙",
+    img: "img/moon-water.jpg", accent: "#9b85d6",
+    say: "夏天的晚上，有虫鸣和一点风", tags: ["虫鸣", "夜风", "夏天", "自然"],
+    desc: "虫鸣配夜风，像小时候夏天在外婆家院子里纳凉的夜晚。",
+    items: [
+      { path: "虫鸣.hq.mp3", weight: 0.5, pan: -0.4, mode: "intermittent", density: 0.55 },
+      { path: "夜风.hq.mp3", weight: 0.5, pan: 0.35, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r5", title: "山涧溪流", author: "夜息", group: "自然", icon: "💧",
+    img: "img/starry-mountain-lake.jpg", accent: "#59a5c7",
+    say: "想听山里小溪流水的声音", tags: ["溪流", "自然", "清澈"],
+    desc: "山间溪流，水声清亮但不尖锐。配一点暖夜低鸣，多一点包裹感。",
+    items: [
+      { path: "溪流.hq.mp3", weight: 0.8, pan: -0.16, mode: "loop", density: 0.4 },
+      { path: "雨中低鸣.hq.mp3", weight: 0.2, pan: 0.16, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r6", title: "雨夜远雷", author: "夜息", group: "雨声", icon: "⛈",
+    img: "img/warm-bedroom.jpg", accent: "#7d6bc4",
+    say: "下雨天，天边隐约有远雷，低频饱满有包裹感", tags: ["雨声", "远雷", "低频", "包裹"],
+    desc: "雨声里混一点天边远远滚过的低沉雷声，低频更厚实深沉。",
+    items: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.7, pan: 0, mode: "loop", density: 0.4 },
+      { path: "远雷.hq.mp3", weight: 0.35, pan: 0.48, mode: "intermittent", density: 0.3 }
+    ]
+  }
+];
+
+var currentGroup = "全部";
+var groups = ["全部", "社区发布", "雨声", "自然"];
+var activePreviewAudio = null;
+var activePreviewId = "";
+var communityPosts = [];
+var loggedUsername = "";
+
+var EVAL_TAGS = [
+  { key: "steady", label: "🌙 秒睡稳态" },
+  { key: "warm", label: "☁ 暖厚包裹" },
+  { key: "crisp", label: "🍃 清脆颗粒" },
+  { key: "deep", label: "🌊 深沉低频" }
+];
+var VOTED_KEY = "yezi_community_voted_v1";
+var COUNTS_KEY = "yezi_community_counts_v1";
+var POST_TOKENS_KEY = "yezi_my_post_tokens_v1";
+var communityVotes = {};
+var myVoted = {};
+var myPostTokens = {};
+
+function loadLocalJson(key) {
+  try {
+    var raw = localStorage.getItem(key);
+    var parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveLocalJson(key, obj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(obj || {}));
+  } catch (e) {}
+}
+
+myVoted = loadLocalJson(VOTED_KEY);
+communityVotes = loadLocalJson(COUNTS_KEY);
+myPostTokens = loadLocalJson(POST_TOKENS_KEY);
+
+function formatDateShort(ts) {
+  if (!ts) return "";
+  var d = new Date(ts * 1000);
+  return (d.getMonth() + 1) + "/" + d.getDate();
+}
+
+function normalizeUserPost(raw) {
+  var items = Array.isArray(raw && raw.items) ? raw.items : [];
+  var lead = items.length > 0 ? ySoundMeta(items[0].path) : ySoundMeta("");
+  return {
+    id: raw.id,
+    title: raw.title || "深夜声景",
+    author: raw.author || "深夜旅人",
+    group: raw.group || "自然",
+    icon: lead.icon || "☾",
+    img: lead.img || "img/moon-water.jpg",
+    accent: lead.accent || "#8e74e8",
+    say: raw.title || "",
+    tags: [],
+    desc: raw.story || "来自社区创作者的真实 CC0 调音配方",
+    story: raw.story || "",
+    remix_of: raw.remix_of || null,
+    items: items,
+    created_at: raw.created_at || 0,
+    isUserPost: true
+  };
+}
+
+function allFeedRecipes() {
+  var list = [];
+  for (var i = 0; i < communityPosts.length; i++) {
+    list.push(normalizeUserPost(communityPosts[i]));
+  }
+  for (var j = 0; j < RECIPES.length; j++) {
+    list.push(RECIPES[j]);
+  }
+  return list;
+}
+
+function canDeletePost(r) {
+  if (!r || !r.isUserPost) return false;
+  if (myPostTokens[r.id]) return true;
+  if (loggedUsername && r.author === loggedUsername) return true;
+  return false;
+}
+
+function formatPanShort(pan) {
+  var p = parseFloat(pan) || 0;
+  var pct = Math.round(Math.abs(p) * 100);
+  if (pct < 5) return "正中";
+  return (p < 0 ? "左" : "右") + pct + "%";
+}
+
+function formatRecipeParams(items) {
+  var html = "";
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var m = ySoundMeta(it.path);
+    var text = m.icon + " " + m.name + " " + Math.round((it.weight || 0) * 100) + "% · " + formatPanShort(it.pan);
+    if (it.mode === "intermittent") {
+      text += " · 偶发 " + Math.round((it.density || 0.4) * 100) + "%";
+    }
+    html += '<span class="param-pill">' + yEscape(text) + '</span>';
+  }
+  return html;
+}
+
+function getRecipeEvalCount(rid, tag) {
+  var entry = communityVotes[rid];
+  if (!entry || typeof entry[tag] !== "number") return 0;
+  return Math.max(0, entry[tag]);
+}
+
+function renderEvalHtml(rid) {
+  var html = '<div class="eval-label">听众听感印象</div><div class="eval-pills">';
+  for (var i = 0; i < EVAL_TAGS.length; i++) {
+    var t = EVAL_TAGS[i];
+    var voted = !!myVoted[rid + ":" + t.key];
+    var cnt = getRecipeEvalCount(rid, t.key);
+    html += '<button type="button" class="eval-pill' + (voted ? ' on' : '') +
+      '" data-rid="' + yEscape(rid) + '" data-tag="' + yEscape(t.key) + '">' +
+      '<span>' + t.label + '</span>' +
+      '<span class="eval-cnt">' + cnt + '</span>' +
+      '</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function syncBorrowBtn(rid) {
+  var btn = document.getElementById("borrow_" + rid);
+  if (!btn) return;
+  var voted = !!myVoted[rid + ":borrow"];
+  var cnt = getRecipeEvalCount(rid, "borrow");
+  btn.classList.toggle("on", voted);
+  btn.innerHTML = '<span>🌙 借我一晚</span><span class="eval-cnt">' + cnt + '</span>';
+}
+
+function toggleEvalVote(rid, tag) {
+  var vKey = rid + ":" + tag;
+  var wasVoted = !!myVoted[vKey];
+  var delta = wasVoted ? -1 : 1;
+
+  if (wasVoted) delete myVoted[vKey];
+  else myVoted[vKey] = true;
+  saveLocalJson(VOTED_KEY, myVoted);
+
+  if (!communityVotes[rid]) communityVotes[rid] = {};
+  communityVotes[rid][tag] = Math.max(0, getRecipeEvalCount(rid, tag) + delta);
+  saveLocalJson(COUNTS_KEY, communityVotes);
+
+  syncBorrowBtn(rid);
+  var box = document.getElementById("eval_" + rid);
+  if (box) {
+    box.innerHTML = renderEvalHtml(rid);
+    bindEvalClicks(box);
+  }
+
+  yPost("/api/community_vote", { recipe_id: rid, tag: tag, delta: delta })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d && d.ok && d.counts) {
+        communityVotes[rid] = d.counts;
+        saveLocalJson(COUNTS_KEY, communityVotes);
+        syncBorrowBtn(rid);
+        var curBox = document.getElementById("eval_" + rid);
+        if (curBox) {
+          curBox.innerHTML = renderEvalHtml(rid);
+          bindEvalClicks(curBox);
+        }
+      }
+    })
+    .catch(function() {});
+}
+
+function bindEvalClicks(container) {
+  var btns = container.querySelectorAll(".eval-pill");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].onclick = function() {
+      toggleEvalVote(this.getAttribute("data-rid"), this.getAttribute("data-tag"));
+    };
+  }
+}
+
+function deleteUserPost(r) {
+  var tok = myPostTokens[r.id] || "";
+  yPost("/api/community_posts/delete", { id: r.id, delete_token: tok })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      delete myPostTokens[r.id];
+      saveLocalJson(POST_TOKENS_KEY, myPostTokens);
+      var next = [];
+      for (var i = 0; i < communityPosts.length; i++) {
+        if (communityPosts[i].id !== r.id) next.push(communityPosts[i]);
+      }
+      communityPosts = next;
+      renderFeed();
+    })
+    .catch(function() {});
+}
+
+function renderTabs() {
+  var box = document.getElementById("tabs");
+  box.innerHTML = "";
+  for (var i = 0; i < groups.length; i++) {
+    (function(g) {
+      var el = document.createElement("div");
+      el.className = "tab" + (g === currentGroup ? " sel" : "");
+      el.textContent = g;
+      el.onclick = function() {
+        currentGroup = g;
+        renderTabs();
+        renderFeed();
+      };
+      box.appendChild(el);
+    })(groups[i]);
+  }
+}
+
+function renderFeed() {
+  var feed = document.getElementById("feed");
+  feed.innerHTML = "";
+  var list = allFeedRecipes();
+  var shownCount = 0;
+
+  for (var i = 0; i < list.length; i++) {
+    (function(r) {
+      if (currentGroup === "社区发布" && !r.isUserPost) return;
+      if (currentGroup !== "全部" && currentGroup !== "社区发布" && r.group !== currentGroup) return;
+      shownCount += 1;
+
+      var card = document.createElement("div");
+      card.className = "glass card";
+      var tags = "";
+      for (var j = 0; j < (r.tags || []).length; j++) {
+        tags += '<span class="tag">' + yEscape(r.tags[j]) + '</span>';
+      }
+
+      var badgeHtml = r.isUserPost
+        ? '<span class="new-badge">✦ 社区新作</span>' +
+          (r.created_at ? '<span>' + yEscape(formatDateShort(r.created_at)) + '</span>' : '')
+        : '';
+      var delHtml = canDeletePost(r)
+        ? '<button type="button" class="del-post-btn" id="del_' + r.id + '">删除</button>'
+        : '';
+      var remixHtml = (r.remix_of && r.remix_of.title)
+        ? '<div class="remix-tag">↻ 改编自 @' + yEscape(r.remix_of.author || "夜息") + ' · 《' + yEscape(r.remix_of.title) + '》</div>'
+        : '';
+
+      var borrowVoted = !!myVoted[r.id + ":borrow"];
+      var borrowCnt = getRecipeEvalCount(r.id, "borrow");
+
+      card.innerHTML =
+        '<div class="banner" style="background-image:url(' + r.img + ')">' +
+          '<span class="bt">' + yEscape(r.title) + '</span>' +
+        '</div>' +
+        '<div class="card-h">' +
+          '<div class="cover">' + r.icon + '</div>' +
+          '<div class="meta">' +
+            '<div class="a"><span>by ' + yEscape(r.author) + '</span>' + badgeHtml + delHtml + '</div>' +
+          '</div>' +
+          '<button type="button" class="borrow-btn' + (borrowVoted ? ' on' : '') + '" id="borrow_' + r.id + '">' +
+            '<span>🌙 借我一晚</span><span class="eval-cnt">' + borrowCnt + '</span>' +
+          '</button>' +
+        '</div>' +
+        remixHtml +
+        (tags ? ('<div class="tags">' + tags + '</div>') : '<div style="height:10px"></div>') +
+        '<div class="desc">' + yEscape(r.desc) + '</div>' +
+        '<div class="recipe-params">' + formatRecipeParams(r.items) + '</div>' +
+        '<div class="eval-section" id="eval_' + r.id + '">' + renderEvalHtml(r.id) + '</div>' +
+        '<div class="acts">' +
+          '<button class="y-btn-ghost" id="p_' + r.id + '">' + (activePreviewId === r.id ? "暂停试听" : "试听") + '</button>' +
+          '<button class="y-btn-primary" id="u_' + r.id + '">↻ Remix 微调</button>' +
+          '<button class="y-btn-ghost" id="c_' + r.id + '">🖼 明信片</button>' +
+        '</div>' +
+        '<div class="mini" id="m_' + r.id + '"></div>';
+      feed.appendChild(card);
+
+      bindEvalClicks(document.getElementById("eval_" + r.id));
+      document.getElementById("borrow_" + r.id).onclick = function() {
+        toggleEvalVote(r.id, "borrow");
+      };
+      if (canDeletePost(r)) {
+        document.getElementById("del_" + r.id).onclick = function() {
+          deleteUserPost(r);
+        };
+      }
+      document.getElementById("p_" + r.id).onclick = function() { preview(r); };
+      document.getElementById("u_" + r.id).onclick = function() { useIt(r); };
+      document.getElementById("c_" + r.id).onclick = function() {
+        var msg = document.getElementById("m_" + r.id);
+        msg.textContent = "正在绘制声音明信片…";
+        yRenderPostcardPng({
+          title: r.title,
+          author: r.author,
+          story: r.desc,
+          img: r.img,
+          accent: r.accent,
+          remix_of: r.remix_of,
+          tracks: r.items
+        }, function() {
+          msg.textContent = "已下载「" + r.title + "_声音明信片.png」";
+        });
+      };
+    })(list[i]);
+  }
+
+  if (shownCount === 0) {
+    feed.innerHTML = '<div class="glass card" style="padding:24px;text-align:center;color:var(--y-text-muted);font-size:13px">' +
+      '还没有社区发布的配方 · 去 DIY 工坊调一段「✦ 发到广场」吧</div>';
+  }
+}
+
+function stopCurrentPreview() {
+  if (activePreviewAudio) {
+    activePreviewAudio.pause();
+    activePreviewAudio = null;
+  }
+  if (activePreviewId) {
+    var oldBtn = document.getElementById("p_" + activePreviewId);
+    if (oldBtn) oldBtn.textContent = "试听";
+    activePreviewId = "";
+  }
+}
+
+function preview(r) {
+  var msg = document.getElementById("m_" + r.id);
+  if (activePreviewId === r.id && activePreviewAudio) {
+    stopCurrentPreview();
+    if (msg) msg.textContent = "已暂停试听";
+    ySetAmbient(r.img, r.accent, false);
+    return;
+  }
+  stopCurrentPreview();
+  msg.textContent = "正在准备试听…";
+  yPost("/api/preview", { items: r.items, seconds: 20 })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (d.error) { msg.textContent = d.error; return; }
+      activePreviewAudio = new Audio(API + "/api/preview_audio?t=" + Date.now());
+      activePreviewId = r.id;
+      var btn = document.getElementById("p_" + r.id);
+      if (btn) btn.textContent = "暂停试听";
+      activePreviewAudio.play().catch(function() {});
+      ySetAmbient(r.img, r.accent, true);
+      msg.textContent = "正在试听「" + r.title + "」";
+      activePreviewAudio.onended = function() {
+        if (btn) btn.textContent = "试听";
+        activePreviewId = "";
+        activePreviewAudio = null;
+        ySetAmbient(r.img, r.accent, false);
+        msg.textContent = "试听结束 · 点\"↻ Remix 微调\"可进工坊继续微调";
+      };
+    })
+    .catch(function(e) { msg.textContent = "连接失败：" + e.message; });
+}
+
+function useIt(r) {
+  var code = yEncodeMix({ title: r.title, tracks: r.items });
+  if (code) {
+    var qs = "?remix_id=" + encodeURIComponent(r.id || "") +
+      "&remix_title=" + encodeURIComponent(r.title || "") +
+      "&remix_author=" + encodeURIComponent(r.author || "夜息");
+    location.href = "index.html" + qs + "#mix=" + encodeURIComponent(code);
+  } else {
+    location.href = "agent.html?say=" + encodeURIComponent(r.say);
+  }
+}
+
+renderTabs();
+renderFeed();
+
+yGet("/api/me")
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && d.logged_in && d.username) {
+      loggedUsername = d.username;
+      renderFeed();
+    }
+  })
+  .catch(function() {});
+
+yGet("/api/community_posts")
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && Array.isArray(d.posts)) {
+      communityPosts = d.posts;
+      renderFeed();
+    }
+  })
+  .catch(function() {});
+
+yGet("/api/community_votes")
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && d.votes && typeof d.votes === "object") {
+      communityVotes = d.votes;
+      saveLocalJson(COUNTS_KEY, communityVotes);
+      renderFeed();
+    }
+  })
+  .catch(function() {});
+</script>
+</body>
+</html>

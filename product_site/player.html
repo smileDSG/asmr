@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 正在播放</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;color:#f4effc;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#0d0916;overflow:hidden;
+  }
+  /* 夜底：月亮光晕 + 水面，随时间慢慢暗下去 */
+  .stage{position:fixed;inset:0;transition:opacity 1.2s ease;
+    background-image:radial-gradient(circle at 50% 30%,rgba(183,148,246,.18),transparent 45%),
+      linear-gradient(180deg,#161029 0%,#0d0916 70%)}
+  .moon{position:absolute;left:50%;top:20%;transform:translateX(-50%);
+    width:120px;height:120px;border-radius:50%;
+    background:radial-gradient(circle at 38% 36%,#f3e9ff,#c9a8ff 60%,#8b6fd6);
+    box-shadow:0 0 60px 18px rgba(201,168,255,.35);
+    animation:breathe 5s ease-in-out infinite}
+  .water{position:absolute;left:0;right:0;bottom:0;height:42%;
+    background:linear-gradient(180deg,rgba(139,111,214,.06),rgba(18,10,34,.9));
+    border-top:1px solid rgba(196,168,255,.12)}
+  @keyframes breathe{0%,100%{opacity:.75;transform:translateX(-50%) scale(1)}
+    50%{opacity:1;transform:translateX(-50%) scale(1.04)}}
+
+  /* 内容层：控件会随时间淡出 */
+  .ui{position:relative;height:100%;display:flex;flex-direction:column;
+    padding:22px 20px max(24px,env(safe-area-inset-bottom));transition:opacity 1.2s ease}
+  .top{display:flex;align-items:center;justify-content:space-between}
+  .back{color:#c9bce0;text-decoration:none;font-size:14px;background:rgba(196,168,255,.08);
+    border:1px solid rgba(196,168,255,.2);border-radius:18px;padding:8px 14px}
+  .mode-chip{font-size:12px;color:#c9bce0;border:1px solid rgba(196,168,255,.25);
+    border-radius:16px;padding:7px 13px;background:rgba(20,12,38,.4);cursor:pointer}
+  .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;margin-top:-40px}
+  .title{font-size:24px;font-weight:600;letter-spacing:2px;color:#fff}
+  .subtitle{font-size:14px;color:#a99cc4;margin-top:10px}
+  .timer-left{font-size:13px;color:#d9c4ff;margin-top:18px;min-height:18px}
+
+  .controls{display:flex;flex-direction:column;gap:12px}
+  .ctrl-row{display:flex;gap:10px;justify-content:center}
+  .btn{border:1px solid rgba(196,168,255,.35);background:rgba(196,168,255,.1);
+    color:#e6d8ff;border-radius:14px;padding:14px 18px;font-size:14px;cursor:pointer;
+    font-family:inherit;min-height:48px}
+  .btn.primary{background:linear-gradient(135deg,#d9b8ff,#b794f6);color:#2a1646;
+    border-color:transparent;font-weight:600}
+  .btn.pause{width:64px;border-radius:50%;padding:0;font-size:18px}
+  .timers{display:none;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+  .timers.open{display:flex}
+  .timer{border:1px solid rgba(196,168,255,.28);background:rgba(196,168,255,.08);
+    color:#c9bce0;border-radius:18px;padding:9px 15px;font-size:13px;cursor:pointer;font-family:inherit}
+  .timer.on{background:linear-gradient(135deg,#7d5fc4,#5f42a3);color:#fff;border-color:transparent}
+  .hint{font-size:11px;color:#8d80a8;text-align:center;margin-top:6px;line-height:1.6;min-height:16px}
+
+  .goodnight{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    flex-direction:column;background:#0b0812;z-index:50;transition:opacity 1.5s ease}
+  .goodnight.show{display:flex}
+  .goodnight .g-moon{font-size:56px;color:#c9a8ff;opacity:.7}
+  .goodnight .g-t{font-size:22px;letter-spacing:4px;color:#e6d8ff;margin-top:18px}
+
+  audio{display:none}
+  @media(prefers-reduced-motion:reduce){
+    .moon{animation:none}
+    .stage,.ui,.goodnight{transition:none}
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="moon"></div>
+  <div class="water"></div>
+</div>
+
+<div class="ui" id="ui">
+  <div class="top">
+    <a class="back" href="javascript:history.back()">‹ 返回</a>
+    <div class="mode-chip" id="modeChip">☾ 睡眠模式</div>
+  </div>
+
+  <div class="center">
+    <div class="title" id="trackTitle">正在播放</div>
+    <div class="subtitle" id="trackSub">真实录音 · 零处理</div>
+    <div class="timer-left" id="timerLeft"></div>
+  </div>
+
+  <div class="controls" id="controls">
+    <div class="timers" id="timers">
+      <button class="timer" data-min="15">15 分钟</button>
+      <button class="timer" data-min="30" id="t30">30 分钟</button>
+      <button class="timer" data-min="60">60 分钟</button>
+      <button class="timer" data-min="0" id="t0">不限时</button>
+    </div>
+    <div class="ctrl-row">
+      <button class="btn" id="timerBtn">⏱ 定时</button>
+      <button class="btn pause" id="pauseBtn" aria-label="暂停">❚❚</button>
+      <button class="btn" id="backBtn">↩ 返回</button>
+    </div>
+    <div class="hint" id="hint">音量用手机侧键调节 · 锁屏后声音继续</div>
+  </div>
+</div>
+
+<div class="goodnight" id="goodnight">
+  <div class="g-moon">☾</div>
+  <div class="g-t">晚安</div>
+</div>
+
+<audio id="audio" loop preload="auto"></audio>
+
+<script>
+// 只调播放音量和界面明暗，不对音频素材做任何处理（铁律 2）
+var API="";
+var audio=document.getElementById("audio");
+var play=sessionStorage.getItem("yezi_play");
+
+if(play){
+  try{
+    var info=JSON.parse(play);
+    document.getElementById("trackTitle").textContent=info.title||"正在播放";
+    var names=[];
+    for(var i=0;i<info.items.length;i++) names.push(info.items[i].path);
+    document.getElementById("trackSub").textContent=names.join(" + ")+" · 真实录音 零处理";
+    audio.src=API+info.audio;
+    audio.play().catch(function(){});
+    // 锁屏界面显示配方名和暂停键
+    if("mediaSession" in navigator){
+      navigator.mediaSession.metadata=new MediaMetadata({
+        title:info.title||"夜息",artist:"夜息",album:"助眠声音"
+      });
+      navigator.mediaSession.setActionHandler("play",function(){audio.play();});
+      navigator.mediaSession.setActionHandler("pause",function(){audio.pause();});
+    }
+  }catch(e){}
+}
+
+// 22:00-06:00 预选 30 分钟，其他时间不限时
+var hour=new Date().getHours();
+var isNight=hour>=22||hour<6;
+var timerMin=isNight?30:0;
+var mode="sleep";
+var fadeTimer=null;
+var fadeStart=0;
+var fadeFrom=1;
+
+function applyTimerPreset(){
+  var t30=document.getElementById("t30");
+  var t0=document.getElementById("t0");
+  t30.classList.toggle("on",isNight);
+  t0.classList.toggle("on",!isNight);
+}
+applyTimerPreset();
+
+document.getElementById("pauseBtn").onclick=function(){
+  if(audio.paused){audio.play();this.textContent="❚❚";}
+  else{audio.pause();this.textContent="▶";}
+};
+audio.onplay=function(){document.getElementById("pauseBtn").textContent="❚❚";};
+audio.onpause=function(){document.getElementById("pauseBtn").textContent="▶";};
+
+document.getElementById("timerBtn").onclick=function(){
+  document.getElementById("timers").classList.toggle("open");
+};
+var timerBtns=document.querySelectorAll(".timer");
+for(var i=0;i<timerBtns.length;i++){
+  timerBtns[i].onclick=function(){
+    for(var j=0;j<timerBtns.length;j++) timerBtns[j].classList.remove("on");
+    this.classList.add("on");
+    timerMin=parseInt(this.getAttribute("data-min"));
+    startTimer();
+  };
+}
+
+function startTimer(){
+  if(fadeTimer){clearInterval(fadeTimer);fadeTimer=null;}
+  document.getElementById("timerLeft").textContent="";
+  if(mode!=="sleep"||timerMin<=0) return;
+  var total=timerMin*60;
+  var endAt=Date.now()+total*1000;
+  fadeTimer=setInterval(function(){
+    var left=Math.max(0,(endAt-Date.now())/1000);
+    if(left<=60){
+      // 最后 60 秒：只线性降低播放音量，不碰素材
+      audio.volume=Math.max(0,left/60);
+    }
+    var m=Math.floor(left/60),s=Math.floor(left%60);
+    document.getElementById("timerLeft").textContent=
+      (timerMin>=60?("还剩 "+m+" 分钟"):("还剩 "+m+":"+(s<10?"0":"")+s));
+    if(left<=0){
+      clearInterval(fadeTimer);fadeTimer=null;
+      audio.pause();
+      document.getElementById("goodnight").classList.add("show");
+    }
+  },1000);
+}
+if(timerMin>0) startTimer();
+
+// 睡眠模式：2 分钟后控件淡出、画面变暗；专注模式保持
+document.getElementById("modeChip").onclick=function(){
+  if(mode==="sleep"){
+    mode="focus";
+    this.textContent="✦ 专注模式";
+    document.getElementById("ui").style.opacity="1";
+    document.getElementById("stage").style.opacity="1";
+    if(fadeTimer){clearInterval(fadeTimer);fadeTimer=null;}
+    document.getElementById("timerLeft").textContent="";
+  }else{
+    mode="sleep";
+    this.textContent="☾ 睡眠模式";
+  }
+};
+
+setTimeout(function(){
+  if(mode!=="sleep") return;
+  document.getElementById("controls").style.opacity="0";
+  document.getElementById("center").style.opacity="0";
+  document.getElementById("stage").style.opacity=".55";
+  setTimeout(function(){
+    document.getElementById("ui").style.pointerEvents="none";
+  },1300);
+},120000);
+
+// 任意触摸重新唤出控件
+document.addEventListener("touchstart",function(){
+  if(mode!=="sleep") return;
+  document.getElementById("controls").style.opacity="1";
+  document.getElementById("center").style.opacity="1";
+  document.getElementById("stage").style.opacity="1";
+  document.getElementById("ui").style.pointerEvents="auto";
+},false);
+
+document.getElementById("backBtn").onclick=function(){history.back();};
+</script>
+</body>
+</html>

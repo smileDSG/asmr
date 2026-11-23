@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>登录 · 夜息</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;color:#f4effc;min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(circle at 50% 12%,rgba(139,111,214,.22),transparent 52%),#120d1b;
+    line-height:1.6;padding-bottom:40px;
+  }
+  .wrap{max-width:420px;margin:0 auto;padding:0 20px}
+  .back{display:inline-block;color:#c9a8ff;text-decoration:none;font-size:13px;padding:20px 0 8px}
+  .head{text-align:center;padding:10px 0 26px}
+  .head .moon{width:62px;height:62px;margin:0 auto 16px;border-radius:20px;
+    background:linear-gradient(150deg,#8b6fd6,#5a3fa0);display:flex;align-items:center;
+    justify-content:center;font-size:30px;box-shadow:0 8px 26px rgba(139,111,214,.42)}
+  .head h1{font-size:24px;font-weight:600;letter-spacing:2px;margin:0;color:#fff}
+  .head p{font-size:13px;color:#a99cc4;margin:8px 0 0}
+  .card{background:#1c1530;border:1px solid rgba(196,168,255,.16);border-radius:18px;padding:20px}
+  .switch{display:flex;background:#16102a;border:1px solid rgba(196,168,255,.16);
+    border-radius:12px;padding:4px;margin-bottom:20px}
+  .switch button{flex:1;padding:10px;border:none;border-radius:9px;background:transparent;
+    color:#a99cc4;font-size:14px;font-family:inherit;cursor:pointer}
+  .switch button.on{background:linear-gradient(135deg,#7d5fc4,#5f42a3);color:#fff;font-weight:600}
+  label{display:block;font-size:13px;color:#c9bce0;margin:0 0 8px}
+  input{width:100%;background:#16102a;border:1px solid rgba(196,168,255,.22);
+    border-radius:11px;color:#f4effc;padding:13px 14px;font-size:15px;
+    font-family:inherit;outline:none;margin-bottom:16px}
+  input:focus{border-color:rgba(201,168,255,.65)}
+  input::placeholder{color:#7d719a}
+  .submit{width:100%;background:linear-gradient(135deg,#d9b8ff,#b794f6);color:#2a1646;
+    border:none;border-radius:11px;padding:14px;font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:2px}
+  .submit:disabled{opacity:.5;cursor:wait}
+  .msg{font-size:12px;color:#e8c07a;min-height:18px;margin:-4px 0 10px;line-height:1.6}
+  .tip{font-size:12px;color:#8d80a8;line-height:1.8;margin:16px 0 0;text-align:center}
+  .foot{text-align:center;color:#8d80a8;font-size:11px;margin-top:26px;line-height:1.9}
+  @media(max-width:380px){.head h1{font-size:21px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" id="backLink" href="home.html">‹ 先不登录</a>
+
+  <div class="head">
+    <div class="moon">☾</div>
+    <h1 id="title">欢迎回来</h1>
+    <p id="sub">登录后，你的耳朵档案会跟着账号走</p>
+  </div>
+
+  <div class="card">
+    <div class="switch">
+      <button id="tabLogin" class="on">登录</button>
+      <button id="tabReg">注册</button>
+    </div>
+
+    <label for="username">用户名</label>
+    <input id="username" type="text" autocomplete="username" placeholder="2-32 位，字母数字下划线">
+
+    <label for="password">密码</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="至少 8 位">
+
+    <div class="msg" id="msg"></div>
+    <button class="submit" id="submitBtn">登录</button>
+
+    <p class="tip" id="tip">没有账号？点上面的「注册」<br>现在的声音不用登录也能听</p>
+  </div>
+
+  <div class="foot">只存用户名和加密后的密码 · 不存明文<br>忘记密码功能还在做，先别用常用密码</div>
+</div>
+
+<script src="auth_ui.js"></script>
+<script>
+var mode = "login";
+var msg = document.getElementById("msg");
+var submitBtn = document.getElementById("submitBtn");
+
+// 登录后回到来源页，只允许本站页面名，防止跳到别的网站
+var from = new URLSearchParams(location.search).get("from") || "home.html";
+if (!/^[A-Za-z0-9_-]+\.html$/.test(from)) from = "home.html";
+document.getElementById("backLink").href = from;
+
+function showMsg(text) {
+  msg.textContent = text;
+}
+
+function setMode(next) {
+  mode = next;
+  var isLogin = mode === "login";
+  document.getElementById("tabLogin").className = isLogin ? "on" : "";
+  document.getElementById("tabReg").className = isLogin ? "" : "on";
+  document.getElementById("title").textContent = isLogin ? "欢迎回来" : "开始自己的耳朵档案";
+  document.getElementById("sub").textContent = isLogin ?
+    "登录后，你的耳朵档案会跟着账号走" : "存下你喜欢的声音，下次不用重新找";
+  document.getElementById("tip").innerHTML = isLogin ?
+    '没有账号？点上面的「注册」<br>现在的声音不用登录也能听' :
+    '已经有账号？点上面的「登录」<br>注册后会自动帮你登录';
+  submitBtn.textContent = isLogin ? "登录" : "注册并登录";
+  document.getElementById("password").autocomplete =
+    isLogin ? "current-password" : "new-password";
+  showMsg("");
+}
+
+document.getElementById("tabLogin").onclick = function() { setMode("login"); };
+document.getElementById("tabReg").onclick = function() { setMode("reg"); };
+
+function doLogin(username, password) {
+  yPost("/api/login", { username: username, password: password })
+    .then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok) {
+        showMsg(d.message || "登录失败");
+        submitBtn.disabled = false;
+        return;
+      }
+      ySetToken(d.token);
+      showMsg("正在整理你的耳朵档案…");
+      // 迁移游客档案：失败也不能挡住登录
+      yPost("/api/migrate", {}).catch(function() {}).then(function() {
+        location.href = from;
+      });
+    }).catch(function(e) {
+      showMsg("连接后端失败：" + e.message);
+      submitBtn.disabled = false;
+    });
+}
+
+submitBtn.onclick = function() {
+  var username = document.getElementById("username").value.trim();
+  var password = document.getElementById("password").value;
+  if (!username || !password) {
+    showMsg("请填好用户名和密码");
+    return;
+  }
+  submitBtn.disabled = true;
+  showMsg("");
+
+  if (mode === "reg") {
+    yPost("/api/register", { username: username, password: password })
+      .then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.ok) {
+          showMsg(d.message || "注册失败");
+          submitBtn.disabled = false;
+          return;
+        }
+        doLogin(username, password);
+      }).catch(function(e) {
+        showMsg("连接后端失败：" + e.message);
+        submitBtn.disabled = false;
+      });
+  } else {
+    doLogin(username, password);
+  }
+};
+
+document.getElementById("password").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") submitBtn.click();
+});
+</script>
+</body>
+</html>
