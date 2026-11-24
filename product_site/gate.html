@@ -114,16 +114,15 @@ initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
 var from = new URLSearchParams(location.search).get("from") || "home.html";
 if (!/^[A-Za-z0-9_-]+\.html$/.test(from)) from = "home.html";
 
-// 已经登录、或上次已经选过游客，就直接放行，不用再选一遍
+// 已经登录就直接放行（不用再选）；
+// 未登录一律显示这一页 —— 即使上次选过游客，重新进入也再问一次。
 var alreadyToken = "";
-var alreadyGuest = "";
 try {
   alreadyToken = localStorage.getItem("yezi_token") || "";
-  alreadyGuest = localStorage.getItem("yezi_guest") || "";
 } catch (e) {
-  // 浏览器不让用本地存储时，当作已经选过，别把人挡在外面
+  // 浏览器不让用本地存储时，当作已登录，别把人挡在外面
 }
-if (alreadyToken || alreadyGuest === "1") {
+if (alreadyToken) {
   location.replace(from);
 }
 
