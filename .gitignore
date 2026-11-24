@@ -10,6 +10,11 @@ data/*.db-wal
 data/*.db-shm
 memory/*.json
 
+# 支付：商户配置和私钥，泄露等于把收款账户交出去
+pay_config.json
+pay_keys/
+*.pem
+
 # ===== 实验产物和音频缓存：体积大、非成品 =====
 agent_output/
 ai_samples/
@@ -22,10 +27,14 @@ raw_generated/
 raw_generated_v2/
 rejected/
 candidates_v3/
+candidates_v4/
 final_output/
 final_output_v2/
 freesound_previews/
 reference_audio/
+# 旧原型与早期素材：与 scene_assets / real_sounds 内容重复，已移出版本库
+diy-site/
+real_sounds/
 verify_hq.mp3
 候选*.mp3
 雨声_*.wav
