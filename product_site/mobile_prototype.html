@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>夜息 · 移动原型</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap');
+:root{
+  --night:#07050d;
+  --ink:#f8f5fd;
+  --ink-soft:rgba(246,242,255,.90);
+  --ink-faint:rgba(236,229,252,.78);
+  --warm:#e9b783;
+  --warm-rgb:233,183,131;
+  --acc-rgb:142,116,232;
+  --glass:rgba(16,12,28,.62);
+  --line:rgba(255,255,255,.22);
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --ease-slow:cubic-bezier(.22,.61,.36,1);
+  --lvl:0;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#05040a;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.7;letter-spacing:.02em}
+body{display:flex;align-items:center;justify-content:center;padding:24px 12px}
+::selection{background:rgba(var(--warm-rgb),.3)}
+
+/* 手机外壳 */
+.phone{position:relative;width:390px;height:844px;border-radius:46px;overflow:hidden;
+  background:var(--night);border:9px solid #17121f;
+  box-shadow:0 30px 90px rgba(0,0,0,.6),0 0 0 2px rgba(var(--warm-rgb),.08)}
+@media(max-width:520px){
+  body{padding:0}
+  .phone{width:100vw;height:100vh;height:100dvh;border:none;border-radius:0}
+}
+
+/* 状态栏 */
+.status{position:absolute;top:0;left:0;right:0;height:38px;z-index:30;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;font-size:12px;color:var(--ink-faint);letter-spacing:.06em;pointer-events:none;
+  text-shadow:0 2px 12px rgba(4,3,10,.72)}
+.status .bat{display:inline-block;width:20px;height:10px;border:1px solid var(--ink-faint);
+  border-radius:3px;position:relative;margin-left:6px}
+.status .bat:after{content:"";position:absolute;right:-3px;top:3px;width:2px;height:4px;background:var(--ink-faint)}
+.status .bat i{position:absolute;left:1px;top:1px;bottom:1px;width:68%;background:var(--ink-faint);border-radius:1px}
+
+/* ===== 场景层：五层（Ken Burns 背景 + 双径向柔光 + 粒子 + 三层渐晕 + 颗粒） ===== */
+.screen{position:absolute;top:38px;left:0;right:0;bottom:0;overflow-y:auto;
+  padding:6px 22px 150px;display:none;-webkit-overflow-scrolling:touch}
+.screen.active{display:block}
+.screen::-webkit-scrollbar{width:0}
+.stage{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:var(--night)}
+.bg{position:absolute;inset:-10px;background-size:cover;background-position:center;
+  filter:saturate(.72) brightness(.5) contrast(1.06);
+  opacity:0;transition:opacity .45s ease-out,filter .45s ease;
+  animation:kenburns 48s ease-in-out infinite alternate;will-change:opacity,transform}
+.bg.home{background-image:url('img/city-rain-night.jpg');opacity:1}
+.bg.player{background-image:url('img/moon-water.jpg');opacity:0}
+.is-playing .bg{filter:saturate(.82) brightness(.6) contrast(1.04)}
+@keyframes kenburns{0%{transform:scale(1.01) translate3d(0,0,0)}100%{transform:scale(1.05) translate3d(-.5%,-.4%,0)}}
+.tint{position:absolute;inset:0;mix-blend-mode:soft-light;
+  background:
+    radial-gradient(120% 80% at 18% 100%,rgba(var(--acc-rgb),.12),transparent 60%),
+    radial-gradient(70% 60% at 85% 10%,rgba(var(--warm-rgb),.09),transparent 70%)}
+#fx{position:absolute;inset:0;width:100%;height:100%}
+.vignette{position:absolute;inset:0;
+  background:
+    radial-gradient(66% 48% at 50% 48%,rgba(7,5,13,.24) 0%,rgba(7,5,13,.08) 70%,transparent 100%),
+    radial-gradient(130% 90% at 50% 45%,transparent 52%,rgba(4,3,8,.42) 100%),
+    linear-gradient(180deg,rgba(7,5,13,.22) 0%,rgba(7,5,13,0) 22%,rgba(7,5,13,0) 68%,rgba(7,5,13,.62) 100%)}
+.grain{position:absolute;inset:-50%;opacity:.025;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation:grain 1.2s steps(5) infinite}
+@keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
+.content{position:relative;z-index:2}
+.shadow{text-shadow:0 2px 14px rgba(4,3,10,.72)}
+
+/* 入场错峰 */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.hero .whisper{animation:rise .28s ease-out 0s forwards}
+.hero h1{animation:rise .3s ease-out .04s forwards}
+.hero .sub{animation:rise .3s ease-out .08s forwards}
+.orb-wrap{animation:rise .3s ease-out .12s forwards}
+.hero .now{animation:rise .3s ease-out .14s forwards}
+.quick{animation:rise .3s ease-out .16s forwards}
+.tools{animation:rise .28s ease-out .18s forwards}
+.ask{animation:rise .28s ease-out .2s forwards}
+.entries{animation:rise .28s ease-out .23s forwards}
+
+/* 顶栏 */
+.row{display:flex;align-items:center}
+.between{justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:20px;
+  letter-spacing:.32em;color:var(--ink);text-shadow:0 2px 14px rgba(4,3,10,.72)}
+.brand .glyph{width:26px;height:26px;border-radius:50%;
+  background:radial-gradient(circle at 36% 34%,#fbf3e6 0%,#e9cfa6 45%,rgba(233,183,131,.15) 72%,transparent 74%);
+  box-shadow:0 0 24px rgba(var(--warm-rgb),.35)}
+.ghost{font-size:13.5px;color:var(--ink-soft);background:rgba(16,12,28,.44);
+  border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:7px 16px;cursor:pointer;
+  letter-spacing:.08em;transition:background .35s ease,border-color .35s ease,color .35s ease}
+.ghost:active{background:rgba(var(--warm-rgb),.22);border-color:rgba(var(--warm-rgb),.5);color:#fff}
+
+/* 首屏 */
+.hero{padding-top:26px;text-align:center}
+.hero .whisper{margin:0 0 16px;padding-left:.34em;font-size:clamp(13px,3.5vw,15px);
+  letter-spacing:.34em;color:var(--ink-faint);text-shadow:0 2px 14px rgba(4,3,10,.72);opacity:0}
+.hero h1{margin:0;font-family:var(--serif);font-weight:400;
+  font-size:clamp(33px,9.2vw,44px);line-height:1.22;letter-spacing:.06em;color:#fff;white-space:nowrap;
+  text-shadow:0 4px 32px rgba(4,3,10,.75);opacity:0}
+.hero .sub{margin:16px auto 0;max-width:34em;font-size:clamp(14px,3.7vw,16px);
+  line-height:1.85;color:var(--ink-soft);letter-spacing:.08em;
+  text-shadow:0 2px 16px rgba(4,3,10,.72);opacity:0}
+
+/* 光球：双层光环，随声音起伏 */
+.orb-wrap{display:flex;justify-content:center;margin:34px 0 18px;opacity:0}
+.orb{position:relative;width:84px;height:84px;border-radius:50%;
+  border:1px solid rgba(255,244,228,.35);
+  background:radial-gradient(circle at 38% 32%,rgba(255,246,232,.28),rgba(255,255,255,.04) 60%),rgba(20,14,30,.35);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  color:#fff8ee;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transform:scale(calc(1 + var(--lvl) * .06));
+  transition:border-color 1.2s ease,background 1.2s ease,transform .5s ease}
+.orb::before,.orb::after{content:"";position:absolute;inset:-1px;border-radius:50%;
+  border:1px solid rgba(var(--warm-rgb),.5);opacity:0;pointer-events:none}
+.orb::before{animation:invite 5s ease-in-out infinite}
+@keyframes invite{0%,100%{transform:scale(1);opacity:0}50%{transform:scale(1.35);opacity:.55}}
+.is-playing .orb{border-color:rgba(var(--warm-rgb),.7);
+  box-shadow:0 0 calc(20px + var(--lvl) * 50px) rgba(var(--warm-rgb),calc(.15 + var(--lvl) * .3))}
+.is-playing .orb::before{animation:none;opacity:calc(.2 + var(--lvl) * .6);
+  transform:scale(calc(1.15 + var(--lvl) * .45));transition:transform .12s linear}
+.is-playing .orb::after{opacity:calc(var(--lvl) * .35);transform:scale(calc(1.4 + var(--lvl) * .8))}
+.orb:active{transform:scale(.94)}
+
+.now{text-align:center;text-shadow:0 2px 14px rgba(4,3,10,.72)}
+.now .label{font-size:13px;letter-spacing:.28em;color:var(--ink-faint)}
+.now .name{font-family:var(--serif);font-size:24px;letter-spacing:.14em;color:var(--ink);margin-top:4px}
+.now .meta{font-size:14px;color:var(--ink-faint);letter-spacing:.06em;margin-top:3px;min-height:20px}
+
+.quick{display:flex;gap:12px;justify-content:center;margin-top:20px;opacity:0}
+.pill{font-size:14px;color:var(--ink-soft);background:rgba(16,12,28,.46);
+  border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:10px 18px;cursor:pointer;
+  letter-spacing:.12em;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:background .3s ease,border-color .3s ease,color .3s ease,transform .2s ease}
+.pill:active{transform:scale(.97)}
+.pill.on{background:rgba(var(--warm-rgb),.26);border-color:rgba(var(--warm-rgb),.65);color:#fff6e8}
+
+.tools{display:flex;justify-content:center;gap:32px;margin-top:26px;opacity:0}
+.tool{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--ink-soft);
+  font-size:14.5px;letter-spacing:.16em;background:none;border:none;cursor:pointer;
+  text-shadow:0 2px 14px rgba(4,3,10,.72)}
+.tool .ic{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:rgba(16,12,28,.46);border:1px solid rgba(255,255,255,.22);font-size:16px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.tool:active .ic{background:rgba(var(--warm-rgb),.22)}
+
+/* 一句话输入 */
+.ask{margin-top:30px;background:rgba(12,9,20,.42);border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;padding:15px 12px 14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:0}
+.ask .ask-h{font-size:14px;color:var(--ink-faint);margin-bottom:11px;letter-spacing:.12em;
+  text-shadow:0 2px 14px rgba(4,3,10,.72)}
+.ask-line{display:flex;gap:10px;align-items:center}
+.ask input{flex:1;min-width:0;width:0;background:rgba(16,12,28,.68);border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;padding:11px 14px;color:var(--ink);font-size:13.5px;outline:none;
+  font-family:inherit;transition:border-color .3s ease}
+.ask input::placeholder{color:var(--ink-faint)}
+.ask input:focus{border-color:rgba(var(--warm-rgb),.7)}
+.ask .go{flex:0 0 auto;background:rgba(var(--warm-rgb),.28);border:1px solid rgba(var(--warm-rgb),.55);
+  color:#fff8ee;border-radius:999px;padding:11px 13px;font-size:13.5px;cursor:pointer;
+  white-space:nowrap;font-family:inherit;letter-spacing:.08em;transition:background .3s ease}
+.ask .go:active{background:rgba(var(--warm-rgb),.4)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;justify-content:center}
+.chip{font-size:13px;color:var(--ink-soft);background:rgba(16,12,28,.46);
+  border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:6px 14px;cursor:pointer;
+  font-family:inherit;letter-spacing:.05em;transition:background .3s ease,color .3s ease}
+.chip:active{background:rgba(var(--warm-rgb),.22);color:#fff}
+
+/* 两个大类入口：整卡氛围图 + 底部渐变压字（对齐 web 端 .card） */
+.entries{display:flex;gap:16px;margin-top:28px;opacity:0}
+.entry{flex:1;min-width:0;position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;
+  cursor:pointer;border:none;padding:0;text-align:left;color:var(--ink);font-family:inherit;
+  background:#110d1a;box-shadow:0 30px 60px -30px rgba(0,0,0,.8)}
+.entry .thumb{position:absolute;inset:0;background-size:cover;background-position:center;
+  filter:saturate(.72) brightness(.68) contrast(1.04);transform:scale(1.01);
+  transition:transform 3.5s ease-out,filter .6s ease}
+.entry .thumb.a{background-image:url('img/moon-water.jpg')}
+.entry .thumb.b{background-image:url('img/rain-window.jpg')}
+.entry:active .thumb{transform:scale(1.09);filter:saturate(.7) brightness(.74) contrast(1.05) sepia(.12)}
+.entry:after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,transparent 30%,rgba(7,5,13,.5) 58%,rgba(7,5,13,.92) 100%)}
+.entry .txt{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:14px 14px 15px}
+.entry .k{font-size:12px;color:var(--warm);letter-spacing:.14em;text-shadow:0 2px 10px rgba(4,3,10,.8)}
+.entry .t{font-family:var(--serif);font-size:17px;color:#fff;letter-spacing:.1em;margin-top:3px;
+  text-shadow:0 2px 12px rgba(4,3,10,.8)}
+.entry .d{font-size:11.5px;color:var(--ink-faint);margin-top:4px;line-height:1.5;
+  text-shadow:0 2px 10px rgba(4,3,10,.8)}
+.foot{text-align:center;font-size:11.5px;color:var(--ink-faint);margin-top:26px;line-height:1.8}
+
+/* 内页通用 */
+.page-head{display:flex;align-items:center;justify-content:space-between;padding-top:10px}
+.back{background:none;border:none;color:var(--ink-faint);font-size:14px;cursor:pointer;padding:6px 0;
+  letter-spacing:.1em;text-shadow:0 2px 12px rgba(4,3,10,.72)}
+.h-title{font-family:var(--serif);font-weight:400;font-size:30px;letter-spacing:.14em;
+  margin:18px 0 4px;color:#fff;text-shadow:0 4px 24px rgba(4,3,10,.7)}
+.h-sub{font-size:15px;color:var(--ink-soft);margin:0 0 20px;letter-spacing:.08em;
+  text-shadow:0 2px 12px rgba(4,3,10,.72)}
+.understand{background:rgba(16,12,28,.62);border:1px solid rgba(255,255,255,.18);
+  border-radius:14px;padding:14px 15px;margin-bottom:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.understand .u-h{font-size:12px;color:var(--warm);letter-spacing:.14em}
+.understand .u-t{font-size:15px;color:var(--ink);margin-top:6px;line-height:1.75}
+.tags{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.tag{font-size:12px;color:var(--ink-soft);background:rgba(var(--warm-rgb),.12);
+  border:1px solid rgba(var(--warm-rgb),.28);border-radius:8px;padding:3px 10px}
+.sec-h{font-size:14px;color:var(--ink-faint);letter-spacing:.12em;margin:6px 0 11px}
+.track{background:rgba(16,12,28,.62);border:1px solid rgba(255,255,255,.18);border-radius:14px;
+  padding:13px 14px;margin-bottom:11px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.track .t-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.track .t-name{font-family:var(--serif);font-size:15px;color:var(--ink);letter-spacing:.06em}
+.track .t-role{font-size:11px;color:var(--warm);background:rgba(var(--warm-rgb),.12);
+  border-radius:6px;padding:2px 8px;white-space:nowrap}
+.track .t-meta{font-size:11.5px;color:var(--ink-faint);margin-top:3px}
+.vol{display:flex;align-items:center;gap:10px;margin-top:10px}
+.vol span{font-size:11.5px;color:var(--ink-faint);width:26px}
+.vol input{flex:1;height:4px;-webkit-appearance:none;appearance:none;border-radius:4px;
+  background:rgba(255,255,255,.16);outline:none}
+.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--warm);box-shadow:0 0 10px rgba(var(--warm-rgb),.5);cursor:pointer}
+.vol em{font-style:normal;font-size:11.5px;color:var(--ink-soft);width:32px;text-align:right}
+
+/* 声场拖拽 */
+.field-wrap{background:rgba(16,12,28,.62);border:1px solid rgba(255,255,255,.18);
+  border-radius:16px;padding:15px;margin:6px 0 16px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.field-hint{font-size:13px;color:var(--ink-soft);line-height:1.75}
+.field-hint b{color:var(--warm);font-weight:400}
+.field{position:relative;height:158px;border-radius:12px;margin-top:12px;overflow:hidden;touch-action:none;
+  background:
+    linear-gradient(90deg,transparent 49.7%,rgba(255,255,255,.1) 49.7%,rgba(255,255,255,.1) 50.3%,transparent 50.3%),
+    linear-gradient(0deg,transparent 49.7%,rgba(255,255,255,.1) 49.7%,rgba(255,255,255,.1) 50.3%,transparent 50.3%),
+    radial-gradient(circle at 50% 50%,rgba(var(--warm-rgb),.09),rgba(10,7,18,.5) 70%);
+  border:1px solid rgba(255,255,255,.16)}
+.field .axis{position:absolute;font-size:11px;color:var(--ink-faint);letter-spacing:.1em}
+.field .axis.top{top:7px;left:50%;transform:translateX(-50%)}
+.field .axis.bottom{bottom:7px;left:50%;transform:translateX(-50%)}
+.field .axis.left{left:9px;top:50%;transform:translateY(-50%)}
+.field .axis.right{right:9px;top:50%;transform:translateY(-50%)}
+.field .dot{position:absolute;width:32px;height:32px;border-radius:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;
+  border:1px solid rgba(var(--warm-rgb),.5);cursor:grab;box-shadow:0 0 14px rgba(var(--warm-rgb),.22);
+  font-family:var(--serif)}
+.field .dot.d0{background:rgba(233,183,131,.34)}
+.field .dot.d1{background:rgba(150,170,235,.34)}
+.field .dot.d2{background:rgba(200,150,220,.34)}
+.field .dot.active{box-shadow:0 0 24px rgba(var(--warm-rgb),.6);border-color:var(--warm)}
+.field-note{font-size:12px;color:var(--ink-faint);margin-top:9px;min-height:18px}
+.big-btn{width:100%;background:rgba(var(--warm-rgb),.28);border:1px solid rgba(var(--warm-rgb),.55);
+  color:#fff8ee;border-radius:999px;padding:14px;font-size:14.5px;cursor:pointer;letter-spacing:.1em;
+  font-family:inherit;transition:background .3s ease}
+.big-btn:active{background:rgba(var(--warm-rgb),.4)}
+.note{font-size:11.5px;color:var(--ink-faint);text-align:center;margin-top:12px;line-height:1.6}
+
+/* 播放页 */
+.screen.player{padding-top:6px}
+.player .moon{width:112px;height:112px;border-radius:50%;margin:30px auto 0;
+  background:radial-gradient(circle at 36% 32%,#fbf3e6 0%,#e9cfa6 48%,rgba(var(--warm-rgb),.25) 78%,transparent 82%);
+  box-shadow:0 0 64px 18px rgba(var(--warm-rgb),.26);animation:breathe 6.5s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.78;transform:scale(.98)}50%{opacity:1;transform:scale(1.05)}}
+.player .p-title{font-family:var(--serif);font-weight:300;font-size:28px;letter-spacing:.16em;
+  text-align:center;margin-top:22px;color:#fbf7ff;text-shadow:0 4px 28px rgba(4,3,10,.7)}
+.player .p-sub{text-align:center;font-size:14px;color:var(--ink-faint);margin-top:7px;letter-spacing:.08em}
+.player .p-count{text-align:center;font-size:13px;color:var(--warm);margin-top:16px;min-height:19px;letter-spacing:.12em}
+.player .p-tracks{display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:14px}
+.player .p-tracks span{font-size:11.5px;color:var(--ink-soft);background:rgba(16,12,28,.46);
+  border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 11px}
+.player .p-ctrl{display:flex;align-items:center;justify-content:center;gap:34px;margin-top:36px}
+.player .p-ctrl .mini-tool{background:none;border:none;color:var(--ink-soft);font-size:12.5px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:7px;letter-spacing:.12em}
+.player .p-ctrl .mini-tool .ic{width:46px;height:46px;border-radius:50%;background:rgba(16,12,28,.46);
+  border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:16px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.player .pause-big{width:76px;height:76px;border-radius:50%;border:1px solid rgba(var(--warm-rgb),.45);
+  background:radial-gradient(circle at 38% 32%,rgba(255,246,232,.22),rgba(255,255,255,.04) 60%),rgba(20,14,30,.5);
+  color:#fff8ee;font-size:20px;cursor:pointer;box-shadow:0 0 28px rgba(var(--warm-rgb),.22)}
+.player .p-hint{text-align:center;font-size:12px;color:var(--ink-faint);margin-top:26px;line-height:1.85;letter-spacing:.06em}
+
+/* tabbar & 迷你条 */
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:64px;z-index:20;
+  display:flex;align-items:center;justify-content:space-around;
+  background:rgba(7,5,13,.82);border-top:1px solid rgba(255,255,255,.1);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.tabbar a{flex:1;text-align:center;color:var(--ink-faint);font-size:11px;text-decoration:none;
+  display:flex;flex-direction:column;gap:3px;cursor:pointer;letter-spacing:.1em}
+.tabbar a .ti{font-size:18px;line-height:1}
+.tabbar a.on{color:var(--warm)}
+.mini{position:absolute;left:12px;right:12px;bottom:70px;height:54px;z-index:19;
+  display:none;align-items:center;gap:11px;padding:7px 12px;border-radius:14px;cursor:pointer;
+  background:rgba(16,12,28,.86);border:1px solid rgba(var(--warm-rgb),.28);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.mini.show{display:flex}
+.mini .cover{width:40px;height:40px;border-radius:9px;background-image:url('img/rain-window.jpg');
+  background-size:cover;background-position:center;filter:saturate(.72) brightness(.75)}
+.mini .m-name{flex:1;min-width:0;font-size:13.5px;color:var(--ink);font-family:var(--serif);
+  letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini .m-play{width:32px;height:32px;border-radius:50%;border:1px solid rgba(var(--warm-rgb),.3);
+  background:rgba(var(--warm-rgb),.12);color:#fff2e2;cursor:pointer;font-size:12px}
+
+/* 定时面板 */
+.sheet-mask{position:absolute;inset:0;z-index:40;background:rgba(3,2,7,.7);display:none}
+.sheet-mask.show{display:block}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:41;
+  background:#12101c;border-top:1px solid rgba(255,255,255,.14);border-radius:22px 22px 0 0;
+  padding:20px 22px 30px;transform:translateY(105%);transition:transform .32s ease}
+.sheet.show{transform:translateY(0)}
+.sheet h3{font-family:var(--serif);font-weight:400;font-size:21px;letter-spacing:.14em;margin:0 0 4px;color:#fff}
+.sheet .s-sub{font-size:12.5px;color:var(--ink-faint);margin-bottom:16px}
+.opts{display:flex;flex-wrap:wrap;gap:9px}
+.opt{font-size:13.5px;color:var(--ink-soft);background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.18);border-radius:11px;padding:10px 15px;cursor:pointer;
+  transition:background .3s ease,border-color .3s ease,color .3s ease}
+.opt.on{color:#fff8ee;background:rgba(var(--warm-rgb),.26);border-color:rgba(var(--warm-rgb),.55)}
+.sheet .fade-note{font-size:12px;color:var(--ink-faint);line-height:1.75;margin-top:16px}
+.sheet .demo{display:inline-block;margin-top:12px;font-size:12px;color:var(--warm);
+  background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
+
+/* 熄灯 & 晚安 */
+.veil{position:absolute;inset:0;z-index:60;background:#07050d;display:none;
+  flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
+.veil.show{display:flex}
+.veil .breath{width:100px;height:100px;border-radius:50%;border:1px solid rgba(var(--warm-rgb),.3);
+  background:radial-gradient(circle,rgba(var(--warm-rgb),.13),transparent 70%);animation:breathe 5s ease-in-out infinite}
+.veil .bw{font-family:var(--serif);font-size:18px;letter-spacing:.4em;color:var(--ink);margin-top:26px}
+.veil .vm{font-size:12px;color:var(--ink-faint);margin-top:18px}
+.goodnight{position:absolute;inset:0;z-index:70;background:#07050d;display:none;
+  flex-direction:column;align-items:center;justify-content:center}
+.goodnight.show{display:flex}
+.goodnight .gm{width:80px;height:80px;border-radius:50%;border:1px solid rgba(var(--warm-rgb),.4);
+  background:radial-gradient(circle,rgba(var(--warm-rgb),.18),transparent 70%)}
+.goodnight .gt{font-family:var(--serif);font-size:25px;letter-spacing:.4em;color:#fbf7ff;margin-top:24px}
+
+/* 占位页 */
+.stub{display:flex;flex-direction:column;align-items:center;justify-content:center;height:70%;text-align:center}
+.stub .si{font-size:42px;color:var(--warm);opacity:.7}
+.stub h2{font-family:var(--serif);font-weight:400;font-size:23px;letter-spacing:.16em;margin:18px 0 8px;color:#fff}
+.stub p{font-size:13.5px;color:var(--ink-soft);max-width:260px;line-height:1.85}
+.stub .back2{margin-top:22px}
+@media(prefers-reduced-motion:reduce){
+  .bg,.grain,.orb::before,.player .moon,.veil .breath{animation:none}
+  .sheet,.bg{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <div class="stage">
+    <div class="bg home" id="bgHome"></div>
+    <div class="bg player" id="bgPlayer"></div>
+    <div class="tint"></div>
+    <canvas id="fx"></canvas>
+    <div class="vignette"></div>
+    <div class="grain"></div>
+  </div>
+
+  <div class="status">
+    <span id="clock">23:47</span>
+    <span>●●● ▰ <span class="bat"><i></i></span></span>
+  </div>
+
+  <!-- 首页 -->
+  <div class="screen active" id="scrHome">
+    <div class="content">
+      <div class="row between" style="padding-top:10px">
+        <div class="brand"><span class="glyph"></span><span>夜息</span></div>
+        <button class="ghost" onclick="toast('原型里先走通主流程')">敏感点测试</button>
+      </div>
+
+      <div class="hero">
+        <p class="whisper">戴上耳机 · 调暗屏幕</p>
+        <h1>嘘，夜深了</h1>
+        <p class="sub">把灯调暗一点，剩下的，交给声音。</p>
+      </div>
+
+      <div class="orb-wrap">
+        <button class="orb" id="orb" onclick="togglePlay()">▶</button>
+      </div>
+      <div class="now">
+        <div class="label" id="nowLabel">今晚的声音</div>
+        <div class="name" id="nowName">窗边夜雨</div>
+        <div class="meta" id="nowMeta">无人声 · 真实录音</div>
+      </div>
+      <div class="quick">
+        <button class="pill" onclick="swapTrack()">换一段 ↻</button>
+        <button class="pill" id="likeBtn" onclick="likeIt()">就这个</button>
+      </div>
+      <div class="tools">
+        <button class="tool" onclick="openTimer()"><span class="ic">⏱</span><span>定时</span></button>
+        <button class="tool" onclick="lightsOut()"><span class="ic">☾</span><span>熄灯</span></button>
+      </div>
+
+      <div class="ask">
+        <div class="ask-h">都不对？说句话告诉我想听什么</div>
+        <div class="ask-line">
+          <input id="askInput" maxlength="120" placeholder="比如：下雨但别太吵，加一点壁炉…">
+          <button class="go" onclick="genFromAsk()">配一段</button>
+        </div>
+        <div class="chips">
+          <button class="chip" onclick="genFromChip('窗外细雨，暖一点稳一点')">窗外细雨，暖一点</button>
+          <button class="chip" onclick="genFromChip('平静的海浪')">平静的海浪</button>
+          <button class="chip" onclick="genFromChip('轻一点，越稳越好')">轻一点，越稳越好</button>
+        </div>
+      </div>
+
+      <div class="entries">
+        <button class="entry" onclick="go('compose')">
+          <div class="thumb a"></div>
+          <div class="txt"><div class="k">✦ AI 配一段</div><div class="t">说一句就配好</div><div class="d">从真实录音里挑，不合成</div></div>
+        </button>
+        <button class="entry" onclick="go('plaza')">
+          <div class="thumb b"></div>
+          <div class="txt"><div class="k">♡ 配方广场</div><div class="t">听别人的夜</div><div class="d">喜欢的，存一份给自己</div></div>
+        </button>
+      </div>
+
+      <div class="foot">所有声音来自真实 CC0 录音<br>晚安</div>
+    </div>
+  </div>
+
+  <!-- 配一段 -->
+  <div class="screen" id="scrCompose">
+    <div class="content">
+      <div class="page-head">
+        <button class="back" onclick="go('home')">‹ 返回</button>
+        <button class="ghost" onclick="toast('原型里先走通主流程')">重来</button>
+      </div>
+      <h2 class="h-title">配一段</h2>
+      <p class="h-sub">说一句现在的状态，剩下的交给它。</p>
+
+      <div class="ask">
+        <div class="ask-line">
+          <input id="composeInput" maxlength="120" placeholder="比如：下雨但别太吵…">
+          <button class="go" onclick="genHere()">配一段</button>
+        </div>
+      </div>
+
+      <div class="understand">
+        <div class="u-h">它听懂了</div>
+        <div class="u-t" id="underText">雨声打底，压低颗粒感，暖一点、稳一点。</div>
+        <div class="tags" id="underTags">
+          <span class="tag">温暖</span><span class="tag">稳定</span><span class="tag">不刺耳</span>
+        </div>
+      </div>
+
+      <div class="sec-h">从真实录音里挑了这三层</div>
+      <div id="trackList"></div>
+
+      <div class="field-wrap">
+        <div class="field-hint">拖动圆点，把每层声音放到你想要的位置。<br><b>往下 = 更近，往上 = 更远；左右 = 声像</b>。</div>
+        <div class="field" id="field">
+          <span class="axis top">远</span><span class="axis bottom">近</span>
+          <span class="axis left">左</span><span class="axis right">右</span>
+        </div>
+        <div class="field-note" id="fieldNote">点住圆点拖动试试</div>
+      </div>
+
+      <button class="big-btn" onclick="go('player')">听这一版 →</button>
+      <div class="note">真实 CC0 录音 · 只调音量与位置，不改音色</div>
+    </div>
+  </div>
+
+  <!-- 播放页 -->
+  <div class="screen player" id="scrPlayer">
+    <div class="content">
+      <div class="page-head">
+        <button class="back" onclick="go('home')">‹ 返回</button>
+        <button class="ghost" id="modeChip" onclick="toggleMode()">☾ 睡眠模式</button>
+      </div>
+      <div class="moon"></div>
+      <div class="p-title" id="pTitle">窗边夜雨 · 暖</div>
+      <div class="p-sub" id="pSub">真实录音 · 零处理</div>
+      <div class="p-count" id="pCount"></div>
+      <div class="p-tracks" id="pTracks">
+        <span>城市夜雨</span><span>柔和雨</span><span>远雷</span>
+      </div>
+      <div class="p-ctrl">
+        <button class="mini-tool" onclick="openTimer()"><span class="ic">⏱</span><span>定时</span></button>
+        <button class="pause-big" id="pauseBig" onclick="togglePlay()">❚❚</button>
+        <button class="mini-tool" onclick="lightsOut()"><span class="ic">☾</span><span>熄灯</span></button>
+      </div>
+      <div class="p-hint">音量用手机侧键调 · 锁屏后声音继续<br>到点会慢慢变轻，不会突然停</div>
+    </div>
+  </div>
+
+  <!-- 占位页：广场 -->
+  <div class="screen" id="scrPlaza">
+    <div class="stub">
+      <div class="si">♡</div>
+      <h2>配方广场</h2>
+      <p>这一版原型先走通「今晚 → 配一段 → 播放 → 定时」主流程。广场页下一版补上。</p>
+      <button class="pill back2" onclick="go('home')">回今晚</button>
+    </div>
+  </div>
+
+  <!-- 占位页：我的 -->
+  <div class="screen" id="scrMe">
+    <div class="stub">
+      <div class="si">☾</div>
+      <h2>我的</h2>
+      <p>登录、耳朵档案、收藏的配方，放在这里。原型阶段先占位。</p>
+      <button class="pill back2" onclick="go('home')">回今晚</button>
+    </div>
+  </div>
+
+  <!-- 迷你播放条 -->
+  <div class="mini" id="mini" onclick="go('player')">
+    <div class="cover"></div>
+    <div class="m-name" id="miniName">窗边夜雨 · 暖</div>
+    <button class="m-play" id="miniPlay" onclick="event.stopPropagation();togglePlay()">❚❚</button>
+  </div>
+
+  <!-- tabbar -->
+  <div class="tabbar" id="tabbar">
+    <a class="on" data-v="home" onclick="go('home')"><span class="ti">☾</span>今晚</a>
+    <a data-v="compose" onclick="go('compose')"><span class="ti">✦</span>配一段</a>
+    <a data-v="plaza" onclick="go('plaza')"><span class="ti">♡</span>广场</a>
+    <a data-v="me" onclick="go('me')"><span class="ti">◯</span>我的</a>
+  </div>
+
+  <!-- 定时面板 -->
+  <div class="sheet-mask" id="sheetMask" onclick="closeTimer()"></div>
+  <div class="sheet" id="sheet">
+    <h3>什么时候停？</h3>
+    <div class="s-sub">睡前听着，不用自己记得关。</div>
+    <div class="opts" id="timerOpts">
+      <button class="opt" data-min="15">15 分钟</button>
+      <button class="opt on" data-min="30">30 分钟</button>
+      <button class="opt" data-min="45">45 分钟</button>
+      <button class="opt" data-min="60">60 分钟</button>
+      <button class="opt" data-min="90">90 分钟</button>
+      <button class="opt" data-min="0">不限时</button>
+    </div>
+    <div class="fade-note">结束前 60 秒声音会慢慢变轻，不会突然安静下来惊醒你。</div>
+    <button class="demo" onclick="demoFade()">演示一下淡出（10 秒）</button>
+  </div>
+
+  <!-- 熄灯 -->
+  <div class="veil" id="veil" onclick="wake()">
+    <div class="breath"></div>
+    <div class="bw" id="breathWord">吸 气</div>
+    <div class="vm">轻触任意处唤醒</div>
+  </div>
+
+  <!-- 晚安 -->
+  <div class="goodnight" id="goodnight">
+    <div class="gm"></div>
+    <div class="gt">晚安</div>
+  </div>
+</div>
+
+<audio id="audio" loop preload="auto" src="demo_rain.mp3"></audio>
+
+<script>
+/* 夜息移动原型 · 朴素写法：var + function，方便直接改 */
+var audio = document.getElementById("audio");
+var state = {
+  view: "home",
+  playing: false,
+  mode: "sleep",
+  timerMin: 30,
+  timerEnd: 0,
+  tick: null,
+  fade: null,
+  lvl: 0,
+  recipe: "窗边夜雨 · 暖",
+  tracks: [
+    { name: "城市夜雨", role: "底噪", meta: "CC0 真实录音 · 母带", vol: 70, x: 50, y: 62 },
+    { name: "柔和雨", role: "质感", meta: "CC0 真实录音 · 48kHz", vol: 45, x: 36, y: 44 },
+    { name: "远雷", role: "点缀", meta: "CC0 真实录音 · 远处", vol: 18, x: 68, y: 28 }
+  ]
+};
+var trackNames = ["窗边夜雨", "大雨打树叶", "帐篷雨", "湖海柔浪", "营地篝火"];
+var swapIndex = 0;
+
+/* 时钟 */
+function updateClock(){
+  var d = new Date();
+  var h = d.getHours(), m = d.getMinutes();
+  document.getElementById("clock").textContent =
+    (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+}
+updateClock();
+setInterval(updateClock, 30000);
+
+/* 页面切换 */
+function go(v){
+  var list = ["home","compose","player","plaza","me"];
+  for (var i = 0; i < list.length; i++){
+    var el = document.getElementById("scr" + list[i].charAt(0).toUpperCase() + list[i].slice(1));
+    if (el) el.className = "screen" + (list[i] === v ? " active" : "") + (v === "player" ? " player" : "");
+  }
+  state.view = v;
+  var tabs = document.querySelectorAll("#tabbar a");
+  for (var j = 0; j < tabs.length; j++){
+    tabs[j].className = tabs[j].getAttribute("data-v") === v ? "on" : "";
+  }
+  var isPlayer = (v === "player");
+  document.getElementById("tabbar").style.display = isPlayer ? "none" : "flex";
+  document.getElementById("mini").className =
+    "mini" + (state.playing && !isPlayer ? " show" : "");
+  var bgH = document.getElementById("bgHome");
+  var bgP = document.getElementById("bgPlayer");
+  bgH.style.opacity = isPlayer ? "0" : "";
+  bgP.style.opacity = isPlayer ? ".32" : "";
+}
+
+/* 播放控制 */
+function togglePlay(){
+  state.playing = !state.playing;
+  if (state.playing){
+    startVisualizer();
+    audio.play().catch(function(){});
+  } else {
+    audio.pause();
+  }
+  syncPlayUI();
+}
+function syncPlayUI(){
+  document.getElementById("orb").textContent = state.playing ? "❚❚" : "▶";
+  document.getElementById("pauseBig").textContent = state.playing ? "❚❚" : "▶";
+  document.getElementById("miniPlay").textContent = state.playing ? "❚❚" : "▶";
+  document.getElementById("phone").className = "phone" + (state.playing ? " is-playing" : "");
+  document.getElementById("mini").className =
+    "mini" + (state.playing && state.view !== "player" ? " show" : "");
+}
+
+/* 换一段 / 就这个 */
+function swapTrack(){
+  swapIndex = (swapIndex + 1) % trackNames.length;
+  document.getElementById("nowName").textContent = trackNames[swapIndex];
+  state.recipe = trackNames[swapIndex] + " · 暖";
+  document.getElementById("pTitle").textContent = state.recipe;
+  document.getElementById("miniName").textContent = state.recipe;
+}
+function likeIt(){
+  var b = document.getElementById("likeBtn");
+  b.className = "pill on";
+  b.textContent = "已收下 ✓";
+  toast("存到「我的」了");
+}
+
+/* 从首页一句话 / chip 进入配一段 */
+function genFromAsk(){
+  var v = document.getElementById("askInput").value;
+  if (!v){ toast("先说一句想听什么"); return; }
+  document.getElementById("composeInput").value = v;
+  applyUnderstand(v);
+  go("compose");
+}
+function genFromChip(s){
+  document.getElementById("askInput").value = s;
+  document.getElementById("composeInput").value = s;
+  applyUnderstand(s);
+  go("compose");
+}
+function genHere(){
+  var v = document.getElementById("composeInput").value;
+  if (!v){ toast("先说一句想听什么"); return; }
+  applyUnderstand(v);
+  toast("按这句话重新挑了三层");
+}
+
+/* 把一句话翻译成理解结果（原型里用关键词，未来接后端） */
+function applyUnderstand(s){
+  var text = "雨声打底，压低颗粒感，暖一点、稳一点。";
+  var tags = ["温暖","稳定","不刺耳"];
+  var names = ["城市夜雨","柔和雨","远雷"];
+  if (s.indexOf("海") >= 0){
+    text = "用柔浪铺底，放慢起伏，让声音退到远一点的地方。";
+    tags = ["平稳","辽阔","稍远"];
+    names = ["湖海柔浪","沙滩柔浪","夜风"];
+  } else if (s.indexOf("轻") >= 0 || s.indexOf("稳") >= 0){
+    text = "压低所有颗粒和起伏，只留一层稳稳的底噪。";
+    tags = ["很轻","很稳","单调"];
+    names = ["柔和雨","乡村小雨","夜风"];
+  } else if (s.indexOf("壁炉") >= 0 || s.indexOf("火") >= 0){
+    text = "雨声打底，壁炉做暖，火声放远一点当背景。";
+    tags = ["温暖","有陪伴感","远处"];
+    names = ["城市夜雨","炉火低燃","远雷"];
+  }
+  document.getElementById("underText").textContent = text;
+  document.getElementById("underTags").innerHTML = "";
+  for (var i = 0; i < tags.length; i++){
+    var sp = document.createElement("span");
+    sp.className = "tag";
+    sp.textContent = tags[i];
+    document.getElementById("underTags").appendChild(sp);
+  }
+  state.tracks[0].name = names[0];
+  state.tracks[1].name = names[1];
+  state.tracks[2].name = names[2];
+  var chips = document.getElementById("pTracks").innerHTML = "";
+  for (var k = 0; k < names.length; k++){
+    var s2 = document.createElement("span");
+    s2.textContent = names[k];
+    document.getElementById("pTracks").appendChild(s2);
+  }
+  renderTracks();
+  state.recipe = names[0] + " · 暖";
+  document.getElementById("pTitle").textContent = state.recipe;
+  document.getElementById("miniName").textContent = state.recipe;
+}
+
+/* 渲染三层声轨 */
+function renderTracks(){
+  var box = document.getElementById("trackList");
+  box.innerHTML = "";
+  for (var i = 0; i < state.tracks.length; i++){
+    var t = state.tracks[i];
+    var div = document.createElement("div");
+    div.className = "track";
+    div.innerHTML =
+      '<div class="t-top"><span class="t-name">' + t.name + '</span>' +
+      '<span class="t-role">' + t.role + '</span></div>' +
+      '<div class="t-meta">' + t.meta + '</div>' +
+      '<div class="vol"><span>音量</span><input type="range" min="0" max="100" value="' + t.vol + '" data-i="' + i + '">' +
+      '<em>' + t.vol + '%</em></div>';
+    box.appendChild(div);
+  }
+  var ranges = box.querySelectorAll("input[type=range]");
+  for (var r = 0; r < ranges.length; r++){
+    ranges[r].oninput = onVolChange;
+  }
+  renderDots();
+}
+function onVolChange(e){
+  var i = parseInt(e.target.getAttribute("data-i"));
+  state.tracks[i].vol = parseInt(e.target.value);
+  e.target.nextSibling.textContent = e.target.value + "%";
+}
+
+/* 声场圆点 */
+function renderDots(){
+  var field = document.getElementById("field");
+  var old = field.querySelectorAll(".dot");
+  for (var o = 0; o < old.length; o++) field.removeChild(old[o]);
+  for (var i = 0; i < state.tracks.length; i++){
+    var t = state.tracks[i];
+    var d = document.createElement("div");
+    d.className = "dot d" + i;
+    d.setAttribute("data-i", i);
+    d.style.left = t.x + "%";
+    d.style.top = t.y + "%";
+    d.textContent = t.name.slice(0,1);
+    field.appendChild(d);
+  }
+  bindDots();
+}
+var dragIndex = -1;
+function bindDots(){
+  var field = document.getElementById("field");
+  var dots = field.querySelectorAll(".dot");
+  for (var i = 0; i < dots.length; i++){
+    dots[i].addEventListener("mousedown", startDrag);
+    dots[i].addEventListener("touchstart", startDrag, false);
+  }
+  field.addEventListener("mousemove", moveDrag);
+  field.addEventListener("touchmove", moveDrag, false);
+  field.addEventListener("mouseup", endDrag);
+  field.addEventListener("touchend", endDrag, false);
+}
+function startDrag(e){
+  var dot = e.currentTarget;
+  dragIndex = parseInt(dot.getAttribute("data-i"));
+  var dots = document.querySelectorAll("#field .dot");
+  for (var i = 0; i < dots.length; i++) dots[i].className = "dot d" + i;
+  dot.className = "dot d" + dragIndex + " active";
+  e.preventDefault();
+}
+function moveDrag(e){
+  if (dragIndex < 0) return;
+  var field = document.getElementById("field");
+  var rect = field.getBoundingClientRect();
+  var cx = e.touches ? e.touches[0].clientX : e.clientX;
+  var cy = e.touches ? e.touches[0].clientY : e.clientY;
+  var x = Math.max(6, Math.min(94, (cx - rect.left) / rect.width * 100));
+  var y = Math.max(6, Math.min(94, (cy - rect.top) / rect.height * 100));
+  state.tracks[dragIndex].x = Math.round(x);
+  state.tracks[dragIndex].y = Math.round(y);
+  var dot = field.querySelector(".dot.active");
+  if (dot){ dot.style.left = x + "%"; dot.style.top = y + "%"; }
+  var lr = x < 40 ? "偏左" : (x > 60 ? "偏右" : "居中");
+  var nf = y > 60 ? "很近" : (y > 42 ? "稍近" : (y > 28 ? "稍远" : "很远"));
+  document.getElementById("fieldNote").textContent =
+    state.tracks[dragIndex].name + "：" + lr + " · " + nf;
+  e.preventDefault();
+}
+function endDrag(){ dragIndex = -1; }
+
+/* 定时 */
+function openTimer(){
+  document.getElementById("sheetMask").className = "sheet-mask show";
+  document.getElementById("sheet").className = "sheet show";
+  document.getElementById("pCount").textContent = "";
+}
+function closeTimer(){
+  document.getElementById("sheetMask").className = "sheet-mask";
+  document.getElementById("sheet").className = "sheet";
+}
+var opts = document.querySelectorAll("#timerOpts .opt");
+for (var oi = 0; oi < opts.length; oi++){
+  opts[oi].onclick = function(){
+    for (var k = 0; k < opts.length; k++) opts[k].className = "opt";
+    this.className = "opt on";
+    state.timerMin = parseInt(this.getAttribute("data-min"));
+    closeTimer();
+    startTimer();
+  };
+}
+function startTimer(){
+  if (state.tick){ clearInterval(state.tick); state.tick = null; }
+  if (state.fade){ clearInterval(state.fade); state.fade = null; }
+  audio.volume = 1;
+  if (state.timerMin <= 0){
+    document.getElementById("pCount").textContent = "不限时";
+    return;
+  }
+  state.timerEnd = Date.now() + state.timerMin * 60000;
+  state.tick = setInterval(function(){
+    var left = Math.max(0, (state.timerEnd - Date.now()) / 1000);
+    if (left <= 60 && !state.fade) beginFade(60);
+    var m = Math.floor(left / 60), s = Math.floor(left % 60);
+    document.getElementById("pCount").textContent =
+      "还剩 " + m + ":" + (s < 10 ? "0" : "") + s;
+    if (left <= 0){
+      clearInterval(state.tick); state.tick = null;
+      audio.pause(); state.playing = false; syncPlayUI();
+      document.getElementById("goodnight").className = "goodnight show";
+    }
+  }, 1000);
+}
+function beginFade(seconds){
+  var start = Date.now();
+  var from = audio.volume;
+  state.fade = setInterval(function(){
+    var passed = (Date.now() - start) / 1000;
+    audio.volume = Math.max(0, from * (1 - passed / seconds));
+    if (passed >= seconds){ clearInterval(state.fade); state.fade = null; }
+  }, 100);
+}
+function demoFade(){
+  closeTimer();
+  state.timerEnd = Date.now() + 10000;
+  if (state.tick) clearInterval(state.tick);
+  state.tick = setInterval(function(){
+    var left = Math.max(0, (state.timerEnd - Date.now()) / 1000);
+    document.getElementById("pCount").textContent = "还剩 " + Math.ceil(left) + " 秒";
+    if (left <= 0){ clearInterval(state.tick); state.tick = null; }
+  }, 300);
+  beginFade(10);
+}
+
+/* 睡眠 / 专注 */
+function toggleMode(){
+  var chip = document.getElementById("modeChip");
+  if (state.mode === "sleep"){
+    state.mode = "focus";
+    chip.textContent = "✦ 专注模式";
+    if (state.tick){ clearInterval(state.tick); state.tick = null; }
+    if (state.fade){ clearInterval(state.fade); state.fade = null; }
+    audio.volume = 1;
+    document.getElementById("pCount").textContent = "";
+  } else {
+    state.mode = "sleep";
+    chip.textContent = "☾ 睡眠模式";
+  }
+}
+
+/* 熄灯 / 唤醒 */
+var breathTimer = null;
+function lightsOut(){
+  document.getElementById("veil").className = "veil show";
+  var on = true;
+  breathTimer = setInterval(function(){
+    on = !on;
+    document.getElementById("breathWord").textContent = on ? "吸 气" : "呼 气";
+  }, 2500);
+}
+function wake(){
+  document.getElementById("veil").className = "veil";
+  if (breathTimer){ clearInterval(breathTimer); breathTimer = null; }
+}
+
+/* 小提示 */
+function toast(msg){
+  var old = document.getElementById("toastBox");
+  if (old) document.body.removeChild(old);
+  var box = document.createElement("div");
+  box.id = "toastBox";
+  box.textContent = msg;
+  box.style.cssText = "position:fixed;left:50%;bottom:130px;transform:translateX(-50%);z-index:99;" +
+    "background:rgba(20,15,32,.95);border:1px solid rgba(233,183,131,.3);color:#f4ecff;" +
+    "padding:9px 16px;border-radius:999px;font-size:12.5px;white-space:nowrap";
+  document.body.appendChild(box);
+  setTimeout(function(){
+    if (box.parentNode) document.body.removeChild(box);
+  }, 1800);
+}
+
+renderTracks();
+syncPlayUI();
+
+/* ===== 声音驱动的画面（对齐 web 端灵魂）：光球随音量起伏 ===== */
+var actx = null;
+var analyser = null;
+var lvlTimer = null;
+function startVisualizer(){
+  if (actx) { if (actx.state === "suspended") actx.resume(); return; }
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    actx = new AC();
+    var src = actx.createMediaElementSource(audio);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 256;
+    src.connect(analyser);
+    analyser.connect(actx.destination);
+    var data = new Uint8Array(analyser.frequencyBinCount);
+    lvlTimer = setInterval(function(){
+      analyser.getByteFrequencyData(data);
+      var sum = 0;
+      for (var i = 0; i < data.length; i++) sum += data[i];
+      var v = Math.min(1, sum / data.length / 85);
+      state.lvl = v;
+      document.getElementById("phone").style.setProperty("--lvl", v.toFixed(3));
+    }, 60);
+  } catch(e){}
+}
+
+/* 浮动微光：web 端余烬粒子的简化版 */
+var fxCanvas = document.getElementById("fx");
+if (fxCanvas){
+  var fctx = fxCanvas.getContext("2d");
+  var sparks = [];
+  function sizeFx(){
+    var rect = fxCanvas.getBoundingClientRect();
+    fxCanvas.width = rect.width;
+    fxCanvas.height = rect.height;
+  }
+  sizeFx();
+  window.addEventListener("resize", sizeFx);
+  for (var s = 0; s < 24; s++){
+    sparks.push({
+      x: Math.random(), y: Math.random(),
+      r: 0.6 + Math.random() * 1.4,
+      v: 0.00006 + Math.random() * 0.0002,
+      a: 0.1 + Math.random() * 0.28
+    });
+  }
+  setInterval(function(){
+    fctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    var lvl = state.lvl || 0;
+    for (var k = 0; k < sparks.length; k++){
+      var p = sparks[k];
+      p.y -= p.v;
+      if (p.y < -0.02){ p.y = 1.02; p.x = Math.random(); }
+      fctx.beginPath();
+      fctx.arc(p.x * fxCanvas.width, p.y * fxCanvas.height, p.r, 0, Math.PI * 2);
+      fctx.fillStyle = "rgba(233,183,131," + (p.a * (0.5 + lvl * 0.5)).toFixed(3) + ")";
+      fctx.fill();
+    }
+  }, 50);
+}
+</script>
+</body>
+</html>

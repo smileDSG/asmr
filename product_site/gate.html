@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>进入夜息</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+  .gate-wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 12vh 20px 64px;
+  }
+  .head { text-align: center; padding: 12px 0 36px; }
+  .head .moon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 34%, #fbf3e6 0%, #e9cfa6 46%, rgba(233, 183, 131, 0.16) 74%, transparent 78%);
+    box-shadow: 0 0 40px rgba(var(--y-warm-rgb), 0.32);
+  }
+  .head h1 {
+    font-family: var(--y-serif);
+    font-size: 27px;
+    font-weight: 300;
+    letter-spacing: 0.18em;
+    margin: 0;
+    color: #fbf7ff;
+  }
+  .head p {
+    font-size: 13px;
+    color: var(--y-text-sub);
+    letter-spacing: 0.06em;
+    margin: 12px 0 0;
+    line-height: 1.8;
+  }
+  .choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    border-radius: 18px;
+    padding: 19px 22px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.3s ease, filter 0.3s ease;
+  }
+  .choice:hover { transform: translateY(-2px); }
+  .choice .ct {
+    display: block;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    margin-bottom: 7px;
+  }
+  .choice .cs {
+    display: block;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  .choice.primary {
+    background: linear-gradient(135deg, #f3e2c8, #e4b682);
+    color: #1d120a;
+    box-shadow: 0 10px 30px rgba(var(--y-warm-rgb), 0.22);
+  }
+  .choice.primary .cs { color: rgba(29, 18, 10, 0.7); }
+  .choice.guest {
+    background: var(--y-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: var(--y-text);
+  }
+  .choice.guest .cs { color: var(--y-text-sub); }
+  .foot {
+    text-align: center;
+    color: var(--y-text-muted);
+    font-size: 12px;
+    line-height: 1.9;
+    margin-top: 26px;
+  }
+  @media(max-width:380px){ .head h1 { font-size: 23px; } }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+<div class="gate-wrap">
+  <div class="head">
+    <div class="moon"></div>
+    <h1>夜息</h1>
+    <p>今晚，听点让自己慢下来的声音</p>
+  </div>
+
+  <button class="choice primary" id="btnAccount">
+    <span class="ct">登录 / 注册</span>
+    <span class="cs">记住你的耳朵档案，下次不用重新找</span>
+  </button>
+
+  <button class="choice guest" id="btnGuest">
+    <span class="ct">以游客身份进入</span>
+    <span class="cs">不用注册，先听听看 · 记忆只存本机</span>
+  </button>
+
+  <p class="foot">游客也能完整听声、打分<br>登录只是为了把耳朵档案带走</p>
+</div>
+
+<script src="yexi_catalog.js"></script>
+<script>
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+// 登录后要回的页面，只允许本站页面名，防止跳到别的网站
+var from = new URLSearchParams(location.search).get("from") || "home.html";
+if (!/^[A-Za-z0-9_-]+\.html$/.test(from)) from = "home.html";
+
+// 已经登录、或上次已经选过游客，就直接放行，不用再选一遍
+var alreadyToken = "";
+var alreadyGuest = "";
+try {
+  alreadyToken = localStorage.getItem("yezi_token") || "";
+  alreadyGuest = localStorage.getItem("yezi_guest") || "";
+} catch (e) {
+  // 浏览器不让用本地存储时，当作已经选过，别把人挡在外面
+}
+if (alreadyToken || alreadyGuest === "1") {
+  location.replace(from);
+}
+
+document.getElementById("btnAccount").onclick = function() {
+  location.href = "auth.html?from=" + encodeURIComponent(from);
+};
+
+document.getElementById("btnGuest").onclick = function() {
+  try {
+    localStorage.setItem("yezi_guest", "1");
+  } catch (e) {
+    // 存不了也没关系，当前这次照样能进
+  }
+  location.href = from;
+};
+</script>
+</body>
+</html>

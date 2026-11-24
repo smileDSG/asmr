@@ -3,771 +3,1937 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>夜息 · 慢慢放松</title>
-<link rel="stylesheet" href="theme.css?v=2">
+<meta name="theme-color" content="#07050d">
+<title>夜息 · 嘘，慢慢来</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap">
+<link rel="stylesheet" href="theme.css?v=12">
 <style>
-  .home-wrap {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 0 22px 112px;
-    position: relative;
-    z-index: 1;
-  }
+/* =========================================================
+   夜息首页：整屏即场景 + 声音驱动的画面
+   ========================================================= */
+:root {
+  --night: #07050d;
+  --ink: #f8f5fd;
+  --ink-soft: rgba(246, 242, 255, 0.90);
+  --ink-faint: rgba(236, 229, 252, 0.78);
+  --warm: #e9b783;            /* 暖色点缀：烛光 / 台灯 */
+  --warm-rgb: 233, 183, 131;
+  --acc-rgb: 142, 116, 232;   /* 场景色，JS 按声音切换 */
+  --lvl: 0;                   /* 实时音量 0~1，JS 每帧写入 */
+  --sc: 0;                    /* 滚动进度 0~1 */
+  --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --ease-slow: cubic-bezier(.22, .61, .36, 1);
+}
 
-  /* ===== 首屏月夜主卡片（克制、柔和、不催促） ===== */
-  .calm-hero {
-    position: relative;
-    border-radius: 22px;
-    overflow: hidden;
-    border: 1px solid rgba(218, 200, 255, 0.16);
-    background: #171226;
-    min-height: 248px;
-    padding: 24px 24px 26px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    box-shadow: 0 18px 48px rgba(6, 4, 14, 0.45);
-  }
-  .calm-hero-bg {
-    position: absolute;
-    inset: 0;
-    background-image: url(img/night-lake.webp);
-    background-size: cover;
-    background-position: right center;
-    filter: saturate(0.92) brightness(0.88);
-    transition: background-image 0.9s ease, transform 1.2s ease;
-    z-index: 0;
-  }
-  .calm-hero.playing .calm-hero-bg {
-    transform: scale(1.03);
-  }
-  .calm-hero-veil {
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(95deg, rgba(20, 14, 34, 0.88) 0%, rgba(20, 14, 34, 0.62) 48%, rgba(20, 14, 34, 0.18) 100%),
-      linear-gradient(180deg, rgba(16, 11, 28, 0.18) 0%, rgba(16, 11, 28, 0.52) 100%);
-    z-index: 1;
-  }
-  .calm-hero-top {
-    position: relative;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .calm-eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: rgba(235, 224, 255, 0.88);
-    letter-spacing: 0.4px;
-  }
-  .calm-tools {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .calm-tool-btn {
-    background: rgba(18, 13, 30, 0.48);
-    border: 1px solid rgba(218, 200, 255, 0.18);
-    color: rgba(232, 220, 255, 0.82);
-    border-radius: 999px;
-    padding: 5px 11px;
-    font-size: 11.5px;
-    cursor: pointer;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-  }
-  .calm-tool-btn:hover,
-  .calm-tool-btn.on {
-    background: rgba(var(--y-accent-rgb), 0.26);
-    border-color: rgba(218, 200, 255, 0.46);
-    color: #fff;
-  }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--night);
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+::selection { background: rgba(var(--warm-rgb), 0.3); }
+html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.12) transparent; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 8px; }
 
-  .calm-hero-body {
-    position: relative;
-    z-index: 2;
-    margin-top: 22px;
-    max-width: 78%;
-  }
-  .calm-title {
-    margin: 0;
-    font-size: 30px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    line-height: 1.28;
-    color: #ffffff;
-    text-shadow: 0 2px 16px rgba(10, 6, 22, 0.45);
-  }
-  .calm-sub {
-    margin: 10px 0 0;
-    font-size: 13.5px;
-    line-height: 1.6;
-    color: rgba(232, 222, 250, 0.78);
-  }
-  .calm-cta-row {
-    position: relative;
-    z-index: 2;
-    margin-top: 22px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .calm-play-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, #d7c7ff, #b99ef8);
-    color: #19122b;
-    border: none;
-    border-radius: 14px;
-    padding: 12px 22px;
-    font-size: 14.5px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    cursor: pointer;
-    box-shadow: 0 8px 24px rgba(164, 134, 245, 0.28);
-    transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.25s ease;
-  }
-  .calm-play-btn:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.04);
-    box-shadow: 0 10px 28px rgba(164, 134, 245, 0.36);
-  }
-  .calm-play-btn.playing {
-    background: rgba(215, 199, 255, 0.2);
-    color: #f3ecff;
-    border: 1px solid rgba(215, 199, 255, 0.48);
-    box-shadow: none;
-  }
-  .calm-status {
-    font-size: 12px;
-    color: rgba(226, 214, 250, 0.76);
-  }
+/* ---------- 全屏场景层 ---------- */
+.scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--night);
+}
+.scene-bg {
+  position: absolute;
+  inset: -10px;
+  background-size: cover;
+  background-position: center;
+  /* 保持柔和清晰，适度压暗以衬托居中文字 */
+  filter: saturate(0.95) brightness(0.88) contrast(1.02);
+  opacity: 0;
+  transition: opacity 0.45s ease-out, filter 0.45s ease;
+  animation: kenburns 48s ease-in-out infinite alternate;
+  will-change: opacity, transform;
+}
+.scene-bg.on { opacity: 1; }
+body.playing .scene-bg { filter: saturate(1) brightness(0.94) contrast(1.02); }
+@keyframes kenburns {
+  0%   { transform: scale(1.01) translate3d(0, 0, 0); }
+  100% { transform: scale(1.04) translate3d(-0.5%, -0.4%, 0); }
+}
+.scene-tint {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 18% 100%, rgba(var(--acc-rgb), 0.10), transparent 60%),
+    radial-gradient(70% 60% at 85% 10%, rgba(var(--warm-rgb), 0.06), transparent 70%);
+  mix-blend-mode: soft-light;
+  transition: background 0.6s ease;
+}
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.scene-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(66% 48% at 50% 48%, rgba(7, 5, 13, 0.24) 0%, rgba(7, 5, 13, 0.08) 70%, transparent 100%),
+    radial-gradient(130% 90% at 50% 45%, transparent 52%, rgba(4, 3, 8, 0.38) 100%),
+    linear-gradient(180deg, rgba(7, 5, 13, 0.22) 0%, rgba(7, 5, 13, 0) 22%, rgba(7, 5, 13, 0) 68%, rgba(7, 5, 13, 0.58) 100%);
+}
+/* 滚动后场景慢慢沉下去，让内容浮上来 */
+.scene-sink {
+  position: absolute;
+  inset: 0;
+  background: #07050d;
+  opacity: calc(var(--sc) * 0.62);
+}
+.grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.02;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation: grain 1.2s steps(5) infinite;
+}
+@keyframes grain {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(-3%, 2%); }
+  40%  { transform: translate(2%, -3%); }
+  60%  { transform: translate(-2%, -1%); }
+  80%  { transform: translate(3%, 3%); }
+  100% { transform: translate(0, 0); }
+}
 
-  /* ===== 上次听过 快捷续播条 ===== */
-  .last-bar {
-    margin-top: 14px;
-    background: rgba(24, 19, 39, 0.76);
-    border: 1px solid rgba(218, 200, 255, 0.13);
-    border-radius: 18px;
-    padding: 14px 16px;
+/* ---------- 顶栏：透明、安静 ---------- */
+.top.v2-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: 22px clamp(20px, 5vw, 64px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: opacity 0.9s var(--ease-slow), background 0.9s ease;
+}
+body.scrolled .top.v2-top {
+  background: rgba(7, 5, 13, 0.62);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.hero h1 .nb { display: inline-block; white-space: nowrap; }
+.v2-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+  color: var(--ink);
+  text-decoration: none;
+}
+.v2-brand .glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 34%, #fbf3e6 0%, #e9cfa6 45%, rgba(233, 183, 131, 0.15) 72%, transparent 74%);
+  box-shadow: 0 0 24px rgba(var(--warm-rgb), 0.35);
+}
+.v2-brand .word {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: 0.32em;
+}
+.v2-nav {
+  display: none;
+  gap: 28px;
+  margin-right: 18px;
+}
+.v2-nav a {
+  color: rgba(242, 236, 255, 0.80);
+  text-decoration: none;
+  font-size: 14.5px;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 10px rgba(4, 3, 10, 0.65);
+  transition: color 0.35s ease;
+}
+.v2-nav a:hover { color: #ffffff; }
+.v2-nav a.on { color: #ffffff; }
+.v2-nav a.on::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warm);
+  margin-right: 8px;
+  vertical-align: 3px;
+  box-shadow: 0 0 8px var(--warm);
+}
+.v2-ghost,
+.v2-top .auth-link {
+  background: rgba(16, 12, 28, 0.44);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 13.5px;
+  font-family: inherit;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease;
+}
+.v2-ghost:hover,
+.v2-top .auth-link:hover {
+  background: rgba(var(--warm-rgb), 0.22);
+  border-color: rgba(var(--warm-rgb), 0.5);
+  color: #fff;
+}
+
+/* ---------- 首屏 ---------- */
+main {
+  position: relative;
+  z-index: 1;
+}
+.hero {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 96px clamp(22px, 6vw, 80px) 108px;
+  position: relative;
+}
+.whisper {
+  margin: 0 0 18px;
+  padding-left: 0.34em;
+  font-size: clamp(14px, 1.25vw, 16px);
+  letter-spacing: 0.34em;
+  color: var(--ink-faint);
+  text-shadow: 0 2px 14px rgba(4, 3, 10, 0.72);
+  opacity: 0;
+  animation: rise 0.28s ease-out 0s forwards;
+}
+.hero h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(42px, 6.8vw, 82px);
+  line-height: 1.22;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  text-shadow: 0 4px 32px rgba(4, 3, 10, 0.75);
+  opacity: 0;
+  animation: rise 0.3s ease-out 0.04s forwards;
+}
+.hero-sub {
+  margin: 18px auto 0;
+  max-width: 34em;
+  font-size: clamp(16px, 1.6vw, 20px);
+  line-height: 1.85;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 16px rgba(4, 3, 10, 0.72);
+  opacity: 0;
+  animation: rise 0.3s ease-out 0.08s forwards;
+  transition: color 0.3s ease;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.play-row {
+  margin-top: clamp(32px, 5.2vh, 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  opacity: 0;
+  animation: rise 0.3s ease-out 0.12s forwards;
+}
+.queue-acts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-left: 4px;
+}
+.q-pill {
+  background: rgba(16, 12, 28, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+}
+.q-pill:hover {
+  background: rgba(var(--warm-rgb), 0.22);
+  border-color: rgba(var(--warm-rgb), 0.55);
+  color: #fff;
+}
+.q-pill:active { transform: scale(0.97); }
+.q-pill.on {
+  background: rgba(var(--warm-rgb), 0.26);
+  border-color: rgba(var(--warm-rgb), 0.65);
+  color: #fff6e8;
+}
+.q-pill.like {
+  opacity: 0.92;
+  padding: 10px 18px;
+  font-size: 14px;
+}
+body.playing .q-pill.like,
+.q-pill.like.on { opacity: 1; }
+.orb {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex: 0 0 80px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 244, 228, 0.35);
+  background:
+    radial-gradient(circle at 38% 32%, rgba(255, 246, 232, 0.28), rgba(255, 255, 255, 0.04) 60%),
+    rgba(20, 14, 30, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff8ee;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(calc(1 + var(--lvl) * 0.06));
+  transition: border-color 1.2s ease, background 1.2s ease;
+}
+.orb svg { width: 22px; height: 22px; fill: currentColor; position: relative; z-index: 2; }
+.orb .i-pause { display: none; }
+body.playing .orb .i-play { display: none; }
+body.playing .orb .i-pause { display: block; }
+.orb:hover { border-color: rgba(var(--warm-rgb), 0.8); }
+.orb::before,
+.orb::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--warm-rgb), 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+/* 未播放：慢呼吸，邀请点击 */
+.orb::before { animation: invite 5s ease-in-out infinite; }
+@keyframes invite {
+  0%, 100% { transform: scale(1); opacity: 0; }
+  50%      { transform: scale(1.35); opacity: 0.55; }
+}
+/* 播放：光环随声音起伏 */
+body.playing .orb {
+  border-color: rgba(var(--warm-rgb), 0.7);
+  box-shadow: 0 0 calc(20px + var(--lvl) * 50px) rgba(var(--warm-rgb), calc(0.15 + var(--lvl) * 0.3));
+}
+body.playing .orb::before {
+  animation: none;
+  opacity: calc(0.2 + var(--lvl) * 0.6);
+  transform: scale(calc(1.15 + var(--lvl) * 0.45));
+  transition: transform 0.12s linear;
+}
+body.playing .orb::after {
+  opacity: calc(var(--lvl) * 0.35);
+  transform: scale(calc(1.4 + var(--lvl) * 0.8));
+}
+
+.now {
+  text-align: left;
+  text-shadow: 0 2px 14px rgba(4, 3, 10, 0.72);
+}
+.now-label {
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  color: var(--ink-faint);
+}
+.now-name {
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-size: 24px;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+  transition: opacity 0.25s ease;
+}
+.now-meta {
+  margin-top: 3px;
+  font-size: 14px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  min-height: 20px;
+}
+
+.hero-tools {
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 28px;
+  opacity: 0;
+  animation: rise 0.28s ease-out 0.15s forwards;
+}
+.ask-fallback {
+  margin: 22px auto 0;
+  width: 100%;
+  max-width: 520px;
+  text-align: center;
+  opacity: 0;
+  animation: rise 0.28s ease-out 0.18s forwards;
+}
+.ask-trigger {
+  background: none;
+  border: none;
+  padding: 5px 0;
+  color: var(--ink-faint);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.32);
+  text-shadow: 0 2px 14px rgba(4, 3, 10, 0.72);
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.ask-trigger:hover { color: var(--ink); border-bottom-color: rgba(var(--warm-rgb), 0.7); }
+.ask-drawer {
+  display: none;
+  margin-top: 14px;
+}
+.ask-drawer.open { display: block; }
+.ask-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.ask-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(16, 12, 28, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 11px 18px;
+  color: var(--ink);
+  font-size: 14.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+.ask-input::placeholder { color: var(--ink-faint); }
+.ask-input:focus { border-color: rgba(var(--warm-rgb), 0.7); }
+.ask-go {
+  flex: 0 0 auto;
+  background: rgba(var(--warm-rgb), 0.28);
+  border: 1px solid rgba(var(--warm-rgb), 0.55);
+  color: #fff8ee;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+.ask-go:hover { background: rgba(var(--warm-rgb), 0.4); }
+.ask-examples {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ask-chip {
+  background: rgba(16, 12, 28, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+.ask-chip:hover { background: rgba(var(--warm-rgb), 0.22); color: #fff; }
+.text-btn {
+  background: none;
+  border: none;
+  padding: 5px 4px;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  letter-spacing: 0.16em;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-shadow: 0 2px 14px rgba(4, 3, 10, 0.72);
+  transition: color 0.3s ease;
+}
+.text-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; }
+.text-btn:hover { color: #ffffff; }
+.text-btn.on { color: var(--warm); }
+
+.scroll-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  margin: 0 auto;
+  width: max-content;
+  padding-left: 0.34em;
+  color: var(--ink-faint);
+  font-size: 13px;
+  letter-spacing: 0.34em;
+  text-decoration: none;
+  text-shadow: 0 2px 12px rgba(4, 3, 10, 0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  animation: rise 0.28s ease-out 0.2s forwards;
+}
+.scroll-hint i {
+  width: 1px;
+  height: 30px;
+  background: linear-gradient(180deg, rgba(255,255,255,.55), transparent);
+  animation: drip 3.2s ease-in-out infinite;
+}
+@keyframes drip {
+  0%   { transform: scaleY(0); transform-origin: top; opacity: 1; }
+  60%  { transform: scaleY(1); transform-origin: top; opacity: 1; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+
+/* ---------- 选声音（默认折叠收敛，留给想自选的用户） ---------- */
+.pick {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px clamp(22px, 5vw, 48px) 120px;
+}
+.pick-collapse-bar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.pick-toggle {
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  color: var(--ink-faint);
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.pick-toggle:hover { color: var(--ink); border-bottom-color: rgba(var(--warm-rgb), 0.5); }
+.pick.collapsed .pick-body { display: none; }
+.pick-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+.pick h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(24px, 2.6vw, 32px);
+  letter-spacing: 0.14em;
+}
+.pick-tip {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+}
+.cats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cat {
+  background: none;
+  border: none;
+  font-family: var(--serif);
+  font-size: 16.5px;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  padding: 6px 10px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.3s ease;
+}
+.cat:hover { color: var(--ink-soft); }
+.cat.on { color: var(--ink); }
+.cat.on::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--warm);
+  box-shadow: 0 0 10px var(--warm);
+}
+.cat-sep { color: rgba(255,255,255,.28); font-size: 11px; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+.card {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border: none;
+  padding: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #110d1a;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: transform 0.4s ease, opacity 0.4s ease, box-shadow 0.35s ease;
+}
+.card.in { opacity: 1; transform: none; }
+.card-img,
+.card-art {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.72) brightness(0.68) contrast(1.04);
+  transform: scale(1.01);
+  transition: transform 3.5s ease-out, filter 0.6s ease;
+}
+.card-art {
+  filter: none;
+  background:
+    radial-gradient(60% 45% at 50% 42%, rgba(var(--a), 0.55), rgba(var(--a), 0.08) 60%, transparent 75%),
+    radial-gradient(120% 90% at 50% 120%, rgba(var(--warm-rgb), 0.18), transparent 60%),
+    #0f0b17;
+}
+.card-art::before,
+.card-art::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--a), 0.45);
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0.6;
+}
+.card-art::after { width: 72%; opacity: 0.25; }
+.card:hover .card-art::before,
+.card.on .card-art::before { animation: ripple 3.6s ease-out infinite; }
+.card:hover .card-art::after,
+.card.on .card-art::after { animation: ripple 3.6s ease-out 1.2s infinite; }
+@keyframes ripple {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+.card:hover .card-img,
+.card.on .card-img {
+  transform: scale(1.09);
+  filter: saturate(0.7) brightness(0.74) contrast(1.05) sepia(0.12);
+}
+.card-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7,5,13,0) 35%, rgba(7,5,13,0.88) 100%);
+}
+.card-text {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+}
+.card-name {
+  font-family: var(--serif);
+  font-size: 20px;
+  letter-spacing: 0.16em;
+  color: #ffffff;
+}
+.card-desc {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.card-hint {
+  margin-top: 10px;
+  font-size: 12.5px;
+  letter-spacing: 0.2em;
+  color: rgba(var(--warm-rgb), 0.95);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.card.previewing .card-hint,
+.card.on .card-hint { opacity: 1; transform: none; }
+.card.on { box-shadow: 0 24px 64px -18px rgba(var(--warm-rgb), 0.42); }
+.eq {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 14px;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.eq i {
+  width: 2px;
+  height: 100%;
+  background: var(--warm);
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: eq 1.4s ease-in-out infinite;
+}
+.eq i:nth-child(2) { animation-delay: -0.5s; }
+.eq i:nth-child(3) { animation-delay: -0.9s; }
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.25); }
+  50%      { transform: scaleY(1); }
+}
+.card.on .eq, .card.previewing .eq { opacity: 1; }
+.card.previewing .eq i { background: var(--ink-soft); }
+
+.more-link {
+  display: inline-block;
+  margin-top: 36px;
+  color: var(--ink-faint);
+  text-decoration: none;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  border-bottom: 1px solid rgba(255,255,255,.24);
+  padding-bottom: 4px;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.more-link:hover { color: var(--ink); border-color: rgba(var(--warm-rgb), .7); }
+.v2-foot {
+  margin-top: 70px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: rgba(235, 226, 250, 0.56);
+  line-height: 2.2;
+}
+
+/* ---------- 熄灯：只剩夜色、声音和呼吸 ---------- */
+.night-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(80% 70% at 50% 50%, rgba(7,5,13,.35), rgba(4,3,8,.9));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+  cursor: pointer;
+}
+body.lights-out .night-veil { opacity: 1; pointer-events: auto; }
+body.lights-out .v2-top,
+body.lights-out main,
+body.lights-out .tabbar { opacity: 0 !important; pointer-events: none; transition: opacity 0.45s ease; }
+.breath {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--warm-rgb), 0.4);
+  background: radial-gradient(circle, rgba(var(--warm-rgb), 0.14), transparent 70%);
+  transform: scale(0.8);
+}
+.breath.in  { transform: scale(1.35); transition: transform 4s ease-in-out; }
+.breath.out { transform: scale(0.8);  transition: transform 6s ease-in-out; }
+.breath-word {
+  margin-top: 46px;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 20px;
+  letter-spacing: 0.6em;
+  color: rgba(248, 244, 255, 0.85);
+  transition: opacity 0.45s ease;
+}
+.veil-meta {
+  position: absolute;
+  bottom: 44px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  color: rgba(235, 226, 250, 0.55);
+  line-height: 2.2;
+}
+
+/* ---------- 响应式 ---------- */
+/* ≥720：顶栏导航，隐藏底部胶囊；<720：底部胶囊，内容给它留位 */
+@media (min-width: 720px) {
+  .v2-nav { display: flex; }
+  .tabbar { display: none !important; }
+  .pick { padding-bottom: 80px; }
+}
+@media (min-width: 720px) and (max-width: 960px) {
+  .v2-nav { gap: 18px; margin-right: 8px; }
+  .cards { gap: 14px; }
+}
+@media (max-width: 719px) {
+  .scroll-hint { display: none; }
+  .hero { padding-bottom: 128px; }
+  .pick { padding-bottom: 150px; }
+  .cards {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
     gap: 14px;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    transition: border-color 0.25s ease;
+    margin: 0 calc(-1 * clamp(22px, 5vw, 48px));
+    padding: 0 clamp(22px, 5vw, 48px) 10px;
+    scrollbar-width: none;
   }
-  .last-bar.playing {
-    border-color: rgba(var(--y-accent-rgb), 0.48);
-  }
-  .last-left {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    min-width: 0;
-  }
-  .last-ico {
-    width: 40px;
-    height: 40px;
-    flex: 0 0 40px;
-    border-radius: 50%;
-    background: rgba(var(--y-accent-rgb), 0.14);
-    border: 1px solid rgba(218, 200, 255, 0.22);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: #dfd0ff;
-  }
-  .last-info {
-    min-width: 0;
-  }
-  .last-title {
-    font-size: 14.5px;
-    font-weight: 500;
-    color: #f4eeff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .last-meta {
-    margin-top: 3px;
-    font-size: 12px;
-    color: rgba(206, 194, 232, 0.65);
-  }
-  .last-play-btn {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(218, 200, 255, 0.18);
-    color: #efe7ff;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s ease, border-color 0.2s ease;
-  }
-  .last-play-btn:hover,
-  .last-bar.playing .last-play-btn {
-    background: rgba(var(--y-accent-rgb), 0.24);
-    border-color: rgba(218, 200, 255, 0.45);
-  }
-
-  /* ===== 声音试听分区 ===== */
-  .listen-sec {
-    margin-top: 24px;
-  }
-  .sec-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin: 0 2px 13px;
-  }
-  .sec-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #f3ecff;
-    letter-spacing: 0.5px;
-  }
-  .sec-more {
-    font-size: 13px;
-    color: #c9b2ff;
-    text-decoration: none;
-    opacity: 0.9;
-  }
-  .sec-more:hover {
-    opacity: 1;
-    text-decoration: underline;
-  }
-
-  .cat-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-  .cat-tab {
-    background: rgba(24, 19, 39, 0.66);
-    border: 1px solid rgba(218, 200, 255, 0.14);
-    color: rgba(218, 208, 240, 0.78);
-    border-radius: 13px;
-    padding: 10px 8px;
-    font-size: 13px;
-    text-align: center;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-  }
-  .cat-tab:hover {
-    border-color: rgba(218, 200, 255, 0.3);
-    color: #fff;
-  }
-  .cat-tab.on {
-    background: rgba(var(--y-accent-rgb), 0.26);
-    border-color: rgba(218, 200, 255, 0.46);
-    color: #ffffff;
-    font-weight: 500;
-  }
-
-  .sound-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  .sound-card {
-    background: rgba(24, 19, 39, 0.72);
-    border: 1px solid rgba(218, 200, 255, 0.13);
-    border-radius: 18px;
-    padding: 16px 15px 15px;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 14px;
-    transition: transform 0.2s ease, border-color 0.25s ease, background 0.25s ease;
-  }
-  .sound-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(218, 200, 255, 0.32);
-    background: rgba(31, 24, 50, 0.82);
-  }
-  .sound-card.on {
-    border-color: rgba(var(--y-accent-rgb), 0.66);
-    background: rgba(var(--y-accent-rgb), 0.14);
-    box-shadow: 0 8px 24px rgba(var(--y-accent-rgb), 0.18);
-  }
-  .sc-top {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .sc-badge {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(218, 200, 255, 0.16);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 19px;
-  }
-  .sc-text {
-    min-width: 0;
-  }
-  .sc-name {
-    font-size: 15px;
-    font-weight: 500;
-    color: #f6f0ff;
-    line-height: 1.3;
-  }
-  .sc-desc {
-    margin-top: 4px;
-    font-size: 12px;
-    line-height: 1.45;
-    color: rgba(206, 194, 232, 0.68);
-  }
-  .sc-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-left: 54px;
-  }
-  .sc-play-label {
-    font-size: 12.5px;
-    color: #cfc0f6;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .sound-card.on .sc-play-label {
-    color: #ffffff;
-    font-weight: 500;
-  }
-
-  @media (max-width: 520px) {
-    .calm-hero {
-      padding: 20px 18px 22px;
-      min-height: 230px;
-    }
-    .calm-hero-body {
-      max-width: 100%;
-    }
-    .calm-title {
-      font-size: 25px;
-    }
-    .sc-foot {
-      padding-left: 0;
-    }
-  }
+  .cards::-webkit-scrollbar { display: none; }
+  .card { flex: 0 0 66vw; max-width: 300px; scroll-snap-align: start; }
+}
+@media (max-width: 560px) {
+  .play-row { flex-direction: column; }
+  .now { text-align: center; }
+  .queue-acts { margin-left: 0; }
+}
+@media (max-width: 520px) {
+  .top.v2-top { padding: 16px 20px; gap: 8px; }
+  #testBtn { padding: 6px 12px; font-size: 12.5px; }
+  .orb { width: 70px; height: 70px; flex-basis: 70px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  .scene-bg { animation: none; }
+}
 </style>
 </head>
 <body>
-<div class="ambient-stage" id="ambientStage"></div>
 
-<div class="home-wrap">
-  <div class="top">
-    <a class="brand" href="home.html">
-      <div class="moon">☾</div>
-      <div class="name">夜息</div>
-    </a>
-    <button class="pill-btn" id="testBtn">✦ 敏感点测试</button>
-  </div>
-
-  <!-- 月夜助眠主卡 -->
-  <section class="calm-hero" id="calmHero">
-    <div class="calm-hero-bg" id="heroBg"></div>
-    <div class="calm-hero-veil"></div>
-
-    <div class="calm-hero-top">
-      <span class="calm-eyebrow">🎧 助眠声音</span>
-      <div class="calm-tools">
-        <button type="button" class="calm-tool-btn" id="timerBtn" title="切换睡眠定时">⏱ 定时</button>
-        <button type="button" class="calm-tool-btn" id="lightsOutBtn" title="熄灯只留夜色与声音">☾ 熄灯</button>
-      </div>
-    </div>
-
-    <div class="calm-hero-body">
-      <h1 class="calm-title" id="heroTitle">夜色已深，慢慢放松</h1>
-      <p class="calm-sub" id="heroSub">戴上耳机，听着喜欢的声音慢慢入睡。</p>
-    </div>
-
-    <div class="calm-cta-row">
-      <button type="button" class="calm-play-btn" id="startSleepBtn">▶ 开始睡眠</button>
-      <span class="calm-status" id="sceneStatus"></span>
-    </div>
-  </section>
-
-  <!-- 上次听过 -->
-  <div class="last-bar" id="lastBar">
-    <div class="last-left">
-      <div class="last-ico" id="lastIco">☾</div>
-      <div class="last-info">
-        <div class="last-title" id="lastTitle">上次 · 城市夜雨</div>
-        <div class="last-meta" id="lastMeta">无人声 · 真实自然录音</div>
-      </div>
-    </div>
-    <button type="button" class="last-play-btn" id="lastPlayBtn" aria-label="继续播放">▶</button>
-  </div>
-
-  <!-- 声音试听 -->
-  <section class="listen-sec">
-    <div class="sec-head">
-      <div class="sec-title">声音试听</div>
-      <a class="sec-more" href="index.html">全部声音</a>
-    </div>
-
-    <div class="cat-tabs" id="catTabs">
-      <button type="button" class="cat-tab on" data-cat="nature">自然环境声</button>
-      <button type="button" class="cat-tab" data-cat="bed">持续底噪</button>
-      <button type="button" class="cat-tab" data-cat="asmr">ASMR 触发音</button>
-    </div>
-
-    <div class="sound-grid" id="soundGrid"></div>
-  </section>
-
-  <div class="foot">所有声音来自真实 CC0 自然录音 · 戴上耳机效果更好</div>
+<!-- 全屏场景：图片 + 调色 + 声音驱动画面 + 颗粒 -->
+<div class="scene" aria-hidden="true">
+  <div class="scene-bg on" id="bgA" style="background-image:url(img/hero-soft-night.jpg)"></div>
+  <div class="scene-bg" id="bgB"></div>
+  <div class="scene-tint"></div>
+  <canvas id="fx"></canvas>
+  <div class="scene-vignette"></div>
+  <div class="scene-sink"></div>
+  <div class="grain"></div>
 </div>
 
-<!-- 熄灯纯享遮罩 -->
-<div class="lights-out-overlay" id="lightsOutOverlay" title="轻触任意处唤醒界面">
-  <div class="lights-out-moon">☾</div>
-  <div class="lights-out-title" id="lightsOutTitle">城市夜雨</div>
-  <div class="lights-out-timer" id="lightsOutTimer">轻触任意处唤醒</div>
-  <div class="lights-out-hint">晚安 · 声音将继续陪你</div>
+<header class="top v2-top">
+  <a class="v2-brand" href="home.html"><span class="glyph"></span><span class="word">夜息</span></a>
+  <nav class="v2-nav">
+    <a href="home.html" class="on">今晚</a>
+    <a href="agent.html">AI 配声</a>
+    <a href="index.html">DIY</a>
+    <a href="community.html">广场</a>
+    <a href="me.html">我的</a>
+  </nav>
+  <button class="v2-ghost" id="testBtn">敏感点测试</button>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="whisper">戴上耳机 · 调暗屏幕</p>
+    <h1 id="heroTitle">嘘，夜深了</h1>
+    <p class="hero-sub" id="heroSub">把灯调暗一点，剩下的，交给声音。</p>
+
+    <div class="play-row">
+      <button class="orb" id="playBtn" aria-label="播放 / 暂停">
+        <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a.6.6 0 0 0 .9.5l10.4-6.5a.6.6 0 0 0 0-1L8.9 5a.6.6 0 0 0-.9.5z"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24"><rect x="7" y="5.5" width="3.2" height="13" rx="1"/><rect x="13.8" y="5.5" width="3.2" height="13" rx="1"/></svg>
+      </button>
+      <div class="now">
+        <div class="now-label" id="nowLabel">今晚的声音</div>
+        <div class="now-name" id="nowName">窗边夜雨</div>
+        <div class="now-meta" id="nowMeta">无人声 · 真实录音</div>
+      </div>
+      <div class="queue-acts">
+        <button type="button" class="q-pill" id="swapBtn">换一段 ↻</button>
+        <button type="button" class="q-pill like" id="likeBtn">就这个</button>
+      </div>
+    </div>
+
+    <div class="hero-tools">
+      <button class="text-btn" id="timerBtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span id="timerLabel">定时</span></button>
+      <button class="text-btn" id="lightsBtn"><svg viewBox="0 0 24 24"><path d="M20 13.2A8 8 0 1 1 10.8 4a6.2 6.2 0 0 0 9.2 9.2z"/></svg><span>熄灯</span></button>
+    </div>
+
+    <div class="ask-fallback">
+      <button type="button" class="ask-trigger" id="askTrigger">都不对？说句话告诉我想听什么</button>
+      <div class="ask-drawer" id="askDrawer">
+        <div class="ask-form">
+          <input type="text" class="ask-input" id="askInput" maxlength="120" placeholder="比如：下雨但别太吵，加一点壁炉…">
+          <button type="button" class="ask-go" id="askGoBtn">去配声 →</button>
+        </div>
+        <div class="ask-examples">
+          <button type="button" class="ask-chip" data-say="窗外细雨，暖一点稳一点">窗外细雨，暖一点</button>
+          <button type="button" class="ask-chip" data-say="不想听雨，想听平静的海浪">平静的海浪</button>
+          <button type="button" class="ask-chip" data-say="轻一点，越稳越好">轻一点，越稳越好</button>
+        </div>
+      </div>
+    </div>
+
+    <a class="scroll-hint" href="#pick" id="scrollHint">全部声音<i></i></a>
+  </section>
+
+  <section class="pick collapsed" id="pick">
+    <div class="pick-collapse-bar">
+      <button type="button" class="pick-toggle" id="pickToggle">想自己挑声音？展开全部声库 ▾</button>
+    </div>
+    <div class="pick-body" id="pickBody">
+      <div class="pick-head">
+        <div>
+          <h2>今晚，想听什么</h2>
+          <p class="pick-tip" id="pickTip">把指针停在卡片上，先轻轻听一下</p>
+        </div>
+        <div class="cats" id="cats">
+          <button class="cat on" data-cat="nature">自然</button><span class="cat-sep">·</span>
+          <button class="cat" data-cat="bed">底噪</button><span class="cat-sep">·</span>
+          <button class="cat" data-cat="asmr">耳边</button>
+        </div>
+      </div>
+      <div class="cards" id="cards"></div>
+      <a class="more-link" href="index.html">去 DIY，叠一层属于自己的声音 →</a>
+    </div>
+    <div class="v2-foot">所有声音来自真实 CC0 录音<br>晚安</div>
+  </section>
+</main>
+
+<!-- 熄灯 -->
+<div class="night-veil" id="veil" title="轻触唤醒">
+  <div class="breath" id="breath"></div>
+  <div class="breath-word" id="breathWord">吸 气</div>
+  <div class="veil-meta"><span id="veilName">窗边夜雨</span> · <span id="veilTimer">轻触任意处唤醒</span></div>
 </div>
 
 <audio id="sceneAudio" loop preload="none"></audio>
-
-<div class="tabbar">
-  <a href="home.html" class="on"><span class="ti">☾</span>今晚</a>
-  <a href="agent.html"><span class="ti">✦</span>AI 配声</a>
-  <a href="index.html"><span class="ti">☰</span>DIY</a>
-  <a href="community.html"><span class="ti">♡</span>广场</a>
-</div>
+<audio id="previewAudio" loop preload="none"></audio>
+<div class="tabbar"></div>
 
 <script src="auth_ui.js"></script>
-<script src="yexi_catalog.js"></script>
+<script src="yexi_shell.js"></script>
 <script>
 var API = YEXI_API;
 initAuthBar("home.html");
-initAmbientStage("img/night-lake.webp", "#8e74e8");
+initYexiTabbar("home.html");
 
-// 柔和的时段主标题（避免催促感）
-(function() {
-  var h = new Date().getHours();
-  var title = "夜色已深，慢慢放松";
-  if (h >= 0 && h < 5) {
-    title = "还没睡吗，放慢呼吸";
-  } else if (h >= 5 && h < 12) {
-    title = "清晨宁静，慢慢醒来";
-  } else if (h >= 12 && h < 18) {
-    title = "忙累了，歇一会儿";
-  } else if (h >= 18 && h < 22) {
-    title = "夜幕降临，放下疲惫";
-  }
-  document.getElementById("heroTitle").textContent = title;
-})();
-
-document.getElementById("testBtn").onclick = function() {
-  location.href = "ear_test.html";
-};
-
-(function() {
-  var btn = document.getElementById("testBtn");
-  var localProf = null;
-  try {
-    var raw = localStorage.getItem("yezi_ear_profile_v1");
-    localProf = raw ? JSON.parse(raw) : null;
-  } catch (e) {}
-  if (localProf && localProf.archetype_name) {
-    btn.textContent = "✦ " + localProf.archetype_name;
-  }
-  yGet("/api/ear_profile")
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d && d.ear_profile && d.ear_profile.archetype_name) {
-        btn.textContent = "✦ " + d.ear_profile.archetype_name;
-        try {
-          localStorage.setItem("yezi_ear_profile_v1", JSON.stringify(d.ear_profile));
-        } catch (e) {}
-      }
-    })
-    .catch(function() {});
-})();
-
-// 3 个真实 CC0 声音分类（全部来自已验收素材库清单）
-var HOME_SOUNDS = {
+/* =========================================================
+   声音清单：fx 决定画面效果，hero 是全屏背景，img 是卡片图
+   （耳边类不用照片，用抽象光圈，避免硬凑图）
+   ========================================================= */
+var SOUNDS = {
   nature: [
-    { path: "母带_城市夜雨_CC0.mp3", name: "窗边夜雨", desc: "雨点轻落在夜色里", icon: "🌧", img: "img/rain-window.jpg", accent: "#8e74e8" },
-    { path: "海浪_远海.hq.mp3", name: "海浪", desc: "海水一阵阵缓缓涌来", icon: "🌊", img: "img/night-lake-stars.jpg", accent: "#5889d6" },
-    { path: "鸟鸣_夜莺鸣叫_853566.hq.mp3", name: "树林鸟鸣", desc: "林间清亮轻柔的夜莺声", icon: "🌿", img: "img/dark-forest-lake.jpg", accent: "#5fa896" },
-    { path: "溪流.hq.mp3", name: "山涧溪流", desc: "清亮舒缓的山间流水", icon: "💧", img: "img/starry-mountain-lake.jpg", accent: "#59a5c7" },
-    { path: "虫鸣.hq.mp3", name: "夏夜虫鸣", desc: "像小时候院子里的夏夜", icon: "🌙", img: "img/moon-water.jpg", accent: "#9b85d6" },
-    { path: "夜风.hq.mp3", name: "林间夜风", desc: "轻轻拂过树梢的晚风", icon: "🌬", img: "img/dark-forest-lake.jpg", accent: "#6d94b8" }
+    { path: "母带_城市夜雨_CC0.mp3", name: "窗边夜雨", desc: "雨点轻落在夜色里", img: "img/hero-soft-night.jpg", fx: "rain", acc: "120,130,220" },
+    { path: "海浪_远海.hq.mp3", name: "海浪", desc: "海水一阵阵缓缓涌来", img: "img/ocean-deep.jpg", fx: "water", acc: "88,137,214" },
+    { path: "鸟鸣_夜莺鸣叫_853566.hq.mp3", name: "树林鸟鸣", desc: "林间清亮轻柔的夜莺声", img: "img/calm-forest.jpg", fx: "wind", acc: "95,168,150" },
+    { path: "溪流.hq.mp3", name: "山涧溪流", desc: "清亮舒缓的山间流水", img: "img/forest-stream.jpg", fx: "water", acc: "89,165,199" },
+    { path: "虫鸣.hq.mp3", name: "夏夜虫鸣", desc: "像小时候院子里的夏夜", img: "img/night-lake-stars.jpg", fx: "night", acc: "155,133,214" },
+    { path: "夜风.hq.mp3", name: "林间夜风", desc: "轻轻拂过树梢的晚风", img: "img/dark-forest-lake.jpg", fx: "wind", acc: "109,148,184" }
   ],
   bed: [
-    { path: "柔和雨.hq.mp3", name: "柔和雨幕", desc: "绵密轻柔，像盖着薄毯", icon: "☁", img: "img/warm-bedroom.jpg", accent: "#b88ce8" },
-    { path: "雨中低鸣.hq.mp3", name: "暖夜低鸣", desc: "柔和低频包裹感", icon: "✨", img: "img/warm-bedroom.jpg", accent: "#c48ad4" },
-    { path: "海浪_黑海.hq.mp3", name: "深沉黑海", desc: "更厚重低沉的夜海潮声", icon: "🌑", img: "img/night-lake-stars.jpg", accent: "#4a6fb8" },
-    { path: "炉火_壁炉低燃_836535.hq.mp3", name: "壁炉低燃", desc: "暖融融的炉火轻燃声", icon: "🔥", img: "img/warm-bedroom.jpg", accent: "#d99b66" },
-    { path: "帐篷雨_小帐篷大雨_592996.hq.mp3", name: "帐篷大雨", desc: "躲在小帐篷里听雨落", icon: "⛺", img: "img/rain-window.jpg", accent: "#7f8ce0" },
-    { path: "微风_麦田柔风_447810.hq.mp3", name: "麦田柔风", desc: "均匀平稳的风拂麦浪", icon: "🌾", img: "img/moon-water.jpg", accent: "#88b498" }
+    { path: "柔和雨.hq.mp3", name: "柔和雨幕", desc: "绵密轻柔，像盖着薄毯", img: "img/dark-forest-lake.jpg", fx: "rain", acc: "184,140,232" },
+    { path: "雨中低鸣.hq.mp3", name: "暖夜低鸣", desc: "柔和的低频包裹感", img: "img/warm-bedroom.jpg", fx: "bed", acc: "196,138,212" },
+    { path: "海浪_黑海.hq.mp3", name: "深沉黑海", desc: "更厚重低沉的夜海潮声", img: "img/moon-water.jpg", fx: "water", acc: "74,111,184" },
+    { path: "炉火_壁炉低燃_836535.hq.mp3", name: "壁炉低燃", desc: "暖融融的炉火轻燃声", img: "img/fireplace-night.jpg", fx: "fire", acc: "217,155,102" },
+    { path: "帐篷雨_小帐篷大雨_592996.hq.mp3", name: "帐篷大雨", desc: "躲在小帐篷里听雨落", img: "img/calm-forest.jpg", fx: "rain", acc: "127,140,224" },
+    { path: "微风_麦田柔风_447810.hq.mp3", name: "麦田柔风", desc: "均匀平稳的风拂麦浪", img: "img/wheat-sunset.jpg", fx: "wind", acc: "200,170,110" }
   ],
   asmr: [
-    { path: "ASMR_翻书单人_360781.hq.mp3", name: "轻柔翻书", desc: "安静翻过纸页的沙沙声", icon: "📖", img: "img/warm-bedroom.jpg", accent: "#c9a882" },
-    { path: "ASMR_铅笔写字柔_336381.hq.mp3", name: "铅笔写字", desc: "笔尖轻划纸面的温柔节奏", icon: "✏️", img: "img/warm-bedroom.jpg", accent: "#b4a0e8" },
-    { path: "ASMR_采耳_690078.hq.mp3", name: "采耳轻触", desc: "贴近耳畔的细微轻柔触感", icon: "🪶", img: "img/night-lake.webp", accent: "#a88ce8" },
-    { path: "ASMR_羽毛轻拂_708086.hq.mp3", name: "羽毛轻拂", desc: "极轻柔的羽毛扫过耳边", icon: "🕊", img: "img/night-lake.webp", accent: "#90b8e8" },
-    { path: "ASMR_轻柔梳头_825798.hq.mp3", name: "轻柔梳头", desc: "缓慢轻刷的放松节奏", icon: "✨", img: "img/warm-bedroom.jpg", accent: "#c494d8" },
-    { path: "ASMR_指尖轻敲刮擦_866230.hq.mp3", name: "指尖轻敲", desc: "清脆克制的指尖轻敲声", icon: "🫧", img: "img/night-lake.webp", accent: "#7fa8d8" }
+    { path: "ASMR_翻书单人_360781.hq.mp3", name: "轻柔翻书", desc: "安静翻过纸页的沙沙声", img: "img/notebook-desk.jpg", fx: "asmr", acc: "201,168,130" },
+    { path: "ASMR_铅笔写字柔_336381.hq.mp3", name: "铅笔写字", desc: "笔尖轻划纸面的温柔节奏", img: "img/asmr-pencil.jpg", fx: "asmr", acc: "212,176,132" },
+    { path: "ASMR_采耳_690078.hq.mp3", name: "采耳轻触", desc: "贴近耳畔的细微触感", img: "img/asmr-earpick.jpg", fx: "asmr", acc: "186,162,218" },
+    { path: "ASMR_羽毛轻拂_708086.hq.mp3", name: "羽毛轻拂", desc: "极轻的羽毛扫过耳边", img: "img/feather-soft.jpg", fx: "asmr", acc: "160,188,224" },
+    { path: "ASMR_轻柔梳头_825798.hq.mp3", name: "轻柔梳头", desc: "缓慢轻刷的放松节奏", img: "img/asmr-comb.jpg", fx: "asmr", acc: "214,168,120" },
+    { path: "ASMR_指尖轻敲刮擦_866230.hq.mp3", name: "指尖轻敲", desc: "清脆克制的指尖轻敲", img: "img/asmr-tapping.jpg", fx: "asmr", acc: "164,174,218" }
   ]
 };
+var DEFAULT_HERO = "img/hero-soft-night.jpg";
 
-function findHomeSound(path) {
-  var keys = ["nature", "bed", "asmr"];
-  for (var k = 0; k < keys.length; k++) {
-    var list = HOME_SOUNDS[keys[k]];
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].path === path) return list[i];
-    }
-  }
-  return ySoundMeta(path);
+function allSounds() { return SOUNDS.nature.concat(SOUNDS.bed, SOUNDS.asmr); }
+function findSound(path) {
+  var list = allSounds();
+  for (var i = 0; i < list.length; i++) if (list[i].path === path) return list[i];
+  return null;
 }
+function heroOf(s) { return s.hero || DEFAULT_HERO; }
 
-var activeCat = "nature";
-var sceneAudio = document.getElementById("sceneAudio");
-var calmHero = document.getElementById("calmHero");
-var lastBar = document.getElementById("lastBar");
-var startSleepBtn = document.getElementById("startSleepBtn");
-var lastPlayBtn = document.getElementById("lastPlayBtn");
-var sceneStatus = document.getElementById("sceneStatus");
+/* ---------- 文案：始终是夜晚 / 休息的语气，不催促 ---------- */
+var COPY = (function() {
+  var h = new Date().getHours();
+  if (h >= 22 || h < 5) return { t: "嘘，夜深了", s: "把灯调暗一点，剩下的，交给声音。" };
+  if (h < 11) return { t: "再赖一会儿也没关系", s: "雨还在下，被窝还很暖。" };
+  if (h < 18) return { t: "闭上眼，歇十分钟", s: "让耳朵先替你放个假。" };
+  return { t: "今晚，慢一点", s: "把一天的声音关掉，只留下这一种。" };
+})();
+// 按逗号分句、句内不断行，避免手机上剩一个字孤零零换行
+document.getElementById("heroTitle").innerHTML = COPY.t.split("，").map(function(part, i, arr) {
+  return '<span class="nb">' + part + (i < arr.length - 1 ? "，" : "") + "</span>";
+}).join("");
+document.getElementById("heroSub").textContent = COPY.s;
 
-function loadLastSound() {
-  try {
-    var saved = localStorage.getItem("yexi_last_sound_path");
-    if (saved) return findHomeSound(saved);
-  } catch (e) {}
-  return HOME_SOUNDS.nature[0];
-}
-
-var selectedScene = loadLastSound();
-
-// 睡眠定时（0 -> 15 -> 30 -> 60 -> 0）
-var TIMER_STEPS = [0, 15, 30, 60];
-var timerStepIdx = 0;
-var sleepTimerId = null;
-var sleepEndAt = 0;
-var timerBtn = document.getElementById("timerBtn");
-
-function renderState(scene, playing) {
-  calmHero.classList.toggle("playing", playing);
-  lastBar.classList.toggle("playing", playing);
-
-  document.getElementById("lastTitle").textContent = "上次 · " + scene.name;
-  document.getElementById("lastIco").textContent = scene.icon || "☾";
-  document.getElementById("lightsOutTitle").textContent = scene.name;
-
-  var mins = TIMER_STEPS[timerStepIdx];
-  document.getElementById("lastMeta").textContent = "无人声 · " + (mins > 0 ? (mins + " 分钟定时") : "真实自然录音");
-
-  if (playing) {
-    startSleepBtn.textContent = "❚❚ 暂停播放";
-    startSleepBtn.classList.add("playing");
-    lastPlayBtn.textContent = "❚❚";
-    document.getElementById("heroSub").textContent = "正在轻声播放「" + scene.name + "」· 安心闭上眼睛。";
-  } else {
-    startSleepBtn.textContent = "▶ 开始睡眠";
-    startSleepBtn.classList.remove("playing");
-    lastPlayBtn.textContent = "▶";
-    document.getElementById("heroSub").textContent = "戴上耳机，听着喜欢的声音慢慢入睡。";
-  }
-
-  ySetAmbient(playing ? scene.img : "img/night-lake.webp", "#8e74e8", playing);
-  syncSoundCards(scene.path, playing);
-}
-
-function syncSoundCards(activePath, playing) {
-  var cards = document.querySelectorAll(".sound-card");
-  for (var i = 0; i < cards.length; i++) {
-    var isThis = cards[i].getAttribute("data-path") === activePath;
-    cards[i].classList.toggle("on", isThis && playing);
-    var lbl = cards[i].querySelector(".sc-play-label");
-    if (lbl) {
-      lbl.textContent = (isThis && playing) ? "❚❚ 正在试听" : "▶ 试听";
-    }
-  }
-}
-
-function renderSoundGrid(catKey) {
-  activeCat = catKey;
-  var list = HOME_SOUNDS[catKey] || HOME_SOUNDS.nature;
-  var grid = document.getElementById("soundGrid");
-  grid.innerHTML = "";
-  var isPlaying = !!(sceneAudio.src && !sceneAudio.paused);
-
-  for (var i = 0; i < list.length; i++) {
-    (function(s) {
-      var on = isPlaying && selectedScene.path === s.path;
-      var card = document.createElement("div");
-      card.className = "sound-card" + (on ? " on" : "");
-      card.setAttribute("data-path", s.path);
-      card.innerHTML =
-        '<div class="sc-top">' +
-          '<div class="sc-badge" style="color:' + (s.accent || "#d8c4ff") + '">' + (s.icon || "☾") + '</div>' +
-          '<div class="sc-text">' +
-            '<div class="sc-name">' + s.name + '</div>' +
-            '<div class="sc-desc">' + s.desc + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="sc-foot">' +
-          '<span class="sc-play-label">' + (on ? "❚❚ 正在试听" : "▶ 试听") + '</span>' +
-        '</div>';
-      card.onclick = function() { playScene(s); };
-      grid.appendChild(card);
-    })(list[i]);
-  }
-}
-
+document.getElementById("testBtn").onclick = function() {
+  if (yNeedLogin("做敏感点测试", "ear_test.html")) return;
+  location.href = "ear_test.html";
+};
 (function() {
-  var tabs = document.querySelectorAll("#catTabs .cat-tab");
-  for (var i = 0; i < tabs.length; i++) {
-    (function(tab) {
-      tab.onclick = function() {
-        for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove("on");
-        tab.classList.add("on");
-        renderSoundGrid(tab.getAttribute("data-cat"));
+  try {
+    var p = JSON.parse(localStorage.getItem("yezi_ear_profile_v1") || "null");
+    if (p && p.archetype_name) document.getElementById("testBtn").textContent = p.archetype_name;
+  } catch (e) {}
+})();
+
+/* =========================================================
+   场景背景：两层交叉淡入
+   ========================================================= */
+var bgA = document.getElementById("bgA"), bgB = document.getElementById("bgB"), bgFront = bgA;
+var currentBg = DEFAULT_HERO;
+function setBackdrop(url) {
+  if (url === currentBg) return;
+  currentBg = url;
+  var img = new Image();
+  img.onload = function() {
+    var back = bgFront === bgA ? bgB : bgA;
+    back.style.backgroundImage = "url(" + url + ")";
+    back.classList.add("on");
+    bgFront.classList.remove("on");
+    bgFront = back;
+  };
+  img.src = url;
+}
+function setAccent(rgb) {
+  document.documentElement.style.setProperty("--acc-rgb", rgb);
+  FX.rgb = rgb;
+}
+
+/* =========================================================
+   音频：主播放 + 分析器（让画面听得见声音）
+   ========================================================= */
+var sceneAudio = document.getElementById("sceneAudio");
+var previewAudio = document.getElementById("previewAudio");
+var audioCtx = null, analyser = null, ampBuf = null;
+
+function ensureAnalyser() {
+  if (analyser) {
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return;
+  }
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+    var src = audioCtx.createMediaElementSource(sceneAudio);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.6;
+    ampBuf = new Uint8Array(analyser.fftSize);
+    src.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  } catch (e) {
+    analyser = null; // 失败就用“模拟呼吸”，不影响播放
+  }
+}
+
+var baseVol = 1, duck = 1;
+function applyVol() { sceneAudio.volume = Math.max(0, Math.min(1, baseVol * duck)); }
+
+/* =========================================================
+   推荐队列（已盲听定稿：3 段主选 + 4 段备选池）
+   ========================================================= */
+var QUEUE_KEY = "yexi_queue_state_v1";
+var QUEUE_POOL = [
+  {
+    id: "q_city_rain",
+    name: "窗边夜雨",
+    desc: "暖厚平稳 · 城市夜雨",
+    img: "img/hero-soft-night.jpg",
+    fx: "rain",
+    acc: "120,130,220",
+    scene: "rain",
+    tracks: [{ path: "母带_城市夜雨_CC0.mp3", weight: 1.0, pan: 0.0 }]
+  },
+  {
+    id: "q_rural_breeze",
+    name: "檐下小雨微风",
+    desc: "轻柔疏落 · 小雨配微风",
+    img: "img/moon-water.jpg",
+    fx: "rain",
+    acc: "127,140,224",
+    scene: "rain",
+    tracks: [
+      { path: "乡村小雨.hq.mp3", weight: 0.72, pan: 0.0 },
+      { path: "微风_麦田柔风_447810.hq.mp3", weight: 0.28, pan: 0.28 }
+    ]
+  },
+  {
+    id: "q_hearth_fire",
+    name: "壁炉低燃",
+    desc: "温暖室内 · 木柴平稳低燃",
+    img: "img/fireplace-night.jpg",
+    fx: "fire",
+    acc: "217,155,102",
+    scene: "fire",
+    tracks: [{ path: "炉火_壁炉低燃_836535.hq.mp3", weight: 1.0, pan: 0.0 }]
+  },
+  {
+    id: "q_lake_waves",
+    name: "湖海柔浪",
+    desc: "轻柔拍岸 · 宽阔平稳水声",
+    img: "img/ocean-waves.jpg",
+    fx: "water",
+    acc: "88,137,214",
+    scene: "ocean",
+    tracks: [{ path: "海浪_湖海柔浪_451532.hq.mp3", weight: 1.0, pan: 0.0 }]
+  },
+  {
+    id: "q_forest_wind",
+    name: "松林风涛",
+    desc: "林海涌动 · 纯净空气流动",
+    img: "img/dark-forest-lake.jpg",
+    fx: "wind",
+    acc: "95,168,150",
+    scene: "wind",
+    tracks: [{ path: "林风_树林波浪风_637989.hq.mp3", weight: 1.0, pan: 0.0 }]
+  },
+  {
+    id: "q_gentle_river",
+    name: "柔和河水",
+    desc: "缓流不刺耳 · 绵长水声",
+    img: "img/forest-stream.jpg",
+    fx: "water",
+    acc: "89,165,199",
+    scene: "stream",
+    tracks: [{ path: "溪流_柔和河水_707576.hq.mp3", weight: 1.0, pan: 0.0 }]
+  },
+  {
+    id: "q_mic_foam",
+    name: "麦套轻扫",
+    desc: "近场温柔 · 绵密轻扫触感",
+    img: "img/warm-bedroom.jpg",
+    fx: "asmr",
+    acc: "186,162,218",
+    scene: "asmr",
+    tracks: [{ path: "ASMR_麦套轻扫抓挠_803595.hq.mp3", weight: 1.0, pan: 0.0 }]
+  }
+];
+var DEFAULT_ACTIVE_IDS = ["q_city_rain", "q_rural_breeze", "q_hearth_fire"];
+var BACKUP_IDS = ["q_lake_waves", "q_forest_wind", "q_gentle_river", "q_mic_foam"];
+
+function findQueueItem(id) {
+  for (var i = 0; i < QUEUE_POOL.length; i++) {
+    if (QUEUE_POOL[i].id === id) return QUEUE_POOL[i];
+  }
+  return null;
+}
+
+function readLocalQueueState() {
+  try {
+    var raw = localStorage.getItem(QUEUE_KEY);
+    if (raw) {
+      var obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function normalizeQueueState(raw) {
+  var st = raw && typeof raw === "object" ? raw : {};
+  var active = [];
+  if (Array.isArray(st.active_ids)) {
+    for (var i = 0; i < st.active_ids.length; i++) {
+      if (findQueueItem(st.active_ids[i]) && active.indexOf(st.active_ids[i]) === -1) {
+        active.push(st.active_ids[i]);
+      }
+    }
+  }
+  if (active.length === 0) active = DEFAULT_ACTIVE_IDS.slice();
+  return {
+    last_good_id: findQueueItem(st.last_good_id) ? st.last_good_id : "",
+    active_ids: active,
+    scores: st.scores && typeof st.scores === "object" ? st.scores : {},
+    real_skips: st.real_skips && typeof st.real_skips === "object" ? st.real_skips : {}
+  };
+}
+
+function applyEarColdStart(st) {
+  if (st.last_good_id || Object.keys(st.scores).length > 0) return st;
+  try {
+    var ep = JSON.parse(localStorage.getItem("yezi_ear_profile_v1") || "null");
+    var sc = ep && ep.intent ? ep.intent.scene : "";
+    var warmth = ep && ep.intent ? ep.intent.warmth : "";
+    var pickId = "";
+    if (sc === "fire") pickId = "q_hearth_fire";
+    else if (sc === "ocean") pickId = "q_lake_waves";
+    else if (sc === "wind" || sc === "forest") pickId = "q_forest_wind";
+    else if (sc === "stream") pickId = "q_gentle_river";
+    else if (sc === "asmr") pickId = "q_mic_foam";
+    else if (sc === "rain" && warmth !== "warm") pickId = "q_rural_breeze";
+    if (pickId) {
+      if (st.active_ids.indexOf(pickId) === -1) {
+        st.active_ids = [pickId, st.active_ids[0], st.active_ids[1]].filter(Boolean);
+      }
+      st.scores[pickId] = 1;
+    }
+  } catch (e) {}
+  return st;
+}
+
+var queueState = applyEarColdStart(normalizeQueueState(readLocalQueueState()));
+var isLoggedIn = false;
+var visitedInCycle = [];
+var listenMs = 0;
+var listenTickLast = 0;
+var implicitDone = false;
+var explicitDone = false;
+
+function saveQueueState() {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queueState)); } catch (e) {}
+  if (isLoggedIn) {
+    yPost("/api/queue_state", { state: queueState }).catch(function() {});
+  }
+}
+
+function orderedActiveIds() {
+  var list = queueState.active_ids.slice();
+  list.sort(function(a, b) {
+    if (a === queueState.last_good_id && b !== queueState.last_good_id) return -1;
+    if (b === queueState.last_good_id && a !== queueState.last_good_id) return 1;
+    var sa = Number(queueState.scores[a] || 0);
+    var sb = Number(queueState.scores[b] || 0);
+    if (sb !== sa) return sb - sa;
+    return queueState.active_ids.indexOf(a) - queueState.active_ids.indexOf(b);
+  });
+  return list;
+}
+
+function getInitialSelected() {
+  var ordered = orderedActiveIds();
+  return findQueueItem(ordered[0]) || QUEUE_POOL[0];
+}
+
+var selected = getInitialSelected();
+var loadedKey = "";
+
+function itemKey(s) { return s.id || s.path || s.name; }
+function isPlaying() { return !!(sceneAudio.src && !sceneAudio.paused); }
+
+function syncLikeButton() {
+  var btn = document.getElementById("likeBtn");
+  if (!btn) return;
+  var curId = selected.id || "";
+  var isLiked = explicitDone || (curId && queueState.last_good_id === curId && (queueState.scores[curId] || 0) >= 3);
+  btn.classList.toggle("on", !!isLiked);
+  btn.textContent = isLiked ? "已记住 ✓" : "就这个";
+}
+
+function render() {
+  var playing = isPlaying();
+  document.body.classList.toggle("playing", playing);
+  document.getElementById("nowLabel").textContent = playing ? "正在耳边" : "今晚的声音";
+  document.getElementById("nowName").textContent = selected.name;
+  document.getElementById("veilName").textContent = selected.name;
+  document.getElementById("heroSub").textContent = playing
+    ? "「" + selected.name + "」正在耳边。不用做什么，闭上眼就好。"
+    : (selected.desc || COPY.s);
+  FX.playing = playing;
+  syncLikeButton();
+  syncCards();
+}
+
+function selectScene(s) {
+  selected = s;
+  setBackdrop(heroOf(s));
+  setAccent(s.acc);
+  FX.setType(s.fx);
+}
+
+function resetDwellTracker() {
+  listenMs = 0;
+  listenTickLast = isPlaying() ? Date.now() : 0;
+  implicitDone = false;
+  explicitDone = false;
+}
+
+function recordPositive(weight, markExplicit) {
+  if (!selected.id) return;
+  var id = selected.id;
+  queueState.scores[id] = Number(queueState.scores[id] || 0) + weight;
+  queueState.real_skips[id] = 0;
+  queueState.last_good_id = id;
+  if (markExplicit) explicitDone = true;
+  else implicitDone = true;
+  saveQueueState();
+  syncLikeButton();
+}
+
+function tickDwell() {
+  if (!isPlaying() || !selected.id) {
+    listenTickLast = 0;
+    return;
+  }
+  var now = Date.now();
+  if (listenTickLast > 0) {
+    listenMs += Math.min(3000, now - listenTickLast);
+  }
+  listenTickLast = now;
+  if (!implicitDone && listenMs >= 300000) {
+    recordPositive(1, false);
+  }
+}
+setInterval(tickDwell, 1000);
+
+function playScene(s, forceRestart) {
+  stopPreview(true);
+  ensureAnalyser();
+  var key = itemKey(s);
+  if (key === itemKey(selected) && loadedKey === key && !forceRestart) {
+    if (sceneAudio.paused) {
+      listenTickLast = Date.now();
+      sceneAudio.play().catch(function() {});
+    } else {
+      tickDwell();
+      sceneAudio.pause();
+    }
+    setTimeout(render, 30);
+    return;
+  }
+  selectScene(s);
+  resetDwellTracker();
+  if (s.id && visitedInCycle.indexOf(s.id) === -1) visitedInCycle.push(s.id);
+  document.getElementById("nowMeta").textContent = "正在慢慢铺开…";
+  render();
+
+  var tracks = s.tracks ? s.tracks : [{ path: s.path, weight: 1.0 }];
+  yPost("/api/play", { items: tracks, title: s.name })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { document.getElementById("nowMeta").textContent = d.error; return; }
+      loadedKey = key;
+      sceneAudio.src = API + d.audio;
+      applyVol();
+      return sceneAudio.play().then(function() {
+        listenTickLast = Date.now();
+        document.getElementById("nowMeta").textContent = metaText();
+        render();
+        try {
+          sessionStorage.setItem("yezi_play", JSON.stringify({ title: s.name, audio: d.audio, items: d.items || tracks }));
+        } catch (e) {}
+      });
+    })
+    .catch(function() {
+      document.getElementById("nowMeta").textContent = "音频服务没有回应，稍后再试";
+    });
+}
+sceneAudio.addEventListener("play", function() { listenTickLast = Date.now(); render(); });
+sceneAudio.addEventListener("pause", function() { tickDwell(); render(); });
+
+function refillIfNeeded(skippedId) {
+  var skips = Number(queueState.real_skips[skippedId] || 0);
+  if (skips < 2) return;
+  var candidate = "";
+  for (var i = 0; i < BACKUP_IDS.length; i++) {
+    var bid = BACKUP_IDS[i];
+    if (queueState.active_ids.indexOf(bid) === -1 && Number(queueState.real_skips[bid] || 0) < 2) {
+      candidate = bid;
+      break;
+    }
+  }
+  if (!candidate) return;
+  var idx = queueState.active_ids.indexOf(skippedId);
+  if (idx !== -1) {
+    queueState.active_ids.splice(idx, 1, candidate);
+    if (queueState.last_good_id === skippedId) queueState.last_good_id = "";
+  }
+}
+
+function swapNext() {
+  tickDwell();
+  var curId = selected.id || "";
+  if (curId && visitedInCycle.indexOf(curId) === -1) visitedInCycle.push(curId);
+
+  // 15 秒内快速切换视作试听浏览，不惩罚；听满 15 秒以上主动换掉才记一次真实跳过
+  if (curId && listenMs >= 15000 && !explicitDone) {
+    queueState.scores[curId] = Number(queueState.scores[curId] || 0) - 1;
+    queueState.real_skips[curId] = Number(queueState.real_skips[curId] || 0) + 1;
+    refillIfNeeded(curId);
+    saveQueueState();
+  }
+
+  var ordered = orderedActiveIds();
+  var nextId = "";
+  for (var i = 0; i < ordered.length; i++) {
+    if (ordered[i] !== curId && visitedInCycle.indexOf(ordered[i]) === -1) {
+      nextId = ordered[i];
+      break;
+    }
+  }
+  if (!nextId) {
+    visitedInCycle = curId ? [curId] : [];
+    for (var j = 0; j < ordered.length; j++) {
+      if (ordered[j] !== curId) { nextId = ordered[j]; break; }
+    }
+  }
+  var nextItem = findQueueItem(nextId) || QUEUE_POOL[0];
+  playScene(nextItem, true);
+}
+
+function metaText() {
+  var mins = TIMER_STEPS[timerIdx];
+  if (mins > 0) return mins + " 分钟后渐渐停下";
+  return selected.desc || "无人声 · 真实录音";
+}
+
+document.getElementById("playBtn").onclick = function() { playScene(selected); };
+document.getElementById("swapBtn").onclick = swapNext;
+document.getElementById("likeBtn").onclick = function() {
+  if (!selected.id) return;
+  if (!isPlaying()) playScene(selected);
+  if (!explicitDone) {
+    recordPositive(3, true);
+    document.getElementById("nowMeta").textContent = "已记住，下次会优先放给你";
+  }
+};
+
+/* ---------- 渐进披露："都不对？说句话" + 全部声音折叠 ---------- */
+var askTrigger = document.getElementById("askTrigger");
+var askDrawer = document.getElementById("askDrawer");
+var askInput = document.getElementById("askInput");
+askTrigger.onclick = function() {
+  var opened = askDrawer.classList.toggle("open");
+  if (opened) askInput.focus();
+};
+function goAgentWithSay(txt) {
+  var say = (txt || "").trim();
+  if (!say) { location.href = "agent.html"; return; }
+  location.href = "agent.html?say=" + encodeURIComponent(say) + "&auto=1";
+}
+document.getElementById("askGoBtn").onclick = function() { goAgentWithSay(askInput.value); };
+askInput.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") goAgentWithSay(askInput.value);
+});
+var askChips = document.querySelectorAll(".ask-chip");
+for (var ac = 0; ac < askChips.length; ac++) {
+  askChips[ac].onclick = function() { goAgentWithSay(this.getAttribute("data-say")); };
+}
+
+var pickSec = document.getElementById("pick");
+var pickToggle = document.getElementById("pickToggle");
+pickToggle.onclick = function() {
+  var isCol = pickSec.classList.toggle("collapsed");
+  pickToggle.textContent = isCol ? "想自己挑声音？展开全部声库 ▾" : "收起全部声库 ▴";
+};
+document.getElementById("scrollHint").onclick = function() {
+  pickSec.classList.remove("collapsed");
+  pickToggle.textContent = "收起全部声库 ▴";
+};
+
+/* ---------- 登录后同步服务端队列状态（游客仅存本机） ---------- */
+yGet("/api/queue_state").then(function(r) { return r.json(); }).then(function(d) {
+  if (!d || !d.logged_in) return;
+  isLoggedIn = true;
+  var remote = d.state || {};
+  var hasRemote = !!(remote.last_good_id || (Array.isArray(remote.active_ids) && remote.active_ids.length) || (remote.scores && Object.keys(remote.scores).length));
+  if (hasRemote) {
+    queueState = normalizeQueueState(remote);
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queueState)); } catch (e) {}
+    if (!isPlaying() && !loadedKey) {
+      selected = getInitialSelected();
+      selectScene(selected);
+      render();
+    }
+  } else {
+    saveQueueState();
+  }
+}).catch(function() {});
+
+/* ---------- 悬停试听：停 0.6 秒，声音慢慢浮上来 ---------- */
+var hoverTimer = null, previewCard = null, previewFade = null;
+var canHover = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+function fadeTo(el, target, ms, done) {
+  clearInterval(previewFade);
+  var start = el.volume, t0 = Date.now();
+  previewFade = setInterval(function() {
+    var k = Math.min(1, (Date.now() - t0) / ms);
+    el.volume = start + (target - start) * k;
+    if (k >= 1) { clearInterval(previewFade); if (done) done(); }
+  }, 30);
+}
+function selectedSinglePath() {
+  if (selected.path) return selected.path;
+  if (selected.tracks && selected.tracks.length === 1) return selected.tracks[0].path;
+  return "";
+}
+function startPreview(card, s) {
+  if (isPlaying() && selectedSinglePath() === s.path) return;
+  previewCard = card;
+  card.classList.add("previewing");
+  previewAudio.src = API + "/api/asset?name=" + encodeURIComponent(s.path);
+  previewAudio.volume = 0;
+  previewAudio.play().then(function() {
+    fadeTo(previewAudio, 0.55, 1400);
+    duck = 0.25; applyVol();
+  }).catch(function() { card.classList.remove("previewing"); });
+}
+function stopPreview(instant) {
+  clearTimeout(hoverTimer);
+  if (previewCard) previewCard.classList.remove("previewing");
+  previewCard = null;
+  duck = 1; applyVol();
+  if (previewAudio.paused) return;
+  if (instant) { clearInterval(previewFade); previewAudio.pause(); return; }
+  fadeTo(previewAudio, 0, 350, function() { previewAudio.pause(); });
+}
+if (!canHover) document.getElementById("pickTip").textContent = "轻点一张卡片，声音会在耳边慢慢铺开";
+
+/* ---------- 卡片 ---------- */
+var activeCat = "nature";
+function renderCards(cat) {
+  activeCat = cat;
+  var box = document.getElementById("cards");
+  box.innerHTML = "";
+  SOUNDS[cat].forEach(function(s, i) {
+    var card = document.createElement("button");
+    card.type = "button";
+    card.className = "card";
+    card.setAttribute("data-path", s.path);
+    var visual = s.img
+      ? '<div class="card-img" style="background-image:url(' + s.img + ')"></div>'
+      : '<div class="card-art" style="--a:' + s.acc + '"></div>';
+    card.innerHTML = visual +
+      '<div class="card-shade"></div>' +
+      '<div class="eq"><i></i><i></i><i></i></div>' +
+      '<div class="card-text"><div class="card-name">' + s.name + '</div>' +
+      '<div class="card-desc">' + s.desc + '</div>' +
+      '<div class="card-hint">' + (canHover ? "试听中 · 点一下留下它" : "正在耳边") + '</div></div>';
+    card.onclick = function() { playScene(s); };
+    if (canHover) {
+      card.onmouseenter = function() {
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(function() { startPreview(card, s); }, 600);
       };
-    })(tabs[i]);
+      card.onmouseleave = function() { stopPreview(false); };
+    }
+    box.appendChild(card);
+    setTimeout(function() { card.classList.add("in"); }, 30 + i * 45);
+  });
+  syncCards();
+}
+function syncCards() {
+  var playing = isPlaying();
+  var single = selectedSinglePath();
+  var cards = document.querySelectorAll(".card");
+  for (var i = 0; i < cards.length; i++) {
+    var on = playing && single && cards[i].getAttribute("data-path") === single;
+    cards[i].classList.toggle("on", on);
+    var hint = cards[i].querySelector(".card-hint");
+    if (hint) hint.textContent = on ? "正在耳边" : (canHover ? "试听中 · 点一下留下它" : "");
+  }
+}
+(function() {
+  var cats = document.querySelectorAll("#cats .cat");
+  for (var i = 0; i < cats.length; i++) {
+    cats[i].onclick = function() {
+      for (var j = 0; j < cats.length; j++) cats[j].classList.remove("on");
+      this.classList.add("on");
+      stopPreview(true);
+      renderCards(this.getAttribute("data-cat"));
+    };
   }
 })();
 
-function playScene(s) {
-  if (selectedScene.path === s.path && sceneAudio.src && !sceneAudio.paused) {
-    sceneAudio.pause();
-    renderState(s, false);
-    sceneStatus.textContent = "已暂停";
-    return;
-  }
-  if (selectedScene.path === s.path && sceneAudio.src && sceneAudio.paused) {
-    sceneAudio.play().catch(function() {});
-    renderState(s, true);
-    sceneStatus.textContent = "";
-    return;
-  }
-
-  selectedScene = s;
-  try {
-    localStorage.setItem("yexi_last_sound_path", s.path);
-  } catch (e) {}
-  renderState(s, false);
-  sceneStatus.textContent = "正在铺开「" + s.name + "」…";
-
-  yPost("/api/play", { items: [{ path: s.path, weight: 1.0 }], title: s.name })
-    .then(function(res) { return res.json(); })
-    .then(function(d) {
-      if (d.error) {
-        sceneStatus.textContent = d.error;
-        return;
-      }
-      sceneAudio.src = API + d.audio;
-      sceneAudio.volume = 1;
-      sceneAudio.play().catch(function() {});
-      renderState(s, true);
-      sceneStatus.textContent = "";
-      sessionStorage.setItem("yezi_play", JSON.stringify({
-        title: s.name,
-        audio: d.audio,
-        items: d.items
-      }));
-    })
-    .catch(function() {
-      sceneStatus.textContent = "本地音频服务未开启";
-    });
-}
-
-startSleepBtn.onclick = function() {
-  playScene(selectedScene);
-};
-lastPlayBtn.onclick = function() {
-  playScene(selectedScene);
-};
-
-function clearSleepTimer() {
-  if (sleepTimerId) {
-    clearInterval(sleepTimerId);
-    sleepTimerId = null;
-  }
-  sceneAudio.volume = 1;
-}
-
+/* ---------- 定时：最后一分钟渐弱 ---------- */
+var TIMER_STEPS = [0, 15, 30, 60], timerIdx = 0, timerId = null, endAt = 0;
+var timerBtn = document.getElementById("timerBtn");
+function setTimerLabel(t) { document.getElementById("timerLabel").textContent = t; }
+function clearTimer() { if (timerId) clearInterval(timerId); timerId = null; baseVol = 1; applyVol(); }
 timerBtn.onclick = function() {
-  timerStepIdx = (timerStepIdx + 1) % TIMER_STEPS.length;
-  var mins = TIMER_STEPS[timerStepIdx];
-  clearSleepTimer();
-
-  if (mins <= 0) {
-    timerBtn.textContent = "⏱ 定时";
+  timerIdx = (timerIdx + 1) % TIMER_STEPS.length;
+  var mins = TIMER_STEPS[timerIdx];
+  clearTimer();
+  if (!mins) {
+    setTimerLabel("定时");
     timerBtn.classList.remove("on");
-    document.getElementById("lightsOutTimer").textContent = "轻触任意处唤醒";
-    renderState(selectedScene, !!(sceneAudio.src && !sceneAudio.paused));
+    document.getElementById("veilTimer").textContent = "轻触任意处唤醒";
+    document.getElementById("nowMeta").textContent = metaText();
     return;
   }
-
   timerBtn.classList.add("on");
-  sleepEndAt = Date.now() + mins * 60 * 1000;
-  if (sceneAudio.paused) playScene(selectedScene);
-  renderState(selectedScene, true);
-
+  endAt = Date.now() + mins * 60000;
+  if (!isPlaying()) playScene(selected);
+  document.getElementById("nowMeta").textContent = metaText();
   var tick = function() {
-    var left = Math.max(0, (sleepEndAt - Date.now()) / 1000);
-    if (left <= 60) {
-      sceneAudio.volume = Math.max(0, left / 60);
-    } else {
-      sceneAudio.volume = 1;
-    }
-    var m = Math.floor(left / 60);
-    var s = Math.floor(left % 60);
-    var label = m + ":" + (s < 10 ? "0" : "") + s;
-    timerBtn.textContent = "⏱ " + label;
-    document.getElementById("lightsOutTimer").textContent = "将在 " + label + " 后渐弱熄声";
+    var left = Math.max(0, (endAt - Date.now()) / 1000);
+    baseVol = left <= 60 ? left / 60 : 1;
+    applyVol();
+    var m = Math.floor(left / 60), sec = Math.floor(left % 60);
+    var label = m + ":" + (sec < 10 ? "0" : "") + sec;
+    setTimerLabel(label);
+    document.getElementById("veilTimer").textContent = label + " 后渐渐安静";
     if (left <= 0) {
-      clearSleepTimer();
+      if (!implicitDone && selected.id) {
+        recordPositive(1, false);
+      }
+      clearTimer();
       sceneAudio.pause();
-      timerStepIdx = 0;
-      timerBtn.textContent = "⏱ 定时";
+      timerIdx = 0;
+      setTimerLabel("定时");
       timerBtn.classList.remove("on");
-      document.getElementById("lightsOutTimer").textContent = "晚安，已轻轻停下";
-      renderState(selectedScene, false);
+      document.getElementById("veilTimer").textContent = "晚安";
+      document.getElementById("nowMeta").textContent = metaText();
     }
   };
   tick();
-  sleepTimerId = setInterval(tick, 1000);
+  timerId = setInterval(tick, 1000);
 };
 
-document.getElementById("lightsOutBtn").onclick = function() {
-  if (sceneAudio.paused) playScene(selectedScene);
+/* ---------- 熄灯 + 呼吸引导（吸 4 秒 / 呼 6 秒） ---------- */
+var breathTimer = null;
+function breathe(phaseIn) {
+  var b = document.getElementById("breath"), w = document.getElementById("breathWord");
+  b.className = "breath " + (phaseIn ? "in" : "out");
+  w.style.opacity = 0;
+  setTimeout(function() { w.textContent = phaseIn ? "吸 气" : "呼 气"; w.style.opacity = 1; }, 500);
+  breathTimer = setTimeout(function() { breathe(!phaseIn); }, phaseIn ? 4000 : 6000);
+}
+document.getElementById("lightsBtn").onclick = function() {
+  if (!isPlaying()) playScene(selected);
   document.body.classList.add("lights-out");
+  clearTimeout(breathTimer);
+  setTimeout(function() { breathe(true); }, 600);
 };
-document.getElementById("lightsOutOverlay").onclick = function() {
+document.getElementById("veil").onclick = function() {
   document.body.classList.remove("lights-out");
+  clearTimeout(breathTimer);
 };
 
-renderSoundGrid("nature");
-renderState(selectedScene, false);
+/* ---------- 滚动：场景下沉 ---------- */
+function onScroll() {
+  var k = Math.min(1, window.scrollY / (window.innerHeight * 0.9));
+  document.documentElement.style.setProperty("--sc", k.toFixed(3));
+  document.body.classList.toggle("scrolled", window.scrollY > 40);
+}
+window.addEventListener("scroll", onScroll, { passive: true });
+
+/* =========================================================
+   FX：声音驱动的场景画面
+   rain 雨丝+玻璃水珠 / fire 余烬 / water 波光 / wind 雾与浮尘
+   night 星与萤火 / asmr 声纹涟漪 / bed 呼吸的暖光
+   ========================================================= */
+var FX = {
+  c: document.getElementById("fx"), ctx: null, w: 0, h: 0, dpr: 1,
+  type: "rain", rgb: "142,116,232", playing: false,
+  level: 0, avg: 0, peak: 0.04, inten: 0.4, fade: 1,
+  p: [], extra: [], rings: [], t: 0, last: 0, lastRing: 0,
+  reduced: window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+};
+FX.ctx = FX.c.getContext("2d");
+
+function rnd(a, b) { return a + Math.random() * (b - a); }
+
+FX.resize = function() {
+  FX.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  FX.w = window.innerWidth; FX.h = window.innerHeight;
+  FX.c.width = FX.w * FX.dpr; FX.c.height = FX.h * FX.dpr;
+  FX.ctx.setTransform(FX.dpr, 0, 0, FX.dpr, 0, 0);
+};
+
+FX.setType = function(type) {
+  if (type === FX.type && FX.p.length) return;
+  // 画面先淡出再换，避免硬切
+  FX.nextType = type;
+  FX.fadingOut = true;
+};
+
+FX.build = function(type) {
+  FX.type = type; FX.p = []; FX.extra = []; FX.rings = [];
+  var w = FX.w, h = FX.h, i, n;
+  var area = Math.min(1.4, (w * h) / (1280 * 800));
+  if (type === "rain") {
+    for (i = 0; i < 6; i++) FX.extra.push({ x: rnd(-w * 0.2, w), y: rnd(h * 0.25, h * 0.9), r: rnd(h * 0.25, h * 0.45), vx: rnd(0.05, 0.16), a: rnd(0.025, 0.05) });
+    for (i = 0; i < Math.round(45 * area); i++) FX.p.push({ x: rnd(0, w), y: rnd(0, h), vx: rnd(-0.08, 0.08), vy: rnd(-0.12, -0.02), r: rnd(0.6, 1.5), a: rnd(0.1, 0.32), ph: rnd(0, 6.28) });
+  } else if (type === "fire") {
+    // 余烬按需生成
+  } else if (type === "water") {
+    for (i = 0; i < 70; i++) FX.p.push({ x: rnd(0, w), y: rnd(h * 0.55, h), ph: rnd(0, 6.28), f: rnd(0.6, 1.8), r: rnd(0.6, 1.6) });
+  } else if (type === "wind") {
+    for (i = 0; i < 7; i++) FX.extra.push({ x: rnd(-w * 0.2, w), y: rnd(h * 0.3, h * 0.95), r: rnd(h * 0.25, h * 0.5), vx: rnd(0.08, 0.25), a: rnd(0.03, 0.07) });
+    for (i = 0; i < Math.round(60 * area); i++) FX.p.push({ x: rnd(0, w), y: rnd(0, h), vx: rnd(0.2, 0.7), ph: rnd(0, 6.28), r: rnd(0.6, 1.8), a: rnd(0.15, 0.45) });
+  } else if (type === "night") {
+    for (i = 0; i < Math.round(110 * area); i++) FX.p.push({ x: rnd(0, w), y: rnd(0, h * 0.6), r: rnd(0.4, 1.3), ph: rnd(0, 6.28), f: rnd(0.4, 1.4) });
+    for (i = 0; i < 18; i++) FX.extra.push({ x: rnd(0, w), y: rnd(h * 0.45, h * 0.95), vx: rnd(-0.3, 0.3), vy: rnd(-0.2, 0.2), ph: rnd(0, 6.28), f: rnd(0.5, 1.2) });
+  } else if (type === "asmr") {
+    for (i = 0; i < Math.round(55 * area); i++) FX.p.push({ x: rnd(0, w), y: rnd(0, h), vx: rnd(-0.08, 0.08), vy: rnd(-0.12, -0.02), r: rnd(0.5, 1.6), a: rnd(0.1, 0.4), ph: rnd(0, 6.28) });
+  } else if (type === "bed") {
+    for (i = 0; i < 6; i++) FX.extra.push({ x: rnd(0, w), y: rnd(h * 0.2, h), r: rnd(h * 0.3, h * 0.6), vx: rnd(-0.12, 0.12), a: rnd(0.03, 0.06) });
+  }
+};
+
+FX.readLevel = function(dt) {
+  var target = 0;
+  if (FX.playing) {
+    if (analyser) {
+      analyser.getByteTimeDomainData(ampBuf);
+      var sum = 0;
+      for (var i = 0; i < ampBuf.length; i++) { var v = (ampBuf[i] - 128) / 128; sum += v * v; }
+      var rms = Math.sqrt(sum / ampBuf.length);
+      FX.peak = Math.max(rms, FX.peak * 0.9985, 0.015);   // 自动增益：安静的声音也能看见
+      target = Math.pow(Math.min(1, rms / FX.peak), 1.6);
+    } else {
+      target = 0.45 + 0.25 * Math.sin(FX.t * 0.0011) + 0.1 * Math.sin(FX.t * 0.0047);
+    }
+  }
+  var k = target > FX.level ? 0.3 : 0.07;
+  FX.level += (target - FX.level) * Math.min(1, k * dt);
+  FX.avg += (FX.level - FX.avg) * 0.02 * dt;
+  FX.inten += ((FX.playing ? 1 : 0.38) - FX.inten) * 0.012 * dt;
+};
+
+FX.orbCenter = function() {
+  var r = document.getElementById("playBtn").getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+};
+
+FX.draw = function(dt) {
+  var g = FX.ctx, w = FX.w, h = FX.h, L = FX.level, I = FX.inten * FX.fade, t = FX.t, i, q;
+  g.clearRect(0, 0, w, h);
+  var rgb = FX.rgb;
+
+  if (FX.type === "rain") {
+    for (i = 0; i < FX.extra.length; i++) {
+      q = FX.extra[i];
+      q.x += q.vx * (0.6 + L * 1.2) * dt;
+      if (q.x - q.r > w) q.x = -q.r;
+      var rm = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r);
+      rm.addColorStop(0, "rgba(218,224,244," + (q.a * (0.6 + 0.6 * L) * I).toFixed(3) + ")");
+      rm.addColorStop(1, "rgba(218,224,244,0)");
+      g.fillStyle = rm; g.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2);
+    }
+    for (i = 0; i < FX.p.length; i++) {
+      q = FX.p[i];
+      q.x += q.vx * dt; q.y += q.vy * dt * (0.6 + L);
+      if (q.y < -10) { q.y = h + 10; q.x = rnd(0, w); }
+      g.fillStyle = "rgba(235,232,250," + (q.a * (0.5 + 0.5 * Math.sin(t * 0.002 + q.ph)) * I).toFixed(3) + ")";
+      g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill();
+    }
+  }
+
+  else if (FX.type === "fire") {
+    // 底部暖光随声音闪动
+    var flick = 0.5 + 0.5 * Math.sin(t * 0.009) * Math.sin(t * 0.0037);
+    var glowA = (0.1 + 0.22 * L + 0.05 * flick) * I;
+    var fg = g.createRadialGradient(w * 0.5, h * 1.08, 0, w * 0.5, h * 1.08, h * 0.95);
+    fg.addColorStop(0, "rgba(255,160,90," + glowA.toFixed(3) + ")");
+    fg.addColorStop(1, "rgba(255,120,60,0)");
+    g.fillStyle = fg; g.fillRect(0, 0, w, h);
+    var spawn = (0.15 + 1.4 * L) * I * dt;
+    while (spawn > 0) {
+      if (Math.random() < spawn) FX.p.push({ x: rnd(w * 0.1, w * 0.9), y: h + 6, vx: rnd(-0.3, 0.3), vy: rnd(-1.6, -0.5), life: 1, dec: rnd(0.002, 0.006), r: rnd(0.8, 2.2), ph: rnd(0, 6.28) });
+      spawn -= 1;
+    }
+    for (i = FX.p.length - 1; i >= 0; i--) {
+      q = FX.p[i];
+      q.x += (q.vx + Math.sin(t * 0.002 + q.ph) * 0.35) * dt;
+      q.y += q.vy * dt * (0.8 + L * 0.6);
+      q.life -= q.dec * dt;
+      if (q.life <= 0 || q.y < -10) { FX.p.splice(i, 1); continue; }
+      var ea = q.life * (0.55 + 0.45 * Math.sin(t * 0.02 + q.ph)) * I;
+      g.fillStyle = "rgba(255,170,100," + (ea * 0.18).toFixed(3) + ")";
+      g.beginPath(); g.arc(q.x, q.y, q.r * 4, 0, 6.283); g.fill();
+      g.fillStyle = "rgba(255,215,160," + (ea * 0.9).toFixed(3) + ")";
+      g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill();
+    }
+  }
+
+  else if (FX.type === "water") {
+    for (var layer = 0; layer < 7; layer++) {
+      var y0 = h * (0.6 + layer * 0.06);
+      var amp = (2 + layer * 1.6) * (0.5 + L * 1.4);
+      var sp = 0.0006 + layer * 0.00012;
+      g.strokeStyle = "rgba(" + rgb + "," + ((0.05 + 0.06 * L) * I * (1 - layer * 0.08)).toFixed(3) + ")";
+      g.lineWidth = 1;
+      g.beginPath();
+      for (var x = -20; x <= w + 20; x += 18) {
+        var y = y0 + Math.sin(x * (0.006 - layer * 0.0004) + t * sp + layer) * amp + Math.sin(x * 0.017 + t * sp * 1.7) * amp * 0.35;
+        if (x === -20) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    for (i = 0; i < FX.p.length; i++) {
+      q = FX.p[i];
+      var s = Math.sin(t * 0.002 * q.f + q.ph);
+      if (s < 0.3) continue;
+      var sa = (s - 0.3) * (0.4 + 0.8 * L) * I;
+      g.fillStyle = "rgba(235,240,255," + sa.toFixed(3) + ")";
+      g.fillRect(q.x + Math.sin(t * 0.0005 + q.ph) * 8, q.y, q.r * 3, q.r * 0.7);
+    }
+  }
+
+  else if (FX.type === "wind") {
+    for (i = 0; i < FX.extra.length; i++) {
+      q = FX.extra[i];
+      q.x += q.vx * (0.6 + L * 1.6) * dt;
+      if (q.x - q.r > w) q.x = -q.r;
+      var mg = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r);
+      mg.addColorStop(0, "rgba(220,226,240," + (q.a * (0.6 + 0.6 * L) * I).toFixed(3) + ")");
+      mg.addColorStop(1, "rgba(220,226,240,0)");
+      g.fillStyle = mg; g.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2);
+    }
+    for (i = 0; i < FX.p.length; i++) {
+      q = FX.p[i];
+      q.x += q.vx * (0.5 + L * 2.2) * dt;
+      q.y += Math.sin(t * 0.0012 + q.ph) * 0.25 * dt;
+      if (q.x > w + 10) { q.x = -10; q.y = rnd(0, h); }
+      g.fillStyle = "rgba(240,236,220," + (q.a * (0.5 + 0.6 * L) * I).toFixed(3) + ")";
+      g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill();
+    }
+  }
+
+  else if (FX.type === "night") {
+    for (i = 0; i < FX.p.length; i++) {
+      q = FX.p[i];
+      var tw = 0.5 + 0.5 * Math.sin(t * 0.0015 * q.f + q.ph);
+      g.fillStyle = "rgba(240,236,255," + ((0.15 + 0.55 * tw) * I).toFixed(3) + ")";
+      g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill();
+    }
+    for (i = 0; i < FX.extra.length; i++) {
+      q = FX.extra[i];
+      q.vx += rnd(-0.02, 0.02) * dt; q.vy += rnd(-0.02, 0.02) * dt;
+      q.vx = Math.max(-0.4, Math.min(0.4, q.vx)); q.vy = Math.max(-0.3, Math.min(0.3, q.vy));
+      q.x += q.vx * dt; q.y += q.vy * dt;
+      if (q.x < -20) q.x = w + 20; if (q.x > w + 20) q.x = -20;
+      if (q.y < h * 0.35) q.vy += 0.02; if (q.y > h) q.vy -= 0.02;
+      var blink = Math.max(0, Math.sin(t * 0.0018 * q.f + q.ph));
+      var fa = blink * (0.35 + 0.65 * L) * I;
+      if (fa < 0.01) continue;
+      var ff = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 14);
+      ff.addColorStop(0, "rgba(230,240,160," + (fa * 0.9).toFixed(3) + ")");
+      ff.addColorStop(1, "rgba(200,230,120,0)");
+      g.fillStyle = ff; g.beginPath(); g.arc(q.x, q.y, 14, 0, 6.283); g.fill();
+    }
+  }
+
+  else if (FX.type === "asmr") {
+    for (i = 0; i < FX.p.length; i++) {
+      q = FX.p[i];
+      q.x += q.vx * dt; q.y += q.vy * dt * (0.6 + L);
+      if (q.y < -10) { q.y = h + 10; q.x = rnd(0, w); }
+      g.fillStyle = "rgba(" + rgb + "," + (q.a * (0.5 + 0.5 * Math.sin(t * 0.002 + q.ph)) * I).toFixed(3) + ")";
+      g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.fill();
+    }
+    // 声音的每一次轻触，变成一圈涟漪
+    var onset = FX.playing && (L - FX.avg > 0.12) && (t - FX.lastRing > 220);
+    var idle = (t - FX.lastRing > (FX.playing ? 1800 : 4200));
+    if (onset || idle) {
+      FX.lastRing = t;
+      var oc = FX.orbCenter();
+      FX.rings.push({ x: oc.x, y: oc.y, r: 40, a: onset ? 0.28 + L * 0.3 : 0.14 });
+    }
+    for (i = FX.rings.length - 1; i >= 0; i--) {
+      q = FX.rings[i];
+      q.r += (0.9 + L * 1.6) * dt; q.a *= Math.pow(0.988, dt);
+      if (q.a < 0.008) { FX.rings.splice(i, 1); continue; }
+      g.strokeStyle = "rgba(" + rgb + "," + (q.a * FX.fade).toFixed(3) + ")";
+      g.lineWidth = 1;
+      g.beginPath(); g.arc(q.x, q.y, q.r, 0, 6.283); g.stroke();
+    }
+  }
+
+  else if (FX.type === "bed") {
+    var br = 0.5 + 0.5 * Math.sin(t * 0.00063); // 约 10 秒一次呼吸
+    for (i = 0; i < FX.extra.length; i++) {
+      q = FX.extra[i];
+      q.x += q.vx * dt;
+      if (q.x < -q.r) q.x = w + q.r; if (q.x > w + q.r) q.x = -q.r;
+      var bg2 = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r * (0.9 + 0.15 * br));
+      bg2.addColorStop(0, "rgba(" + rgb + "," + (q.a * (0.7 + 0.8 * L + 0.4 * br) * I).toFixed(3) + ")");
+      bg2.addColorStop(1, "rgba(" + rgb + ",0)");
+      g.fillStyle = bg2; g.fillRect(q.x - q.r * 1.2, q.y - q.r * 1.2, q.r * 2.4, q.r * 2.4);
+    }
+  }
+};
+
+FX.loop = function(now) {
+  var dt = FX.last ? Math.min(3, (now - FX.last) / 16.67) : 1;
+  FX.last = now; FX.t = now;
+  if (FX.fadingOut) {
+    FX.fade -= 0.08 * dt;
+    if (FX.fade <= 0) { FX.fade = 0; FX.fadingOut = false; FX.build(FX.nextType); }
+  } else if (FX.fade < 1) {
+    FX.fade = Math.min(1, FX.fade + 0.06 * dt);
+  }
+  FX.readLevel(dt);
+  FX.draw(dt);
+  document.documentElement.style.setProperty("--lvl", (FX.playing ? FX.level : 0).toFixed(3));
+  if (!FX.reduced) requestAnimationFrame(FX.loop);
+};
+
+window.addEventListener("resize", function() { FX.resize(); FX.build(FX.type); });
+
+/* ---------- 启动 ---------- */
+FX.resize();
+FX.build(selected.fx);
+selectScene(selected);
+var initCat = selected.scene === "asmr" ? "asmr" : (selected.scene === "fire" ? "bed" : "nature");
+renderCards(initCat);
+(function() {
+  var cats = document.querySelectorAll("#cats .cat");
+  for (var i = 0; i < cats.length; i++) cats[i].classList.toggle("on", cats[i].getAttribute("data-cat") === activeCat);
+})();
+render();
+onScroll();
+requestAnimationFrame(FX.loop);
+if (FX.reduced) { FX.inten = 0.6; FX.draw(1); }
 </script>
 </body>
 </html>

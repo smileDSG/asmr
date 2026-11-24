@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>我的 ASMR · 夜息</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+
+/* =========================================================
+   我的 ASMR：沿用首页的夜色，但密度更高
+   hero 38vh（首页的 38%），标题 46px（首页 76 × 0.6）
+   列表不用圆角卡片，改用一条细线分行的节奏
+   ========================================================= */
+
+/* —— 数据行：不装盒子，直接排在标题下面 —— */
+.profile-meta{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  margin-top:18px;font-size:13px;letter-spacing:.08em;color:var(--y-text-sub);
+}
+.profile-meta b{
+  font-family:var(--y-serif);font-size:20px;font-weight:400;
+  color:#fbf7ff;margin-right:5px;font-variant-numeric:tabular-nums;
+}
+.profile-meta i{font-style:normal;color:rgba(255,255,255,.16)}
+/* 档案说明跟着数据走，不再挤在页头标题下面 */
+.profile-caption{
+  margin:10px 0 0;font-size:13px;letter-spacing:.04em;
+  color:var(--y-text-sub);line-height:1.75;
+}
+.guest-line{
+  margin:14px 0 0;font-size:13px;letter-spacing:.04em;
+  color:var(--y-text-sub);line-height:1.75;
+}
+.guest-line a{
+  color:var(--y-warm);text-decoration:none;
+  border-bottom:1px solid rgba(var(--y-warm-rgb),.35);padding-bottom:1px;
+}
+.guest-line a:hover{border-bottom-color:rgba(var(--y-warm-rgb),.9)}
+
+/* —— 分组标签 —— */
+.sub-tabs{
+  display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+  margin:clamp(28px,5vh,46px) 0 2px;padding:0;
+  border-bottom:none;
+}
+.sub-tab{
+  position:relative;background:transparent;border:none;border-radius:0;
+  padding:6px 0 12px;font-family:var(--y-serif);font-size:14.5px;
+  letter-spacing:.16em;color:var(--y-text-muted);cursor:pointer;
+  transition:color .6s ease;
+}
+.sub-tab:hover{color:var(--y-text-sub)}
+.sub-tab.sel{color:var(--y-text)}
+.sub-tab.sel::after{
+  content:"";position:absolute;left:50%;bottom:2px;width:4px;height:4px;
+  margin-left:-2px;border-radius:50%;background:var(--y-warm);
+  box-shadow:0 0 10px var(--y-warm);
+}
+
+/* —— 小节标题：一行小字，不是卡片标题 —— */
+.sec-title{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin:26px 0 0;padding:0 0 10px;
+  font-size:13px;letter-spacing:.18em;color:var(--y-text-sub);
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+
+/* —— 列表行：去卡片化 —— */
+.item-card{
+  background:none;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  border:none;border-radius:0;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  box-shadow:none;
+  margin:0;padding:18px 0 16px;
+}
+.item-head{display:flex;align-items:flex-start;gap:14px}
+.item-main{flex:1;min-width:0}
+.item-title-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.item-title{
+  font-family:var(--y-serif);font-size:17px;font-weight:400;
+  letter-spacing:.07em;color:#fbf7ff;
+}
+.item-meta{font-size:13px;letter-spacing:.04em;color:var(--y-text-muted);margin-top:5px}
+.item-story{
+  font-size:13.5px;line-height:1.7;color:var(--y-text-sub);margin-top:8px;
+}
+
+/* 标记一律压成中性小字，暖色留给"正在发生" */
+.badge-pill{
+  font-size:12px;letter-spacing:.06em;color:var(--y-text-sub);
+  background:rgba(255,255,255,.055);border:none;border-radius:999px;
+  padding:2px 8px;
+}
+.badge-pill.soft{background:transparent;color:var(--y-text-muted);padding:2px 0}
+
+/* 参数条 */
+.param-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.param-pill{
+  font-size:12px;letter-spacing:.02em;color:var(--y-text-muted);
+  background:rgba(255,255,255,.04);border:none;border-radius:999px;
+  padding:2px 8px;font-variant-numeric:tabular-nums;
+}
+.diff-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.diff-pill{
+  font-size:12px;color:rgba(233,183,131,.82);
+  background:rgba(var(--y-warm-rgb),.08);border:none;border-radius:999px;
+  padding:2px 8px;
+}
+
+/* 许可选择：只在选中时上一点暖色 */
+.policy-bar{
+  display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  margin-top:10px;padding-top:0;border-top:none;
+}
+.policy-lbl{font-size:12px;letter-spacing:.08em;color:var(--y-text-muted);margin-right:6px}
+.policy-opt{
+  font-size:12.5px;color:var(--y-text-sub);background:transparent;
+  border:none;border-bottom:1px solid transparent;border-radius:0;
+  padding:2px 0 3px;margin-right:12px;cursor:pointer;font-family:inherit;
+  transition:color .45s ease,border-color .45s ease;
+}
+.policy-opt:hover{color:var(--y-text-sub)}
+.policy-opt.on{color:var(--y-warm);border-bottom-color:rgba(var(--y-warm-rgb),.55)}
+
+/* —— 操作：全部降为文字，一屏最多一个实心暖按钮 —— */
+.card-acts{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:12px}
+.card-acts button,.card-acts a{
+  padding:0;font-size:13.5px;letter-spacing:.06em;line-height:1.6;
+  background:none;border:none;box-shadow:none;border-radius:0;
+  cursor:pointer;font-family:inherit;text-decoration:none;
+  display:inline-flex;align-items:center;gap:5px;
+  transition:color .45s ease;
+}
+.card-acts .y-btn-primary{color:var(--y-warm)}
+.card-acts .y-btn-primary:hover{color:#ffe9cd;box-shadow:none;filter:none}
+.card-acts .y-btn-ghost{color:var(--y-text-sub)}
+.card-acts .y-btn-ghost:hover{color:#fff;background:none}
+.card-acts .btn-danger-ghost{color:rgba(226,216,244,.34);margin-left:6px}
+.card-acts .btn-danger-ghost:hover{color:rgba(255,160,185,.85);background:none}
+
+.item-msg{
+  font-size:12.5px;color:rgba(var(--y-warm-rgb),.8);
+  margin-top:8px;min-height:0;line-height:1.6;
+}
+.item-msg:empty{display:none}
+
+/* 空状态：一句话 + 一个动作，不居中长文案 */
+.empty-card{
+  background:none;backdrop-filter:none;-webkit-backdrop-filter:none;
+  border:none;border-radius:0;border-bottom:1px solid rgba(255,255,255,.07);
+  padding:20px 0;text-align:left;
+  font-size:13.5px;line-height:1.9;color:var(--y-text-sub);
+}
+.empty-card a{color:rgba(233,183,131,.9);text-decoration:none}
+.empty-card a:hover{color:var(--y-warm)}
+
+/* —— 我的配方空状态：一句说明 + 一个主按钮 + 一个次要入口 —— */
+.empty-guide{
+  position:relative;overflow:hidden;
+  margin-top:4px;padding:24px 24px 22px;
+  border:1px solid rgba(255,255,255,.07);border-radius:12px;
+  background:rgba(255,255,255,.022);
+}
+.empty-guide::before{
+  content:"";position:absolute;right:-30px;top:-40px;
+  width:150px;height:150px;border-radius:50%;
+  background:radial-gradient(circle,rgba(var(--y-warm-rgb),.10),transparent 70%);
+  pointer-events:none;
+}
+.empty-guide-ico{
+  font-size:20px;line-height:1;color:var(--y-warm);
+  opacity:.85;display:block;margin-bottom:12px;
+}
+.empty-guide-title{
+  margin:0 0 6px;font-family:var(--y-serif);
+  font-size:16px;font-weight:400;letter-spacing:.08em;color:var(--y-text);
+}
+.empty-guide-sub{
+  margin:0 0 18px;font-size:12.5px;line-height:1.75;
+  color:var(--y-text-muted);
+}
+.empty-guide-acts{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.empty-guide-primary{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 18px;border-radius:7px;
+  background:rgba(var(--y-warm-rgb),.14);
+  border:1px solid rgba(var(--y-warm-rgb),.34);
+  color:var(--y-warm);font-size:13px;text-decoration:none;
+  transition:background .3s ease,border-color .3s ease;
+}
+.empty-guide-primary:hover{
+  background:rgba(var(--y-warm-rgb),.22);
+  border-color:rgba(var(--y-warm-rgb),.6);
+}
+.empty-guide-secondary{
+  font-size:12.5px;color:var(--y-text-muted);text-decoration:none;
+  border-bottom:1px solid rgba(255,255,255,.14);padding-bottom:2px;
+  transition:color .3s ease,border-color .3s ease;
+}
+.empty-guide-secondary:hover{color:var(--y-warm);border-color:rgba(var(--y-warm-rgb),.6)}
+
+/* —— 耳朵档案：唯一需要"一块浮起"的地方，单层，不嵌套 —— */
+.ear-card{
+  background:rgba(255,255,255,.032);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  border:none;border-radius:14px;
+  padding:20px;margin:14px 0 12px;
+}
+.ear-card:first-child{margin-top:18px}
+.ear-dim-row{margin-bottom:12px}
+.ear-dim-top{
+  display:flex;justify-content:space-between;
+  font-size:13px;letter-spacing:.06em;color:var(--y-text-sub);margin-bottom:5px;
+}
+.ear-dim-bar{
+  height:3px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;
+}
+.ear-dim-fill{
+  height:100%;border-radius:999px;
+  background:linear-gradient(90deg,rgba(var(--y-warm-rgb),.55),var(--y-warm));
+}
+
+.locked-tip{
+  margin-top:9px;padding:0;background:transparent;border:none;
+  font-size:13px;line-height:1.7;color:var(--y-text-muted);
+}
+
+@media (max-width:520px){
+  .sub-tabs{gap:18px}
+  .card-acts{gap:16px}
+}
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
+      <div class="name">夜息</div>
+    </a>
+    <a href="index.html" class="pill-link">去调一段</a>
+  </div>
+
+  <header class="page-hero">
+    <div class="ph-row">
+      <h1 id="profileName">深夜旅人</h1>
+      <a class="ph-act" href="index.html">+ 新调一段</a>
+    </div>
+
+    <div class="profile-meta">
+      <span><b id="statOriginal">0</b>原创</span><i>·</i>
+      <span><b id="statStars">0</b>被借走</span><i>·</i>
+      <span><b id="statForks">0</b>被改编</span>
+    </div>
+
+    <p class="profile-caption" id="profileSub">正在同步你的夜息档案…</p>
+
+    <p class="guest-line" id="guestBanner" style="display:none">数据只存在这台机器的浏览器里 · <a href="auth.html?from=me.html">登录后跨设备同步</a></p>
+  </header>
+
+  <nav class="sub-tabs" id="subTabs">
+    <button type="button" class="sub-tab sel" data-tab="mine">我的配方</button>
+    <button type="button" class="sub-tab" data-tab="borrowed">借来的夜晚</button>
+    <button type="button" class="sub-tab" data-tab="ear">耳朵档案</button>
+  </nav>
+
+  <div id="tabContent"></div>
+</div>
+
+<div class="tabbar"></div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_shell.js"></script>
+<script src="yexi_catalog.js"></script>
+<script>
+var API = YEXI_API;
+initAuthBar("me.html");
+initYexiTabbar("me.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+var LOCAL_WORKS_KEY = "yezi_custom_recipes_v1";
+var VOTED_KEY = "yezi_community_voted_v1";
+var EAR_PROFILE_KEY = "yezi_ear_profile_v1";
+var POST_TOKENS_KEY = "yezi_my_post_tokens_v1";
+
+var BUILTIN_RECIPES = {
+  r1: {
+    id: "r1", title: "窗边夜雨", author: "夜息", group: "雨声",
+    img: "img/rain-window.jpg", accent: "#8e74e8",
+    story: "城市夜雨打底，混一点柔和雨。像躺在被窝里听窗外细雨，轻柔包裹。",
+    items: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.6, pan: 0, mode: "loop", density: 0.4 },
+      { path: "柔和雨.hq.mp3", weight: 0.4, pan: -0.2, mode: "loop", density: 0.4 }
+    ]
+  },
+  r2: {
+    id: "r2", title: "雨打树叶", author: "夜息", group: "雨声",
+    img: "img/raindrops-macro.jpg", accent: "#5fa896",
+    story: "雨滴打在树叶上的细碎声，比纯雨幕多一点清脆层次。",
+    items: [
+      { path: "备选_大雨打树叶_CC0.mp3", weight: 0.7, pan: -0.25, mode: "loop", density: 0.4 },
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.3, pan: 0.1, mode: "loop", density: 0.4 }
+    ]
+  },
+  r3: {
+    id: "r3", title: "远海放空", author: "夜息", group: "自然",
+    img: "img/ocean-waves.jpg", accent: "#5889d6",
+    story: "远处的海浪一层层推过来，声音从远处传来，适合放空和发呆。",
+    items: [
+      { path: "海浪_远海.hq.mp3", weight: 0.7, pan: 0, mode: "loop", density: 0.4 },
+      { path: "海浪_黑海.hq.mp3", weight: 0.3, pan: -0.22, mode: "loop", density: 0.4 }
+    ]
+  },
+  r4: {
+    id: "r4", title: "夏夜虫鸣", author: "夜息", group: "自然",
+    img: "img/starry-mountain-lake.jpg", accent: "#9b85d6",
+    story: "虫鸣配夜风，像小时候夏天在外婆家院子里纳凉的夜晚。",
+    items: [
+      { path: "虫鸣.hq.mp3", weight: 0.5, pan: -0.4, mode: "intermittent", density: 0.55 },
+      { path: "夜风.hq.mp3", weight: 0.5, pan: 0.35, mode: "loop", density: 0.4 }
+    ]
+  },
+  r5: {
+    id: "r5", title: "山涧溪流", author: "夜息", group: "自然",
+    img: "img/forest-stream.jpg?v=2", accent: "#59a5c7",
+    story: "山间溪流，水声清亮但不尖锐。配一点暖夜低鸣，多一点包裹感。",
+    items: [
+      { path: "溪流.hq.mp3", weight: 0.8, pan: -0.16, mode: "loop", density: 0.4 },
+      { path: "雨中低鸣.hq.mp3", weight: 0.2, pan: 0.16, mode: "loop", density: 0.4 }
+    ]
+  },
+  r6: {
+    id: "r6", title: "雨夜远雷", author: "夜息", group: "雨声",
+    img: "img/city-rain-night.jpg", accent: "#7d6bc4",
+    story: "雨声里混一点天边远远滚过的低沉雷声，低频更厚实深沉。",
+    items: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.7, pan: 0, mode: "loop", density: 0.4 },
+      { path: "远雷.hq.mp3", weight: 0.35, pan: 0.48, mode: "intermittent", density: 0.3 }
+    ]
+  }
+};
+
+var POLICY_LABELS = {
+  open: "开放共创",
+  star_to_fork: "借走解锁",
+  listen_only: "仅限聆听"
+};
+
+var PREF_LABELS = {
+  scene_rain: "偏爱雨声",
+  scene_ocean: "偏爱海浪",
+  scene_stream: "偏爱溪流",
+  scene_wind: "偏爱夜风",
+  scene_night: "偏爱夜色虫鸣",
+  warmth_warm: "喜欢暖厚包裹",
+  warmth_cool: "喜欢清凉通透",
+  dynamics_steady: "偏好稳态不突响",
+  mood_sleep: "睡前助眠向",
+  mood_focus: "专注放空向"
+};
+
+var currentTab = "mine";
+var hubData = null;
+var sharedMeAudio = null;
+var activeAudio = null;
+var activePlayId = "";
+
+function readLocalJson(key, fallback) {
+  try {
+    var raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    var parsed = JSON.parse(raw);
+    return parsed !== null && typeof parsed !== "undefined" ? parsed : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {}
+}
+
+function formatPanShort(pan) {
+  var p = parseFloat(pan) || 0;
+  var pct = Math.round(Math.abs(p) * 100);
+  if (pct < 5) return "正中";
+  return (p < 0 ? "左" : "右") + pct + "%";
+}
+
+function formatParamPills(items) {
+  var html = "";
+  for (var i = 0; i < (items || []).length; i++) {
+    var it = items[i];
+    var m = ySoundMeta(it.path);
+    var txt = m.name + " " + Math.round((it.weight || 0) * 100) + "% · " + formatPanShort(it.pan);
+    if (it.mode === "intermittent") {
+      txt += " · 偶发";
+    }
+    html += '<span class="param-pill">' + yEscape(txt) + '</span>';
+  }
+  return html;
+}
+
+function stopPlaying() {
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio = null;
+  }
+  if (activePlayId) {
+    var oldBtn = document.getElementById("play_" + activePlayId);
+    if (oldBtn) oldBtn.textContent = "试听";
+    activePlayId = "";
+  }
+}
+
+function playRecipe(playKey, opts) {
+  var msgEl = document.getElementById("msg_" + playKey);
+  var btnEl = document.getElementById("play_" + playKey);
+  if (activePlayId === playKey && activeAudio) {
+    stopPlaying();
+    if (msgEl) msgEl.textContent = "已暂停";
+    ySetAmbient(opts.img || "img/night-lake-stars.jpg", opts.accent || "#8e74e8", false);
+    return;
+  }
+  stopPlaying();
+  if (msgEl) msgEl.textContent = "正在准备声音…";
+
+  var body = { title: opts.title || "夜息", seconds: 60 };
+  if (opts.usePostId) {
+    body.post_id = opts.postId;
+  } else {
+    body.items = opts.items || [];
+  }
+
+  yPost("/api/play", body)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || d.error) {
+        if (msgEl) msgEl.textContent = (d && d.error) || "播放失败";
+        return;
+      }
+      if (!sharedMeAudio) {
+        sharedMeAudio = new Audio();
+        sharedMeAudio.loop = true;
+      }
+      sharedMeAudio.src = API + d.audio;
+      activeAudio = sharedMeAudio;
+      if (typeof yBindAmbientAudio === "function") yBindAmbientAudio(activeAudio);
+      activePlayId = playKey;
+      if (btnEl) btnEl.textContent = "暂停";
+      activeAudio.play().catch(function() {});
+      ySetAmbient(opts.img || "img/night-lake-stars.jpg", opts.accent || "#8e74e8", true);
+      if (msgEl) msgEl.textContent = "正在循环播放「" + (opts.title || "夜息") + "」";
+    })
+    .catch(function(e) {
+      if (msgEl) msgEl.textContent = "连接失败：" + e.message;
+    });
+}
+
+function openInDiy(recipe, asRemix) {
+  var items = recipe.items || recipe.tracks || [];
+  var code = yEncodeMix({ title: recipe.title || "夜息声景", tracks: items });
+  if (!code) {
+    location.href = "index.html";
+    return;
+  }
+  if (asRemix && recipe.id) {
+    var qs = "?remix_id=" + encodeURIComponent(recipe.id) +
+      "&remix_title=" + encodeURIComponent(recipe.title || "") +
+      "&remix_author=" + encodeURIComponent(recipe.author || "夜息");
+    location.href = "index.html" + qs + "#mix=" + encodeURIComponent(code);
+  } else {
+    location.href = "index.html#mix=" + encodeURIComponent(code);
+  }
+}
+
+function renderProfileHeader() {
+  var data = hubData || {};
+  var logged = !!data.logged_in;
+  var stats = data.stats || {};
+
+  document.getElementById("profileName").textContent = logged ? (data.username || "夜息旅人") : "深夜旅人";
+  document.getElementById("profileSub").textContent = logged
+    ? ("已收录 " + ((data.my_posts || []).length) + " 张广场配方 · " +
+       ((data.custom_recipes || []).length) + " 个工坊草稿 · " +
+       ((data.ai_recipes || []).length) + " 条 AI 收藏")
+    : "游客模式 · 现在的声音不用登录也能听";
+  document.getElementById("statOriginal").textContent = stats.original_count || 0;
+  document.getElementById("statStars").textContent = stats.total_stars_received || 0;
+  document.getElementById("statForks").textContent = stats.total_forks_received || 0;
+  document.getElementById("guestBanner").style.display = logged ? "none" : "block";
+}
+
+function renderMineTab(container) {
+  var myPosts = (hubData && hubData.my_posts) ? hubData.my_posts : [];
+  var customs = (hubData && Array.isArray(hubData.custom_recipes))
+    ? hubData.custom_recipes
+    : readLocalJson(LOCAL_WORKS_KEY, []);
+
+  var html = '<div class="sec-title"><span>已发布到广场的配方</span><span>' + myPosts.length + ' 条</span></div>';
+  if (myPosts.length === 0) {
+    html +=
+      '<div class="empty-guide">' +
+        '<span class="empty-guide-ico">☾</span>' +
+        '<div class="empty-guide-title">分享你的第一段夜色</div>' +
+        '<p class="empty-guide-sub">把你调好的声音发到广场，也能借给同样睡不着的人</p>' +
+        '<div class="empty-guide-acts">' +
+          '<a class="empty-guide-primary" href="agent.html">去说一句话配一段 →</a>' +
+          '<a class="empty-guide-secondary" href="index.html">自己进工坊挑声音</a>' +
+        '</div>' +
+      '</div>';
+  } else {
+    for (var i = 0; i < myPosts.length; i++) {
+      var p = myPosts[i];
+      var lead = ySoundMeta(p.lead_path || (p.items && p.items[0] ? p.items[0].path : ""));
+      var policy = p.remix_policy || "open";
+      var starCnt = (p.counts && p.counts.borrow) || 0;
+      var forkCnt = p.fork_count || 0;
+      var remixHtml = (p.remix_of && p.remix_of.title)
+        ? '<span class="badge-pill soft">↻ 改编自 @' + yEscape(p.remix_of.author || "夜息") + '</span>'
+        : '<span class="badge-pill">原创配方</span>';
+      var diffHtml = "";
+      if (p.diff_summary && p.diff_summary.length) {
+        diffHtml = '<div class="diff-row">';
+        for (var di = 0; di < p.diff_summary.length; di++) {
+          diffHtml += '<span class="diff-pill">' + yEscape(p.diff_summary[di]) + '</span>';
+        }
+        diffHtml += '</div>';
+      }
+
+      html +=
+        '<div class="glass item-card">' +
+          '<div class="item-head">' +
+            '<div class="item-main">' +
+              '<div class="item-title-row">' +
+                '<span class="item-title">' + yEscape(p.title) + '</span>' +
+                remixHtml +
+              '</div>' +
+              '<div class="item-meta">借走 ' + starCnt + ' 次 · 被改编 ' + forkCnt + ' 次</div>' +
+              (p.story ? '<div class="item-story">' + yEscape(p.story) + '</div>' : '') +
+              diffHtml +
+              '<div class="param-row">' + formatParamPills(p.items) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="policy-bar">' +
+            '<span class="policy-lbl">配方许可：</span>' +
+            '<button type="button" class="policy-opt' + (policy === "open" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="open">开放共创</button>' +
+            '<button type="button" class="policy-opt' + (policy === "star_to_fork" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="star_to_fork">借走解锁</button>' +
+            '<button type="button" class="policy-opt' + (policy === "listen_only" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="listen_only">仅限聆听</button>' +
+          '</div>' +
+          '<div class="card-acts">' +
+            '<button type="button" class="y-btn-ghost" id="play_post_' + yEscape(p.id) + '">' + (activePlayId === ("post_" + p.id) ? "暂停" : "试听") + '</button>' +
+            '<button type="button" class="y-btn-primary" id="diy_post_' + yEscape(p.id) + '">进工坊调整</button>' +
+            '<button type="button" class="btn-danger-ghost" id="del_post_' + yEscape(p.id) + '">删除</button>' +
+          '</div>' +
+          '<div class="item-msg" id="msg_post_' + yEscape(p.id) + '"></div>' +
+        '</div>';
+    }
+  }
+
+  html += '<div class="sec-title" style="margin-top:18px"><span>工坊私人草稿</span><span>' + customs.length + ' 条</span></div>';
+  if (customs.length === 0) {
+    html +=
+      '<div class="empty-guide">' +
+        '<span class="empty-guide-ico">✎</span>' +
+        '<div class="empty-guide-title">还没有私人草稿</div>' +
+        '<p class="empty-guide-sub">在工坊调好的声音存下来，随时回来接着听、接着改</p>' +
+        '<div class="empty-guide-acts">' +
+          '<a class="empty-guide-primary" href="index.html">去工坊调一段 →</a>' +
+          '<a class="empty-guide-secondary" href="agent.html">让 agent 先配一版</a>' +
+        '</div>' +
+      '</div>';
+  } else {
+    for (var j = 0; j < customs.length; j++) {
+      var c = customs[j];
+      var cTracks = c.tracks || c.items || [];
+      var cLead = ySoundMeta(cTracks.length ? cTracks[0].path : "");
+      html +=
+        '<div class="glass item-card">' +
+          '<div class="item-head">' +
+            '<div class="item-main">' +
+              '<div class="item-title-row"><span class="item-title">' + yEscape(c.title || "未命名草稿") + '</span><span class="badge-pill soft">私人草稿</span></div>' +
+              '<div class="param-row">' + formatParamPills(cTracks) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="card-acts">' +
+            '<button type="button" class="y-btn-ghost" id="play_draft_' + yEscape(c.id) + '">' + (activePlayId === ("draft_" + c.id) ? "暂停" : "试听") + '</button>' +
+            '<button type="button" class="y-btn-primary" id="diy_draft_' + yEscape(c.id) + '">打开编辑</button>' +
+            '<button type="button" class="btn-danger-ghost" id="del_draft_' + yEscape(c.id) + '">删除</button>' +
+          '</div>' +
+          '<div class="item-msg" id="msg_draft_' + yEscape(c.id) + '"></div>' +
+        '</div>';
+    }
+  }
+
+  // AI 配声里点过「收藏配方」的，也放进这个库，不然用户在"我的"里找不到
+  var aiRecipes = (hubData && Array.isArray(hubData.ai_recipes)) ? hubData.ai_recipes : [];
+
+  html += '<div class="sec-title" style="margin-top:18px"><span>AI 配声收藏</span><span>' + aiRecipes.length + ' 条</span></div>';
+  if (aiRecipes.length === 0) {
+    html +=
+      '<div class="empty-guide">' +
+        '<span class="empty-guide-ico">✦</span>' +
+        '<div class="empty-guide-title">还没有收藏 AI 配的声音</div>' +
+        '<p class="empty-guide-sub">在 AI 配声里听到满意的那版，点「收藏配方」就会存到这里，随时回来听或接着改</p>' +
+        '<div class="empty-guide-acts">' +
+          '<a class="empty-guide-primary" href="agent.html">去 AI 配一段 →</a>' +
+        '</div>' +
+      '</div>';
+  } else {
+    for (var ai = 0; ai < aiRecipes.length; ai++) {
+      (function(a) {
+        var aiKey = "ai_" + a.key;
+        html +=
+          '<div class="glass item-card">' +
+            '<div class="item-head">' +
+              '<div class="item-main">' +
+                '<div class="item-title-row">' +
+                  '<span class="item-title">' + yEscape(a.title || "AI 配的一段夜色") + '</span>' +
+                  '<span class="badge-pill soft">AI 配声</span>' +
+                '</div>' +
+                (a.say && a.say !== a.title ? '<div class="item-story">' + yEscape(a.say) + '</div>' : '') +
+                '<div class="param-row">' + formatParamPills(a.items) + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="card-acts">' +
+              '<button type="button" class="y-btn-ghost" id="play_' + aiKey + '">' + (activePlayId === aiKey ? "暂停" : "试听") + '</button>' +
+              '<button type="button" class="y-btn-primary" id="diy_' + aiKey + '">去工坊接着改</button>' +
+              '<button type="button" class="btn-danger-ghost" id="del_' + aiKey + '">删除</button>' +
+            '</div>' +
+            '<div class="item-msg" id="msg_' + aiKey + '"></div>' +
+          '</div>';
+      })(aiRecipes[ai]);
+    }
+  }
+
+  container.innerHTML = html;
+
+  // AI 收藏的交互绑定
+  for (var a2 = 0; a2 < aiRecipes.length; a2++) {
+    (function(a) {
+      var aiKey = "ai_" + a.key;
+      var lead = ySoundMeta(a.items && a.items.length ? a.items[0].path : "");
+      document.getElementById("play_" + aiKey).onclick = function() {
+        playRecipe(aiKey, { title: a.title, items: a.items, img: lead.img, accent: lead.accent });
+      };
+      document.getElementById("diy_" + aiKey).onclick = function() {
+        openInDiy({ title: a.title, items: a.items, id: "" }, false);
+      };
+      document.getElementById("del_" + aiKey).onclick = function() {
+        var msgEl = document.getElementById("msg_" + aiKey);
+        if (msgEl) msgEl.textContent = "正在删除…";
+        yPost("/api/good_recipes/delete", { key: a.key })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.ok) loadHub();
+            else if (msgEl) msgEl.textContent = (d && d.error) || "删除失败";
+          })
+          .catch(function() { if (msgEl) msgEl.textContent = "删除失败，请稍后再试"; });
+      };
+    })(aiRecipes[a2]);
+  }
+
+  for (var pi = 0; pi < myPosts.length; pi++) {
+    (function(p) {
+      var pKey = "post_" + p.id;
+      document.getElementById("play_" + pKey).onclick = function() {
+        var lead = ySoundMeta(p.lead_path || (p.items && p.items[0] ? p.items[0].path : ""));
+        playRecipe(pKey, { title: p.title, items: p.items, img: lead.img, accent: lead.accent });
+      };
+      document.getElementById("diy_" + pKey).onclick = function() {
+        openInDiy(p, false);
+      };
+      document.getElementById("del_" + pKey).onclick = function() {
+        var tokens = readLocalJson(POST_TOKENS_KEY, {});
+        yPost("/api/community_posts/delete", { id: p.id, delete_token: tokens[p.id] || "" })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.ok) loadHub();
+          }).catch(function() {});
+      };
+    })(myPosts[pi]);
+  }
+
+  var polBtns = container.querySelectorAll(".policy-opt");
+  for (var bi = 0; bi < polBtns.length; bi++) {
+    polBtns[bi].onclick = function() {
+      var pid = this.getAttribute("data-pid");
+      var pol = this.getAttribute("data-pol");
+      var msgEl = document.getElementById("msg_post_" + pid);
+      if (msgEl) msgEl.textContent = "正在更新许可…";
+      yPost("/api/community_posts/policy", { id: pid, remix_policy: pol })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d || !d.ok) {
+            if (msgEl) msgEl.textContent = (d && d.error) || "更新失败";
+            return;
+          }
+          loadHub();
+        })
+        .catch(function() {
+          if (msgEl) msgEl.textContent = "更新失败，请稍后重试";
+        });
+    };
+  }
+
+  for (var di2 = 0; di2 < customs.length; di2++) {
+    (function(c) {
+      var dKey = "draft_" + c.id;
+      var cTracks = c.tracks || c.items || [];
+      var cLead = ySoundMeta(cTracks.length ? cTracks[0].path : "");
+      document.getElementById("play_" + dKey).onclick = function() {
+        playRecipe(dKey, { title: c.title, items: cTracks, img: cLead.img, accent: cLead.accent });
+      };
+      document.getElementById("diy_" + dKey).onclick = function() {
+        openInDiy(c, false);
+      };
+      document.getElementById("del_" + dKey).onclick = function() {
+        yPost("/api/recipes/delete", { id: c.id })
+          .then(function(r) { return r.json(); })
+          .then(function() { loadHub(); })
+          .catch(function() {
+            var local = readLocalJson(LOCAL_WORKS_KEY, []);
+            var next = [];
+            for (var k = 0; k < local.length; k++) {
+              if (local[k].id !== c.id) next.push(local[k]);
+            }
+            writeLocalJson(LOCAL_WORKS_KEY, next);
+            loadHub();
+          });
+      };
+    })(customs[di2]);
+  }
+}
+
+function renderBorrowedTab(container) {
+  var list = [];
+  var seen = {};
+  var starredPosts = (hubData && hubData.starred_posts) ? hubData.starred_posts : [];
+  for (var i = 0; i < starredPosts.length; i++) {
+    var sp = starredPosts[i];
+    seen[sp.id] = true;
+    list.push({ kind: "post", data: sp });
+  }
+  var builtinIds = (hubData && hubData.starred_builtin_ids) ? hubData.starred_builtin_ids : [];
+  for (var j = 0; j < builtinIds.length; j++) {
+    var bid = builtinIds[j];
+    if (BUILTIN_RECIPES[bid] && !seen[bid]) {
+      seen[bid] = true;
+      list.push({ kind: "builtin", data: BUILTIN_RECIPES[bid] });
+    }
+  }
+  var localVoted = readLocalJson(VOTED_KEY, {});
+  for (var vk in localVoted) {
+    if (!localVoted[vk]) continue;
+    var parts = vk.split(":");
+    if (parts.length === 2 && parts[1] === "borrow") {
+      var rid = parts[0];
+      if (BUILTIN_RECIPES[rid] && !seen[rid]) {
+        seen[rid] = true;
+        list.push({ kind: "builtin", data: BUILTIN_RECIPES[rid] });
+      }
+    }
+  }
+
+  var html = '<div class="sec-title"><span>借来的夜晚</span><span>' + list.length + ' 张</span></div>';
+  if (list.length === 0) {
+    html += '<div class="glass empty-card">还没有借过配方 · 去 <a href="community.html" style="color:#d9c4ff">配方广场</a> 点一下「借我一晚」，就会安静收在这里</div>';
+    container.innerHTML = html;
+    return;
+  }
+
+  for (var k = 0; k < list.length; k++) {
+    var entry = list[k];
+    var r = entry.data;
+    var isBuiltin = entry.kind === "builtin";
+    var lead = isBuiltin
+      ? { img: r.img, accent: r.accent }
+      : ySoundMeta(r.lead_path || (r.items && r.items[0] ? r.items[0].path : ""));
+    var policy = r.remix_policy || "open";
+    var canRemix = isBuiltin || (r.unlocked && policy !== "listen_only");
+    var paramHtml = (!isBuiltin && r.items_locked)
+      ? '<div class="locked-tip">作者设为「' + yEscape(POLICY_LABELS[policy] || "仅限聆听") + '」· 可直接整段循环播放</div>'
+      : '<div class="param-row">' + formatParamPills(r.items) + '</div>';
+
+    html +=
+      '<div class="glass item-card">' +
+        '<div class="item-head">' +
+          '<div class="item-main">' +
+            '<div class="item-title-row">' +
+              '<span class="item-title">' + yEscape(r.title) + '</span>' +
+              '<span class="badge-pill soft">by ' + yEscape(r.author || "夜息") + '</span>' +
+              (!isBuiltin ? '<span class="badge-pill">' + yEscape(POLICY_LABELS[policy] || "开放共创") + '</span>' : '') +
+            '</div>' +
+            (r.story ? '<div class="item-story">' + yEscape(r.story) + '</div>' : '') +
+            paramHtml +
+          '</div>' +
+        '</div>' +
+        '<div class="card-acts">' +
+          '<button type="button" class="y-btn-ghost" id="play_star_' + yEscape(r.id) + '">' + (activePlayId === ("star_" + r.id) ? "暂停" : "试听") + '</button>' +
+          (canRemix ? '<button type="button" class="y-btn-primary" id="remix_star_' + yEscape(r.id) + '">↻ Remix 微调</button>' : '') +
+          '<button type="button" class="btn-danger-ghost" id="unstar_' + yEscape(r.id) + '">移出夜藏</button>' +
+        '</div>' +
+        '<div class="item-msg" id="msg_star_' + yEscape(r.id) + '"></div>' +
+      '</div>';
+  }
+  container.innerHTML = html;
+
+  for (var m = 0; m < list.length; m++) {
+    (function(entry) {
+      var r = entry.data;
+      var isBuiltin = entry.kind === "builtin";
+      var lead = isBuiltin
+        ? { img: r.img, accent: r.accent }
+        : ySoundMeta(r.lead_path || (r.items && r.items[0] ? r.items[0].path : ""));
+      var key = "star_" + r.id;
+
+      document.getElementById("play_" + key).onclick = function() {
+        playRecipe(key, {
+          title: r.title,
+          postId: r.id,
+          usePostId: !isBuiltin && r.items_locked,
+          items: r.items,
+          img: lead.img,
+          accent: lead.accent
+        });
+      };
+
+      var rmxBtn = document.getElementById("remix_" + key);
+      if (rmxBtn) {
+        rmxBtn.onclick = function() {
+          openInDiy(r, true);
+        };
+      }
+
+      document.getElementById("unstar_" + key).onclick = function() {
+        if (yNeedLogin("给广场的配方投票", "me.html")) return;
+        var voted = readLocalJson(VOTED_KEY, {});
+        delete voted[r.id + ":borrow"];
+        writeLocalJson(VOTED_KEY, voted);
+        yPost("/api/community_vote", { recipe_id: r.id, tag: "borrow", delta: -1 })
+          .then(function() { loadHub(); })
+          .catch(function() { loadHub(); });
+      };
+    })(list[m]);
+  }
+}
+
+function renderEarTab(container) {
+  var ep = (hubData && hubData.ear_profile) || readLocalJson(EAR_PROFILE_KEY, null);
+  var mem = (hubData && hubData.memory) || {};
+  var prefs = mem.preferences || {};
+
+  var html = '<div class="glass ear-card">';
+  if (ep && ep.archetype_id) {
+    var DIMS = [
+      { key: "warmth", label: "暖厚包裹" },
+      { key: "crisp", label: "清脆颗粒" },
+      { key: "space", label: "空间开阔" },
+      { key: "nature", label: "自然生机" }
+    ];
+    var scores = ep.scores || {};
+    var barsHtml = "";
+    for (var i = 0; i < DIMS.length; i++) {
+      var val = Math.max(0, Math.min(100, parseInt(scores[DIMS[i].key], 10) || 50));
+      barsHtml +=
+        '<div class="ear-dim-row">' +
+          '<div class="ear-dim-top"><span>' + DIMS[i].label + '</span><span>' + val + '%</span></div>' +
+          '<div class="ear-dim-bar"><div class="ear-dim-fill" style="width:' + val + '%"></div></div>' +
+        '</div>';
+    }
+    html +=
+      '<div class="item-title-row" style="margin-bottom:8px">' +
+        '<span class="item-title">' + yEscape(ep.archetype_name || "夜息聆听者") + '</span>' +
+        '<span class="badge-pill">耳朵画像</span>' +
+      '</div>' +
+      '<div class="item-story" style="margin-top:0;margin-bottom:14px">' + yEscape(ep.tagline || "已记住你的入睡声音偏爱") + '</div>' +
+      barsHtml +
+      (ep.tracks && ep.tracks.length ? '<div class="param-row" style="margin-bottom:14px">' + formatParamPills(ep.tracks) + '</div>' : '') +
+      '<div class="card-acts">' +
+        '<a class="y-btn-primary" href="ear_test.html">重新做 30 秒耳朵盲测</a>' +
+        '<a class="y-btn-ghost" href="agent.html">去 AI 配声试试</a>' +
+      '</div>';
+  } else {
+    html +=
+      '<div class="item-title" style="margin-bottom:6px">还没有耳朵盲测档案</div>' +
+      '<div class="item-story" style="margin-top:0;margin-bottom:14px">花 30 秒听几组盲测对比，AI 配声和广场推荐就会记住你喜欢暖厚还是清脆、怕不怕突响。</div>' +
+      '<div class="card-acts">' +
+        '<a class="y-btn-primary" href="ear_test.html">做一次 30 秒耳朵盲测</a>' +
+      '</div>';
+  }
+  html += '</div>';
+
+  var prefKeys = Object.keys(prefs);
+  html += '<div class="glass ear-card">';
+  html += '<div class="item-title" style="margin-bottom:6px">AI 记住的日常听感</div>';
+  html += '<div class="item-meta" style="margin-bottom:10px">已验证满意配方 ' + (mem.good_count || 0) + ' 次 · 避坑反馈 ' + (mem.bad_count || 0) + ' 次</div>';
+  if (prefKeys.length === 0) {
+    html += '<div class="item-story" style="margin-top:0">多去「AI 配声」听几轮并点「就这个」，夜息就会慢慢认出你的耳朵。</div>';
+  } else {
+    html += '<div class="param-row">';
+    for (var j = 0; j < prefKeys.length; j++) {
+      var k = prefKeys[j];
+      var lbl = PREF_LABELS[k] || k;
+      html += '<span class="param-pill">' + yEscape(lbl) + ' × ' + prefs[k] + '</span>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderActiveTab() {
+  var box = document.getElementById("tabContent");
+  if (currentTab === "mine") {
+    renderMineTab(box);
+  } else if (currentTab === "borrowed") {
+    renderBorrowedTab(box);
+  } else {
+    renderEarTab(box);
+  }
+}
+
+var subTabs = document.querySelectorAll("#subTabs .sub-tab");
+for (var si = 0; si < subTabs.length; si++) {
+  subTabs[si].onclick = function() {
+    currentTab = this.getAttribute("data-tab") || "mine";
+    for (var k = 0; k < subTabs.length; k++) {
+      subTabs[k].classList.toggle("sel", subTabs[k] === this);
+    }
+    renderActiveTab();
+  };
+}
+
+function loadHub() {
+  yGet("/api/me/hub")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      hubData = d || {};
+      renderProfileHeader();
+      renderActiveTab();
+    })
+    .catch(function() {
+      hubData = {
+        logged_in: false,
+        stats: { original_count: 0, fork_count: 0, total_stars_received: 0, total_forks_received: 0 },
+        my_posts: [],
+        starred_posts: [],
+        starred_builtin_ids: [],
+        custom_recipes: readLocalJson(LOCAL_WORKS_KEY, []),
+        ai_recipes: [],
+        ear_profile: readLocalJson(EAR_PROFILE_KEY, null),
+        memory: {}
+      };
+      renderProfileHeader();
+      renderActiveTab();
+    });
+}
+
+loadHub();
+</script>
+</body>
+</html>

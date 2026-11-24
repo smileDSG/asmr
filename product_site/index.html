@@ -4,66 +4,57 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · DIY 声景工坊</title>
-<link rel="stylesheet" href="theme.css?v=2">
+<link rel="stylesheet" href="theme.css?v=12">
 <style>
   @media (min-width: 780px) {
     .studio-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 20px;
+      grid-template-columns: 0.94fr 1.06fr;
+      gap: 22px;
       align-items: start;
     }
   }
   .studio-col {
     min-width: 0;
   }
+  .studio-col:first-of-type .card {
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    padding: 0;
+    border-radius: 0;
+  }
+  .studio-col:last-of-type .card {
+    border-radius: 18px;
+    padding: 20px;
+    background: rgba(10, 7, 18, 0.38);
+  }
 
-  /* ===== 紧凑页头 + 无边框单行快速模板条 ===== */
-  .page-head {
+  /* ===== 静谧页头 + 快速模板条 ===== */
+  /* 模板：一行安静的入口，占一整条就显得太重 */
+  .ph-presets {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 14px;
     flex-wrap: wrap;
-    padding: 2px 2px 10px;
+    margin-top: 22px;
   }
-  .page-head h1 {
-    margin: 0;
-    font-size: 21px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    color: #fff;
-  }
-  .page-head p {
-    margin: 0;
-    font-size: 12.5px;
-    color: var(--y-text-sub);
-  }
-
-  .preset-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 2px;
-    margin-bottom: 18px;
-  }
-  .preset-bar-label {
-    font-size: 11.5px;
-    font-weight: 500;
+  .ph-presets-label {
+    font-size: 12px;
+    letter-spacing: 0.24em;
     color: var(--y-text-muted);
-    white-space: nowrap;
     flex: 0 0 auto;
-    letter-spacing: 0.5px;
   }
   .preset-scroll {
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 6px;
+    align-items: baseline;
+    gap: 16px;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    padding: 2px 0;
+    padding: 1px 0;
   }
   .preset-scroll::-webkit-scrollbar {
     display: none;
@@ -71,52 +62,72 @@
   .preset-chip {
     flex: 0 0 auto;
     border: none;
-    background: transparent;
-    color: var(--y-text-sub);
-    border-radius: 999px;
-    padding: 6px 13px;
-    font-size: 12.5px;
+    background: none;
+    color: var(--y-text-muted);
+    border-radius: 0;
+    padding: 0 0 3px;
+    font-size: 13.5px;
+    letter-spacing: 0.08em;
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
-    transition: background 0.2s ease, color 0.2s ease;
+    border-bottom: 1px solid transparent;
+    transition: color 0.5s ease, border-color 0.5s ease;
   }
   .preset-chip:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
+    color: var(--y-text);
+    border-bottom-color: rgba(255, 255, 255, 0.18);
   }
   .preset-chip.on {
-    background: rgba(var(--y-accent-rgb), 0.22);
-    color: #fff;
-    font-weight: 600;
+    color: var(--y-warm);
+    border-bottom-color: rgba(var(--y-warm-rgb), 0.6);
   }
   .rand-chip {
     flex: 0 0 auto;
     border: none;
-    background: transparent;
-    color: var(--y-text-muted);
-    border-radius: 999px;
-    padding: 6px 11px;
-    font-size: 12px;
+    background: none;
+    color: rgba(226, 216, 244, 0.34);
+    border-radius: 0;
+    padding: 0;
+    font-size: 13px;
+    letter-spacing: 0.1em;
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
-    transition: color 0.2s ease, background 0.2s ease;
+    transition: color 0.5s ease;
   }
   .rand-chip:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--y-text-sub);
+  }
+  /* 窄屏：模板名单独占一行，换一组靠右，别把整行挤出去 */
+  @media (max-width: 600px) {
+    .ph-presets {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 12px;
+      align-items: baseline;
+    }
+    .ph-presets-label {
+      grid-column: 1;
+    }
+    .rand-chip {
+      grid-column: 2;
+      justify-self: end;
+    }
+    .preset-scroll {
+      grid-column: 1 / -1;
+    }
   }
 
-  /* ===== 柔雾磨砂主卡片（低边界感） ===== */
+  /* ===== 柔雾磨砂主卡片（无边框） ===== */
   .card {
-    background: rgba(20, 15, 34, 0.46);
+    background: var(--y-glass);
     backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 24px;
+    border: none;
+    border-radius: 22px;
     padding: 24px;
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.44);
   }
 
   /* ===== Remix 提示条 ===== */
@@ -129,7 +140,7 @@
     padding: 7px 12px;
     border-radius: 12px;
     background: rgba(var(--y-accent-rgb), 0.14);
-    font-size: 12px;
+    font-size: 13px;
     color: #eadfff;
   }
   .remix-banner.show {
@@ -161,26 +172,27 @@
     background: transparent;
     border: none;
     border-bottom: 1px solid transparent;
-    color: #fff;
-    font-size: 18px;
-    font-weight: 600;
-    font-family: inherit;
+    color: #fbf7ff;
+    font-family: var(--y-serif);
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
     padding: 2px 0 4px;
     outline: none;
-    transition: border-color 0.25s ease;
+    transition: border-color 0.5s ease;
   }
   .mix-title-input:hover {
-    border-bottom-color: rgba(218, 200, 255, 0.16);
+    border-bottom-color: rgba(255, 255, 255, 0.14);
   }
   .mix-title-input:focus {
-    border-bottom-color: rgba(var(--y-accent-rgb), 0.72);
+    border-bottom-color: rgba(var(--y-warm-rgb), 0.65);
   }
   .mix-title-input::placeholder {
     color: var(--y-text-muted);
-    font-weight: 500;
+    font-weight: 300;
   }
   .player-info .d {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-sub);
     margin-top: 3px;
     line-height: 1.45;
@@ -189,14 +201,14 @@
     text-overflow: ellipsis;
   }
 
-  /* ===== 2D 互动声场舞台（无外框，融入深宵绒面） ===== */
+  /* ===== 2D 互动声场舞台 ===== */
   .stage-box {
     position: relative;
-    height: 276px;
+    height: clamp(280px, 34vh, 340px);
     border-radius: 18px;
     overflow: hidden;
     background:
-      radial-gradient(circle at 50% 88%, rgba(var(--y-accent-rgb), 0.20) 0%, rgba(var(--y-accent-rgb), 0.05) 45%, rgba(10, 7, 20, 0.76) 86%);
+      radial-gradient(circle at 50% 88%, rgba(var(--y-warm-rgb), calc(0.12 + var(--y-lvl, 0) * 0.2)) 0%, rgba(var(--y-accent-rgb), 0.05) 46%, rgba(7, 5, 13, 0.5) 88%);
     border: none;
     touch-action: none;
     user-select: none;
@@ -211,10 +223,10 @@
   }
   .stage-axis-label {
     position: absolute;
-    font-size: 10.5px;
-    color: rgba(218, 200, 255, 0.36);
+    font-size: 12px;
+    color: rgba(226, 216, 244, 0.34);
     pointer-events: none;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.1em;
   }
   .stage-axis-label.left { left: 14px; bottom: 12px; }
   .stage-axis-label.right { right: 14px; bottom: 12px; }
@@ -225,14 +237,15 @@
     left: 50%;
     bottom: 10px;
     transform: translateX(-50%);
-    padding: 4px 12px;
+    padding: 4px 13px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(var(--y-warm-rgb), 0.16);
     border: none;
-    font-size: 11px;
-    color: #efe7ff;
+    font-size: 12.5px;
+    letter-spacing: 0.12em;
+    color: var(--y-warm);
     pointer-events: none;
-    box-shadow: 0 0 18px rgba(var(--y-accent-rgb), 0.24);
+    box-shadow: 0 0 calc(16px + var(--y-lvl, 0) * 26px) rgba(var(--y-warm-rgb), 0.26);
     white-space: nowrap;
   }
   .stage-hud {
@@ -242,12 +255,13 @@
     z-index: 4;
     padding: 4px 11px;
     border-radius: 999px;
-    background: rgba(11, 8, 20, 0.78);
-    font-size: 11px;
-    color: #efe5ff;
+    background: rgba(7, 5, 13, 0.84);
+    border: none;
+    font-size: 12.5px;
+    color: var(--y-text);
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.35s ease;
     max-width: calc(100% - 24px);
     white-space: nowrap;
     overflow: hidden;
@@ -264,7 +278,7 @@
     justify-content: center;
     text-align: center;
     padding: 20px 32px 44px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: var(--y-text-muted);
     line-height: 1.75;
     pointer-events: none;
@@ -277,33 +291,30 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 11px;
+    padding: 5px 11px;
     border-radius: 999px;
-    background: rgba(17, 13, 29, 0.84);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12, 9, 20, 0.88);
+    border: none;
     color: #f4eeff;
-    font-size: 11.5px;
+    font-size: 13px;
     font-weight: 500;
     cursor: grab;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-    transition: box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.12s ease;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    transition: box-shadow 0.35s ease, opacity 0.35s ease, transform 0.15s ease;
     touch-action: none;
     white-space: nowrap;
   }
   .stage-node:hover {
-    border-color: rgba(255, 255, 255, 0.18);
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(var(--y-accent-rgb), 0.26);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.52), 0 0 18px rgba(var(--y-warm-rgb), 0.28);
   }
   .stage-node.selected {
-    border-color: rgba(255, 255, 255, 0.24);
-    box-shadow: 0 0 0 3px rgba(var(--y-accent-rgb), 0.26), 0 8px 22px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 0 0 3px rgba(var(--y-warm-rgb), 0.26), 0 8px 22px rgba(0, 0, 0, 0.45);
   }
   .stage-node.dragging {
     cursor: grabbing;
     z-index: 6;
     transform: translate(-50%, -50%) scale(1.07);
-    border-color: rgba(255, 255, 255, 0.32);
-    box-shadow: 0 0 0 4px rgba(var(--y-accent-rgb), 0.34), 0 10px 26px rgba(0, 0, 0, 0.58);
+    box-shadow: 0 0 0 4px rgba(var(--y-accent-rgb), 0.40), 0 10px 26px rgba(0, 0, 0, 0.58);
   }
   .stage-node.is-intermittent {
     opacity: 0.74;
@@ -317,6 +328,12 @@
     height: 6px;
     border-radius: 50%;
     flex: 0 0 6px;
+  }
+  .node-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    flex: 0 0 18px;
   }
   .stage-node.is-loading::after {
     content: "";
@@ -340,7 +357,7 @@
     padding: 2px 2px 0;
   }
   .master-vol span {
-    font-size: 11.5px;
+    font-size: 13px;
     color: var(--y-text-muted);
     white-space: nowrap;
   }
@@ -365,21 +382,21 @@
   .studio-primary-actions .y-btn-primary,
   .btn-soft {
     padding: 10px 10px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     text-align: center;
     white-space: nowrap;
   }
   .btn-soft {
     border: none;
-    background: rgba(255, 255, 255, 0.05);
-    color: #e2d7f8;
-    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--y-text-sub);
+    border-radius: 999px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.2s ease, color 0.2s ease;
+    transition: background 0.45s ease, color 0.45s ease;
   }
   .btn-soft:hover:not(:disabled) {
-    background: rgba(var(--y-accent-rgb), 0.18);
+    background: rgba(var(--y-warm-rgb), 0.16);
     color: #fff;
   }
   .studio-primary-actions button:disabled {
@@ -409,9 +426,9 @@
     border: none;
     background: rgba(255, 255, 255, 0.05);
     color: #e4d8ff;
-    border-radius: 10px;
+    border-radius: 999px;
     padding: 8px 10px;
-    font-size: 11.5px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
     text-align: center;
@@ -428,7 +445,7 @@
   }
 
   .toast {
-    font-size: 12px;
+    font-size: 13px;
     color: #e5d2ff;
     text-align: center;
     margin-top: 10px;
@@ -440,7 +457,7 @@
     opacity: 1;
   }
   .status {
-    font-size: 12px;
+    font-size: 13px;
     color: #d6c2ff;
     min-height: 18px;
     margin-top: 8px;
@@ -466,7 +483,7 @@
     border: none;
     background: transparent;
     color: var(--y-text-muted);
-    font-size: 13.5px;
+    font-size: 14.5px;
     font-weight: 500;
     padding: 10px 6px 12px;
     cursor: pointer;
@@ -489,17 +506,17 @@
     bottom: -1px;
     height: 2px;
     border-radius: 2px;
-    background: var(--y-accent);
-    box-shadow: 0 0 12px rgba(var(--y-accent-rgb), 0.72);
+    background: var(--y-warm);
+    box-shadow: 0 0 12px rgba(var(--y-warm-rgb), 0.65);
   }
   .tab-badge {
-    font-size: 11.5px;
+    font-size: 13px;
     color: var(--y-text-muted);
     font-variant-numeric: tabular-nums;
     font-weight: 500;
   }
   .panel-tab.on .tab-badge {
-    color: #d7c4ff;
+    color: var(--y-warm);
   }
 
   .panel-view {
@@ -524,22 +541,22 @@
     padding: 8px 10px;
     border-radius: 12px;
     border: none;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.045);
     color: var(--y-text-sub);
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.2s ease, color 0.2s ease;
+    transition: background 0.45s ease, color 0.45s ease;
   }
   .layer-pill:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.08);
     color: #fff;
   }
   .layer-pill.on {
-    background: rgba(var(--y-accent-rgb), 0.16);
-    color: #fff;
-    font-weight: 600;
+    background: rgba(var(--y-warm-rgb), 0.18);
+    color: #fff7eb;
+    font-weight: 500;
   }
   .layer-dot {
     width: 7px;
@@ -548,12 +565,12 @@
     flex: 0 0 7px;
   }
   .layer-count {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--y-text-muted);
     font-variant-numeric: tabular-nums;
   }
   .layer-pill.on .layer-count {
-    color: #e4d8ff;
+    color: var(--y-warm);
   }
 
   .layer-guide {
@@ -561,16 +578,152 @@
   }
   .layer-guide-text {
     display: block;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-muted);
   }
+
+  /* AI 帮你配：agent 收藏的配方，点击整组载入继续手改 */
+  .ai-picks {
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .ai-picks-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 9px;
+  }
+  .ai-picks-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--y-warm);
+    letter-spacing: 0.03em;
+  }
+  .ai-picks-link {
+    font-size: 13px;
+    color: var(--y-text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+  .ai-picks-link:hover { color: var(--y-warm); }
+  .ai-pick-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .ai-pick {
+    flex: 0 0 auto;
+    max-width: 190px;
+    padding: 9px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: var(--y-text);
+    transition: border-color 0.3s ease, background 0.3s ease;
+  }
+  .ai-pick:hover {
+    border-color: rgba(233, 183, 131, 0.4);
+    background: rgba(233, 183, 131, 0.06);
+  }
+  .ai-pick-name {
+    display: block;
+    font-size: 13.5px;
+    color: var(--y-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ai-pick-sub {
+    display: block;
+    font-size: 12.5px;
+    color: var(--y-text-muted);
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 素材分类筛选条与全部展开网格 */
+  .lib-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin: 2px 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .lib-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .lib-filter-chip {
+    font-size: 13px;
+    color: var(--y-text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 999px;
+    padding: 4px 11px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+  .lib-filter-chip:hover {
+    border-color: rgba(242, 189, 128, 0.45);
+    color: var(--y-text);
+  }
+  .lib-filter-chip.on {
+    color: var(--y-warm);
+    background: rgba(242, 189, 128, 0.12);
+    border-color: rgba(242, 189, 128, 0.5);
+  }
+  .lib-summary-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .lib-pager-info {
+    font-size: 13px;
+    color: var(--y-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .lib-pager-btns { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .lib-pager-btn {
+    font-size: 12px;
+    color: var(--y-text);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .lib-pager-btn:hover:not(:disabled) {
+    border-color: var(--y-warm);
+    color: var(--y-warm);
+  }
+  .lib-pager-btn:disabled { opacity: 0.3; cursor: default; }
 
   .lib-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 0 22px;
   }
-  @media (max-width: 390px) {
+  @media (max-width: 440px) {
     .lib-grid {
       grid-template-columns: 1fr;
     }
@@ -579,28 +732,24 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 11px;
-    padding: 15px 16px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid transparent;
+    gap: 10px;
+    padding: 12px 0 11px;
+    border-radius: 0;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     cursor: pointer;
     text-align: left;
     font-family: inherit;
     color: var(--y-text);
-    transition: border-color 0.2s ease, background 0.2s ease;
+    transition: border-color 0.45s ease;
   }
   .lib-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .lib-item.on {
-    background: rgba(var(--y-accent-rgb), 0.18);
-    border-color: rgba(var(--y-accent-rgb), 0.38);
+    background: none;
+    border-bottom-color: rgba(255, 255, 255, 0.16);
   }
   .lib-item .li-ico {
-    font-size: 20px;
-    flex: 0 0 auto;
-    line-height: 1;
+    display: none;
   }
   .lib-item .li-info {
     flex: 1;
@@ -608,29 +757,39 @@
   }
   .lib-item .li-name {
     display: block;
-    font-size: 13.5px;
-    font-weight: 500;
+    font-size: 14.5px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
     color: var(--y-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.45s ease;
   }
   .lib-item .li-state {
-    font-size: 11px;
+    font-size: 13px;
+    line-height: 1.5;
     color: var(--y-text-muted);
-    margin-top: 3px;
-    white-space: nowrap;
+    margin-top: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lib-item.on {
+    background: none;
+    box-shadow: none;
+  }
+  .lib-item.on .li-name {
+    color: var(--y-warm);
   }
   .lib-item.on .li-state {
-    color: #e5d2ff;
+    color: rgba(233, 183, 131, 0.62);
   }
   .li-check {
     display: none;
-    color: #efe7ff;
+    color: var(--y-warm);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 400;
     flex: 0 0 auto;
   }
   .lib-item.on .li-check {
@@ -651,14 +810,14 @@
     margin-bottom: 10px;
   }
   .tray-label {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-muted);
   }
   .tray-goto-btn {
     background: transparent;
     border: none;
     color: #d6c2ff;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
@@ -674,7 +833,7 @@
     gap: 8px;
   }
   .tray-empty {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-muted);
   }
   .tray-pill {
@@ -686,7 +845,7 @@
     background: rgba(255, 255, 255, 0.05);
     border: none;
     color: #efe7ff;
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
     transition: background 0.2s ease, color 0.2s ease;
   }
@@ -704,7 +863,7 @@
     background: transparent;
     border: none;
     color: var(--y-text-muted);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1;
     cursor: pointer;
     padding: 0 2px;
@@ -723,14 +882,14 @@
     margin-bottom: 12px;
   }
   .tune-hint {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-muted);
   }
   .quiet-link-btn {
     border: none;
     background: transparent;
     color: var(--y-text-muted);
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
     padding: 3px 6px;
@@ -744,7 +903,7 @@
   .tracks-empty {
     padding: 28px 16px;
     text-align: center;
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: var(--y-text-muted);
     background: rgba(255, 255, 255, 0.025);
     border-radius: 16px;
@@ -761,13 +920,12 @@
   .track-row {
     padding: 14px 16px;
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid transparent;
-    transition: border-color 0.25s ease, background 0.25s ease;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    transition: background 0.25s ease;
   }
   .track-row.expanded {
-    background: rgba(var(--y-accent-rgb), 0.09);
-    border-color: rgba(var(--y-accent-rgb), 0.24);
+    background: rgba(var(--y-accent-rgb), 0.12);
   }
   .track-top {
     display: flex;
@@ -777,15 +935,10 @@
     margin-bottom: 9px;
   }
   .track-ico {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    flex: 0 0 26px;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    flex: 0 0 34px;
   }
   .track-meta {
     flex: 1;
@@ -798,12 +951,12 @@
     flex-wrap: wrap;
   }
   .track-name {
-    font-size: 13.5px;
+    font-size: 14.5px;
     font-weight: 500;
     color: var(--y-text);
   }
   .track-chip-meta {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--y-text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -811,7 +964,7 @@
     border: none;
     background: transparent;
     color: var(--y-text-sub);
-    font-size: 11.5px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
     padding: 3px 6px;
@@ -844,11 +997,11 @@
     margin-top: 5px;
   }
   .track-ctrl-label {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--y-text-muted);
   }
   .track-ctrl-val {
-    font-size: 11.5px;
+    font-size: 13px;
     color: #dfd1ff;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -883,7 +1036,7 @@
     border: none;
     background: transparent;
     color: var(--y-text-muted);
-    font-size: 11px;
+    font-size: 12.5px;
     padding: 3px 10px;
     border-radius: 999px;
     cursor: pointer;
@@ -902,7 +1055,7 @@
     border: none;
     background: rgba(255, 255, 255, 0.045);
     color: var(--y-text-sub);
-    font-size: 10.5px;
+    font-size: 12px;
     padding: 3px 9px;
     border-radius: 999px;
     cursor: pointer;
@@ -926,7 +1079,7 @@
   }
   .nudge-collapse summary {
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-sub);
     list-style: none;
     display: flex;
@@ -939,7 +1092,7 @@
   .nudge-collapse summary::after {
     content: "▾";
     color: var(--y-text-muted);
-    font-size: 11px;
+    font-size: 12.5px;
   }
   .nudge-collapse[open] summary::after {
     content: "▴";
@@ -955,7 +1108,7 @@
     border: none;
     border-radius: 12px;
     padding: 6px 10px;
-    font-size: 11px;
+    font-size: 12.5px;
     color: #dcd0f2;
     cursor: pointer;
     font-family: inherit;
@@ -987,7 +1140,7 @@
     min-width: 0;
   }
   .work-title {
-    font-size: 13.5px;
+    font-size: 14.5px;
     font-weight: 500;
     color: #fff;
     white-space: nowrap;
@@ -995,7 +1148,7 @@
     text-overflow: ellipsis;
   }
   .work-sub {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--y-text-muted);
     margin-top: 2px;
     white-space: nowrap;
@@ -1013,7 +1166,7 @@
     color: var(--y-text-sub);
     border-radius: 10px;
     padding: 5px 10px;
-    font-size: 11px;
+    font-size: 12.5px;
     cursor: pointer;
     font-family: inherit;
     transition: background 0.2s ease, color 0.2s ease;
@@ -1023,7 +1176,7 @@
     color: #fff;
   }
   .works-empty {
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: var(--y-text-muted);
     padding: 28px 16px;
     text-align: center;
@@ -1054,8 +1207,8 @@
     max-height: 88vh;
     overflow-y: auto;
     padding: 20px;
-    background: rgba(24, 17, 42, 0.92);
-    border: 1px solid rgba(218, 200, 255, 0.24);
+    background: rgba(16, 12, 26, 0.94);
+    border: none;
     border-radius: 22px;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.56);
   }
@@ -1076,8 +1229,8 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    border: 1px solid rgba(218, 200, 255, 0.2);
-    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    background: rgba(255, 255, 255, 0.07);
     color: #d4c6ee;
     cursor: pointer;
     font-size: 15px;
@@ -1087,7 +1240,7 @@
   }
   .y-field-label {
     display: block;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-sub);
     margin: 11px 0 6px;
   }
@@ -1098,10 +1251,10 @@
     margin-top: 12px;
   }
   .pub-pill {
-    font-size: 11px;
+    font-size: 12.5px;
     color: #e4d8ff;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(218, 200, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
     border-radius: 999px;
     padding: 3px 9px;
   }
@@ -1121,8 +1274,8 @@
     padding: 11px 13px;
     border-radius: 13px;
     background: rgba(94, 196, 168, 0.14);
-    border: 1px solid rgba(94, 196, 168, 0.45);
-    font-size: 12.5px;
+    border: none;
+    font-size: 13.5px;
     color: #dcfff3;
     align-items: center;
     justify-content: space-between;
@@ -1148,19 +1301,18 @@
   .dur-pill {
     flex: 1 1 130px;
     text-align: center;
-    font-size: 12px;
+    font-size: 13px;
     color: #d8ccf0;
-    background: rgba(255, 255, 255, 0.045);
-    border: 1px solid rgba(218, 200, 255, 0.18);
+    background: rgba(255, 255, 255, 0.055);
+    border: none;
     border-radius: 12px;
     padding: 8px 10px;
     cursor: pointer;
     font-family: inherit;
   }
   .dur-pill.on {
-    background: rgba(var(--y-accent-rgb), 0.26);
-    border-color: rgba(var(--y-accent-rgb), 0.78);
-    color: #fff;
+    background: rgba(var(--y-warm-rgb), 0.22);
+    color: #fff7eb;
     font-weight: 600;
   }
   .cc0-list {
@@ -1176,15 +1328,15 @@
     gap: 8px;
     padding: 8px 11px;
     border-radius: 11px;
-    background: rgba(11, 8, 20, 0.5);
-    border: 1px solid rgba(218, 200, 255, 0.12);
-    font-size: 12px;
+    background: rgba(5, 3, 10, 0.5);
+    border: none;
+    font-size: 13px;
   }
   .cc0-badge {
-    font-size: 10.5px;
+    font-size: 12px;
     color: #b7f5e1;
-    background: rgba(94, 196, 168, 0.15);
-    border: 1px solid rgba(94, 196, 168, 0.38);
+    background: rgba(94, 196, 168, 0.16);
+    border: none;
     border-radius: 999px;
     padding: 2px 8px;
     white-space: nowrap;
@@ -1193,9 +1345,15 @@
     margin-top: 13px;
     padding-top: 11px;
     border-top: 1px solid rgba(218, 200, 255, 0.11);
-    font-size: 11.5px;
+    font-size: 13px;
     color: var(--y-text-muted);
     line-height: 1.6;
+  }
+  .policy-hint {
+    font-size: 13px;
+    color: var(--y-text-muted);
+    margin: 7px 0 2px;
+    line-height: 1.5;
   }
 </style>
 </head>
@@ -1205,22 +1363,23 @@
 <div class="wrap-wide">
   <div class="top">
     <a class="brand" href="home.html">
-      <div class="moon">☾</div>
+      <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
       <div class="name">夜息</div>
     </a>
   </div>
 
-  <div class="page-head">
-    <h1>DIY 声景工坊</h1>
-    <p>自由叠底幕与点缀，拖气泡摆远近左右</p>
-  </div>
+  <header class="page-hero">
+    <div class="ph-row">
+      <h1>DIY 声景工坊</h1>
+    </div>
+    <p class="ph-sub">叠几层声音，拖出远近左右。</p>
 
-  <!-- 无边框单行快速模板条 -->
-  <div class="preset-bar">
-    <span class="preset-bar-label">快速模板</span>
-    <div class="preset-scroll" id="presetsPanel"></div>
-    <button type="button" class="rand-chip" id="randBtn">🎲 换一组</button>
-  </div>
+    <div class="ph-presets">
+      <span class="ph-presets-label">模板</span>
+      <div class="preset-scroll" id="presetsPanel"></div>
+      <button type="button" class="rand-chip" id="randBtn">换一组</button>
+    </div>
+  </header>
 
   <div class="studio-grid">
     <!-- 左栏：静谧 2D 声场舞台 -->
@@ -1252,7 +1411,7 @@
           <span class="stage-axis-label top">正前</span>
           <span class="stage-axis-label left">左窗</span>
           <span class="stage-axis-label right">右侧</span>
-          <div class="stage-listener">☾ 你</div>
+          <div class="stage-listener">你</div>
           <div class="stage-hud" id="stageHud"></div>
           <div class="stage-empty" id="stageEmpty">在右侧挑几层喜欢的声音，拖到这里摆出远近左右</div>
           <div id="stageNodes"></div>
@@ -1265,15 +1424,15 @@
         </div>
 
         <div class="studio-primary-actions">
-          <button class="y-btn-primary" id="keepBtn" type="button">☾ 定时入睡</button>
-          <button class="btn-soft" id="saveWorkBtn" type="button">★ 保存</button>
-          <button class="btn-soft" id="publishBtn" type="button">✦ 发广场</button>
+          <button class="btn-soft" id="keepBtn" type="button">定时入睡</button>
+          <button class="btn-soft" id="saveWorkBtn" type="button">保存</button>
+          <button class="btn-soft" id="publishBtn" type="button">发广场</button>
           <button class="btn-soft" id="moreActionsBtn" type="button" aria-expanded="false">⋯ 更多</button>
         </div>
 
         <div class="more-drawer" id="moreActionsDrawer">
           <button class="drawer-btn" id="exportWavBtn" type="button">⬇ 商用导出 (WAV + CC0凭证)</button>
-          <button class="drawer-btn" id="postcardBtn" type="button">🖼 声音明信片</button>
+          <button class="drawer-btn" id="postcardBtn" type="button">声音明信片</button>
           <button class="drawer-btn" id="shareWorkBtn" type="button">↗ 复制分享链接</button>
         </div>
 
@@ -1314,7 +1473,28 @@
             <span class="layer-guide-text" id="layerGuideText">铺出夜色的基底 · 可自由多选叠加</span>
           </div>
 
+          <div class="ai-picks" id="aiPicks">
+            <div class="ai-picks-head">
+              <span class="ai-picks-title">AI 帮你配</span>
+              <button type="button" class="ai-picks-link" id="aiPicksMore">去和 agent 说 ›</button>
+            </div>
+            <div class="ai-pick-list" id="aiPickList"></div>
+          </div>
+
+          <div class="lib-filter-bar" id="libFilterBar">
+            <div class="lib-filter-chips" id="libFilterChips"></div>
+            <span class="lib-pager-info" id="libPageInfo">本层共 0 项</span>
+          </div>
+
           <div class="lib-grid" id="layeredLibrary"></div>
+
+          <div class="lib-summary-line">
+            <span class="lib-pager-info" id="libSummaryText">全库素材 · 可点击直接叠加或取消</span>
+            <span class="lib-pager-btns">
+              <button type="button" class="lib-pager-btn" id="libPagePrev">上一页</button>
+              <button type="button" class="lib-pager-btn" id="libPageNext">下一页</button>
+            </span>
+          </div>
 
           <div class="active-tray" id="activeTray"></div>
         </div>
@@ -1362,7 +1542,7 @@
 <div class="y-modal-mask" id="publishModal" role="dialog" aria-modal="true" aria-labelledby="pubModalTitle">
   <div class="y-modal">
     <div class="y-modal-head">
-      <h3 id="pubModalTitle">✦ 发布深夜声音明信片</h3>
+      <h3 id="pubModalTitle">发布深夜声音明信片</h3>
       <button type="button" class="y-modal-close" id="pubCloseBtn" aria-label="关闭">×</button>
     </div>
     <div class="remix-banner" id="pubRemixPreview"></div>
@@ -1374,6 +1554,13 @@
       <label class="y-field-label" for="pubAuthor">署名昵称（选填）</label>
       <input type="text" class="y-input" id="pubAuthor" maxlength="20" placeholder="深夜旅人">
     </div>
+    <div class="y-field-label">配方许可（类似开源协议）</div>
+    <div class="dur-pills" id="pubPolicyPills">
+      <button type="button" class="dur-pill" data-policy="open">开放共创</button>
+      <button type="button" class="dur-pill on" data-policy="star_to_fork">借走解锁 · 推荐</button>
+      <button type="button" class="dur-pill" data-policy="listen_only">仅限聆听</button>
+    </div>
+    <div class="policy-hint" id="pubPolicyHint">听众可先免费试听，点一下「借我一晚」后即可查看参数并带署名微调</div>
     <div class="pub-preview-pills" id="pubTrackPills"></div>
     <div class="status" id="pubStatus"></div>
     <div class="pub-success" id="pubSuccessRow">
@@ -1382,7 +1569,7 @@
     </div>
     <div class="modal-actions">
       <button type="button" class="y-btn-ghost" id="pubCancelBtn">取消</button>
-      <button type="button" class="y-btn-primary" id="pubSubmitBtn">✦ 发布到广场</button>
+      <button type="button" class="y-btn-primary" id="pubSubmitBtn">发布到广场</button>
     </div>
   </div>
 </div>
@@ -1405,7 +1592,7 @@
     <div class="status" id="expStatus"></div>
     <div class="modal-actions">
       <button type="button" class="y-btn-primary" id="doExportWavBtn">⬇ 导出 16-bit WAV</button>
-      <button type="button" class="y-btn-ghost" id="doExportCertBtn">📄 下载《CC0 商用溯源凭证》</button>
+      <button type="button" class="y-btn-ghost" id="doExportCertBtn">下载《CC0 商用溯源凭证》</button>
     </div>
     <div class="pro-hint">
       适用场景：短视频背景音、播客片尾、冥想引导、独立游戏与咖啡馆/SPA 空间播放。当前全部原声均来自 Freesound CC0 公有领域，零音质篡改。
@@ -1413,20 +1600,17 @@
   </div>
 </div>
 
-<div class="tabbar">
-  <a href="home.html"><span class="ti">☾</span>今晚</a>
-  <a href="agent.html"><span class="ti">✦</span>AI 配声</a>
-  <a href="index.html" class="on"><span class="ti">☰</span>DIY</a>
-  <a href="community.html"><span class="ti">♡</span>广场</a>
-</div>
+<div class="tabbar"></div>
 
 <script src="auth_ui.js"></script>
-<script src="yexi_catalog.js"></script>
+<script src="yexi_shell.js"></script>
+<script src="yexi_catalog.js?v=41"></script>
 <script src="yexi_mixer.js"></script>
 <script>
 var API = YEXI_API;
 initAuthBar("index.html");
-initAmbientStage("img/moon-water.jpg", "#8e74e8");
+initYexiTabbar("index.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
 
 var LOCAL_WORKS_KEY = "yezi_custom_recipes_v1";
 var POST_TOKENS_KEY = "yezi_my_post_tokens_v1";
@@ -1441,6 +1625,10 @@ var currentWorkId = "";
 var savedWorks = [];
 var activePanelTab = "sounds"; // "sounds" | "tune" | "works"
 var activeLayer = "bed";       // "bed" | "texture" | "accent"
+var activeSoundGroup = "全部";  // 当前层内的分类筛选
+var libraryPage = 0;           // 素材库当前页（从 0 开始）
+var LIB_PAGE_SIZE = 6;         // 每页 6 项（两列三行，左右整齐）
+var aiPickedRecipes = [];      // agent 收藏的满意配方，来自 /api/good_recipes
 var selectedTrackPath = "";
 var activePresetId = "";
 var loadingMap = {};
@@ -1631,9 +1819,9 @@ function updatePlaybackVisuals() {
   var lead = findLeadTrack();
   if (lead) {
     var meta = ySoundMeta(lead.path);
-    ySetAmbient(meta.img, meta.accent, isPlaying);
+    ySetAmbient("img/night-lake-stars.jpg", meta.accent, isPlaying);
   } else {
-    ySetAmbient("img/moon-water.jpg", "#8e74e8", false);
+    ySetAmbient("img/night-lake-stars.jpg", "#e9b783", false);
   }
 }
 
@@ -1695,6 +1883,8 @@ function updateLayerCountsAndGuide() {
 
 function switchLayerTab(layerKey) {
   activeLayer = layerKey;
+  activeSoundGroup = "全部"; // 切层默认显示该层全部分类
+  libraryPage = 0;           // 切层回到第一页
   renderLayeredLibrary();
 }
 
@@ -1748,7 +1938,7 @@ function showStageHud(tr) {
   }
   var m = ySoundMeta(tr.path);
   var modeLabel = tr.mode === "intermittent" ? " · 偶发" : "";
-  stageHudEl.textContent = m.icon + " " + m.name + " · 强弱 " + Math.round(tr.weight * 100) + "% · " + formatPanLabel(tr.pan) + modeLabel;
+  stageHudEl.textContent = m.name + " · 强弱 " + Math.round(tr.weight * 100) + "% · " + formatPanLabel(tr.pan) + modeLabel;
   stageHudEl.classList.add("show");
 }
 
@@ -1786,7 +1976,7 @@ function renderStageNodes() {
       node.style.top = pos.y.toFixed(1) + "px";
       node.innerHTML =
         '<span class="node-dot" style="background:' + layerInfo.color + '"></span>' +
-        '<span>' + meta.icon + '</span>' +
+        '<span class="node-thumb y-thumb" style="background-image:url(' + (meta.img || "img/moon-water.jpg") + ')"></span>' +
         '<span>' + yEscape(meta.name) + '</span>';
 
       node.addEventListener("pointerdown", function(e) {
@@ -2132,7 +2322,7 @@ function renderTracksUI() {
 
       row.innerHTML =
         '<div class="track-top" data-path="' + yEscape(tr.path) + '">' +
-          '<div class="track-ico">' + m.icon + '</div>' +
+          '<div class="track-ico y-thumb" style="background-image:url(' + (m.img || "img/moon-water.jpg") + ')"></div>' +
           '<div class="track-meta">' +
             '<div class="track-name-line">' +
               '<span class="layer-dot" style="background:' + layerInfo.color + '"></span>' +
@@ -2245,21 +2435,143 @@ function renderTracksUI() {
   box.appendChild(list);
 }
 
-// ===== Tab 1：一次只显示一层声音素材 + 底部当前托盘 =====
+// ===== AI 帮你配：显示 agent 收藏过的满意配方，点击整组载入继续手改 =====
+function loadAiPickedRecipes() {
+  yGet("/api/good_recipes")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      aiPickedRecipes = (d && Array.isArray(d.recipes)) ? d.recipes : [];
+      renderAiPicks();
+    })
+    .catch(function() {
+      aiPickedRecipes = [];
+      renderAiPicks();
+    });
+}
+
+function aiPickLabel(r) {
+  // 优先用当时的需求原话，太长就截断；没有就用场景名
+  var say = String(r.say || "").trim();
+  if (!say) return (r.scene ? String(r.scene) + " 声景" : "AI 配方");
+  return say.length > 16 ? say.slice(0, 16) + "…" : say;
+}
+
+function renderAiPicks() {
+  var box = document.getElementById("aiPickList");
+  if (!box) return;
+  box.innerHTML = "";
+
+  // 只显示音轨齐全的配方，空的没意义
+  var usable = [];
+  for (var i = 0; i < aiPickedRecipes.length; i++) {
+    var items = aiPickedRecipes[i].items;
+    if (Array.isArray(items) && items.length > 0) usable.push(aiPickedRecipes[i]);
+  }
+  if (usable.length === 0) {
+    box.innerHTML = '<div class="ai-pick-sub" style="padding:4px 0">还没有收藏的配方。和 agent 聊出满意的声景后点「收藏配方」，就会出现在这里。</div>';
+    return;
+  }
+
+  // 最近收藏的排前面，最多显示 8 个
+  usable = usable.slice(-8).reverse();
+  for (var j = 0; j < usable.length; j++) {
+    (function(r) {
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "ai-pick";
+      var names = [];
+      for (var k = 0; k < r.items.length; k++) {
+        var nm = ySoundMeta(r.items[k].path || "").name;
+        if (nm) names.push(nm);
+      }
+      var sub = names.length ? names.join(" + ") : "点开载入";
+      if (sub.length > 20) sub = sub.slice(0, 20) + "…";
+      card.innerHTML =
+        '<span class="ai-pick-name">' + yEscape(aiPickLabel(r)) + '</span>' +
+        '<span class="ai-pick-sub">' + yEscape(sub) + '</span>';
+      card.onclick = function() {
+        loadTracks(r.items, true, aiPickLabel(r), "", "");
+        showToast("已载入 AI 配方，可继续手改");
+      };
+      box.appendChild(card);
+    })(usable[j]);
+  }
+}
+
+// ===== Tab 1：展示当前层全部分类与素材（不再分页隐藏）+ 底部当前托盘 =====
 function renderLayeredLibrary() {
   updateLayerCountsAndGuide();
   var grid = document.getElementById("layeredLibrary");
+  var chipsWrap = document.getElementById("libFilterChips");
   grid.innerHTML = "";
 
-  for (var si = 0; si < YEXI_SOUNDS.length; si++) {
+  // 先收集当前层的全部素材与分组
+  var layerList = [];
+  var groupCounts = {};
+  var groupOrder = [];
+  for (var i = 0; i < YEXI_SOUNDS.length; i++) {
+    var item = YEXI_SOUNDS[i];
+    if (item.layer === activeLayer) {
+      layerList.push(item);
+      var grp = item.group || "其他";
+      if (!groupCounts[grp]) {
+        groupCounts[grp] = 0;
+        groupOrder.push(grp);
+      }
+      groupCounts[grp] += 1;
+    }
+  }
+
+  if (activeSoundGroup !== "全部" && !groupCounts[activeSoundGroup]) {
+    activeSoundGroup = "全部";
+  }
+
+  // 渲染分类筛选标签（全部 + 当前层出现的分类）
+  if (chipsWrap) {
+    chipsWrap.innerHTML = "";
+    var allGroups = ["全部"].concat(groupOrder);
+    for (var gi = 0; gi < allGroups.length; gi++) {
+      (function(gName) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "lib-filter-chip" + (activeSoundGroup === gName ? " on" : "");
+        var cnt = gName === "全部" ? layerList.length : (groupCounts[gName] || 0);
+        chip.textContent = gName + " (" + cnt + ")";
+        chip.onclick = function() {
+          activeSoundGroup = gName;
+          libraryPage = 0; // 换分类回到第一页
+          renderLayeredLibrary();
+        };
+        chipsWrap.appendChild(chip);
+      })(allGroups[gi]);
+    }
+  }
+
+  // 按当前分类筛选
+  var filteredList = [];
+  for (var fi = 0; fi < layerList.length; fi++) {
+    var sItem = layerList[fi];
+    var sGrp = sItem.group || "其他";
+    if (activeSoundGroup === "全部" || sGrp === activeSoundGroup) {
+      filteredList.push(sItem);
+    }
+  }
+
+  // 分页：每页固定 6 项（两列三行），最后一行也整齐，不落单
+  var totalPages = Math.ceil(filteredList.length / LIB_PAGE_SIZE) || 1;
+  if (libraryPage >= totalPages) libraryPage = totalPages - 1;
+  if (libraryPage < 0) libraryPage = 0;
+  var start = libraryPage * LIB_PAGE_SIZE;
+  var pageList = filteredList.slice(start, start + LIB_PAGE_SIZE);
+
+  for (var pi = 0; pi < pageList.length; pi++) {
     (function(s) {
-      if (s.layer !== activeLayer) return;
       var active = hasTrack(s.path);
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "lib-item" + (active ? " on" : "");
       btn.innerHTML =
-        '<span class="li-ico">' + s.icon + '</span>' +
+        '<span class="li-ico y-thumb" style="background-image:url(' + (s.img || "img/moon-water.jpg") + ')"></span>' +
         '<span class="li-info">' +
           '<span class="li-name">' + yEscape(s.name) + '</span>' +
           '<div class="li-state">' + yEscape(s.desc) + '</div>' +
@@ -2267,10 +2579,39 @@ function renderLayeredLibrary() {
         '<span class="li-check" aria-hidden="true">✓</span>';
       btn.onclick = function() { toggleLibrarySound(s); };
       grid.appendChild(btn);
-    })(YEXI_SOUNDS[si]);
+    })(pageList[pi]);
   }
 
+  // 进度指示：第几页 / 共几页 + 当前分类项数
+  var info = document.getElementById("libPageInfo");
+  if (info) {
+    info.textContent = "第 " + (libraryPage + 1) + " / " + totalPages + " 页 · " + activeSoundGroup + " " + filteredList.length + " 项";
+  }
+  var summaryText = document.getElementById("libSummaryText");
+  if (summaryText) {
+    summaryText.textContent = "全库共 " + YEXI_SOUNDS.length + " 段素材 · 切换上方「底幕 / 纹理 / 点缀」浏览其余分类";
+  }
+  var prevBtn = document.getElementById("libPagePrev");
+  var nextBtn = document.getElementById("libPageNext");
+  if (prevBtn) prevBtn.disabled = libraryPage <= 0;
+  if (nextBtn) nextBtn.disabled = libraryPage >= totalPages - 1;
+
   renderActiveTray();
+}
+
+// 翻页按钮
+var libPrevBtn = document.getElementById("libPagePrev");
+var libNextBtn = document.getElementById("libPageNext");
+if (libPrevBtn) {
+  libPrevBtn.onclick = function() {
+    if (libraryPage > 0) { libraryPage -= 1; renderLayeredLibrary(); }
+  };
+}
+if (libNextBtn) {
+  libNextBtn.onclick = function() {
+    libraryPage += 1;
+    renderLayeredLibrary();
+  };
 }
 
 // ===== 单行快速模板条 & 我的作品 =====
@@ -2314,7 +2655,7 @@ function renderSavedWorks() {
   document.getElementById("worksCount").textContent = String(savedWorks.length);
   var box = document.getElementById("worksPanel");
   if (savedWorks.length === 0) {
-    box.innerHTML = '<div class="works-empty">还没有保存过作品<br>调好声场后点左下方「★ 保存」，就可以随时载入、精调或分享</div>';
+    box.innerHTML = '<div class="works-empty">还没有保存过作品<br>调好声场后点左下方「保存」，就可以随时载入、精调或分享</div>';
     return;
   }
   box.innerHTML = "";
@@ -2618,6 +2959,30 @@ document.getElementById("remixClearBtn").onclick = function() {
 
 // ===== 发布到广场弹窗 =====
 var publishModal = document.getElementById("publishModal");
+var publishPolicy = "star_to_fork";
+var PUB_POLICY_HINTS = {
+  open: "所有人都可以直接看到配比参数，并带你的署名进行 Remix 微调",
+  star_to_fork: "听众可先免费试听，点一下「借我一晚」后即可查看参数并带署名微调",
+  listen_only: "只开放播放与收藏，隐藏详细参数并关闭 Remix 二次改编"
+};
+
+function setPubPolicy(pol) {
+  publishPolicy = pol || "star_to_fork";
+  var pills = document.querySelectorAll("#pubPolicyPills .dur-pill");
+  for (var i = 0; i < pills.length; i++) {
+    pills[i].classList.toggle("on", pills[i].getAttribute("data-policy") === publishPolicy);
+  }
+  var hintEl = document.getElementById("pubPolicyHint");
+  if (hintEl) hintEl.textContent = PUB_POLICY_HINTS[publishPolicy] || "";
+}
+
+var pubPolBtns = document.querySelectorAll("#pubPolicyPills .dur-pill");
+for (var pbi = 0; pbi < pubPolBtns.length; pbi++) {
+  pubPolBtns[pbi].onclick = function() {
+    setPubPolicy(this.getAttribute("data-policy"));
+  };
+}
+
 function setPubStatus(msg, isErr) {
   var el = document.getElementById("pubStatus");
   el.innerHTML = msg || "";
@@ -2636,6 +3001,7 @@ function savePostDeleteToken(postId, tok) {
 }
 
 function openPublishModal() {
+  if (yNeedLogin("把配方发到广场", "index.html")) return;
   var payloadTracks = currentItemsPayload();
   if (payloadTracks.length === 0) return;
 
@@ -2643,6 +3009,7 @@ function openPublishModal() {
   document.getElementById("pubStory").value = "";
   document.getElementById("pubSuccessRow").classList.remove("show");
   document.getElementById("pubSubmitBtn").disabled = false;
+  setPubPolicy("star_to_fork");
   setPubStatus("", false);
 
   var authorRow = document.getElementById("pubAuthorRow");
@@ -2663,7 +3030,7 @@ function openPublishModal() {
   var pills = "";
   for (var i = 0; i < payloadTracks.length; i++) {
     var m = ySoundMeta(payloadTracks[i].path);
-    pills += '<span class="pub-pill">' + m.icon + ' ' + yEscape(m.name) + ' ' +
+    pills += '<span class="pub-pill">' + yEscape(m.name) + ' ' +
       Math.round(payloadTracks[i].weight * 100) + '% · ' + formatPanLabel(payloadTracks[i].pan) + '</span>';
   }
   document.getElementById("pubTrackPills").innerHTML = pills;
@@ -2696,6 +3063,7 @@ document.getElementById("pubSubmitBtn").onclick = function() {
     title: title,
     story: story,
     author_name: authorName,
+    remix_policy: publishPolicy,
     tracks: payloadTracks,
     remix_of: remixMeta
   })
@@ -2748,7 +3116,7 @@ function openExportModal() {
     var m = ySoundMeta(payloadTracks[i].path);
     html +=
       '<div class="cc0-row">' +
-        '<span>' + m.icon + ' ' + yEscape(m.name) + ' · ' + yEscape(m.sr || "48kHz") +
+        '<span>' + yEscape(m.name) + ' · ' + yEscape(m.sr || "48kHz") +
           ' · Freesound #' + yEscape(m.freesoundId || "CC0") + '</span>' +
         '<span class="cc0-badge">CC0 可商用</span>' +
       '</div>';
@@ -2778,6 +3146,7 @@ for (var dbi = 0; dbi < durButtons.length; dbi++) {
 }
 
 document.getElementById("doExportWavBtn").onclick = function() {
+  if (yNeedLogin("导出商用音频与授权凭证", "index.html")) return;
   var payloadTracks = currentItemsPayload();
   if (payloadTracks.length === 0) return;
   var btn = this;
@@ -3027,6 +3396,12 @@ if (new URLSearchParams(location.search).get("say")) {
   updatePlayerSummary();
   loadMemory();
   loadSavedWorks();
+  loadAiPickedRecipes();
+
+  var aiMoreBtn = document.getElementById("aiPicksMore");
+  if (aiMoreBtn) {
+    aiMoreBtn.onclick = function() { location.href = "agent.html"; };
+  }
 
   yGet("/api/me").then(function(r) { return r.json(); }).then(function(d) {
     if (d && d.logged_in && d.username) loggedUsername = d.username;

@@ -4,46 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · 30 秒耳朵盲测</title>
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=12">
 <style>
   .wrap-test {
     position: relative;
     z-index: 1;
-    max-width: 680px;
+    max-width: 920px;
     margin: 0 auto;
-    padding: 0 18px 112px;
+    padding: 0 clamp(18px, 4vw, 32px) 124px;
   }
-
-  .test-head {
-    text-align: center;
-    padding: 6px 6px 18px;
-  }
-  .test-head h1 {
-    margin: 0;
-    font-size: 23px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    color: #fff;
-  }
-  .test-head p {
-    margin: 6px 0 0;
-    font-size: 13px;
-    color: var(--y-text-sub);
+  @media (min-width: 720px) {
+    .wrap-test {
+      padding-bottom: 72px;
+    }
   }
 
   .progress-wrap {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
   .progress-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     color: var(--y-text-sub);
     margin-bottom: 8px;
   }
   .progress-track {
-    height: 6px;
+    height: 4px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     overflow: hidden;
@@ -52,19 +41,21 @@
     height: 100%;
     width: 25%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #bfa2f8, var(--y-accent));
-    box-shadow: 0 0 14px rgba(var(--y-accent-rgb), 0.55);
-    transition: width 0.35s ease;
+    background: linear-gradient(90deg, rgba(var(--y-warm-rgb), 0.65), var(--y-warm));
+    box-shadow: 0 0 14px rgba(var(--y-warm-rgb), 0.5);
+    transition: width 0.5s var(--y-ease);
   }
 
   .round-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: #fff;
+    font-family: var(--y-serif);
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    color: #fbf7ff;
     margin: 0 0 4px;
   }
   .round-sub {
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: var(--y-text-sub);
     margin: 0 0 14px;
   }
@@ -72,88 +63,130 @@
   .ab-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 18px;
   }
   @media (min-width: 580px) {
     .ab-grid {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  .ab-card {
-    position: relative;
-    overflow: hidden;
-    padding: 16px;
+  .ab-item {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    min-height: 205px;
-    transition: border-color 0.3s ease, box-shadow 0.35s ease, transform 0.2s ease;
+    gap: 10px;
+    min-width: 0;
   }
-  .ab-card.playing {
-    border-color: rgba(var(--y-accent-rgb), 0.78);
-    box-shadow: 0 14px 40px rgba(var(--y-accent-rgb), 0.24);
+
+  /* 两张卡就是两块画面，点击画面即试听 */
+  .ab-card {
+    position: relative;
+    aspect-ratio: 5 / 4;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #110d1a;
+    cursor: pointer;
+    box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.85);
+    transition: box-shadow 0.8s var(--y-ease);
   }
   .ab-bg {
     position: absolute;
     inset: 0;
     background-size: cover;
     background-position: center;
-    opacity: 0.24;
-    filter: saturate(0.8) brightness(0.7);
-    z-index: 0;
-    transition: opacity 0.4s ease;
+    filter: saturate(0.55) brightness(0.6) contrast(1.05) sepia(0.14);
+    transform: scale(1.02);
+    transition: transform 6s var(--y-ease), filter 0.8s ease;
+  }
+  .ab-card:hover .ab-bg {
+    transform: scale(1.08);
+    filter: saturate(0.7) brightness(0.72) contrast(1.05) sepia(0.12);
+  }
+  .ab-card.playing {
+    box-shadow: 0 24px 64px -18px rgba(var(--y-warm-rgb), 0.45);
   }
   .ab-card.playing .ab-bg {
-    opacity: 0.4;
+    transform: scale(1.06);
+    filter: saturate(0.72) brightness(0.7) contrast(1.05) sepia(0.12);
   }
-  .ab-inner {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    justify-content: space-between;
-    gap: 14px;
-  }
-  .ab-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+  .ab-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(7, 5, 13, 0) 34%, rgba(7, 5, 13, 0.92) 100%);
   }
   .ab-badge {
-    font-size: 11px;
-    color: #efe5ff;
-    background: rgba(var(--y-accent-rgb), 0.22);
-    border: 1px solid rgba(var(--y-accent-rgb), 0.45);
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 2;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: #fff3e2;
+    background: rgba(var(--y-warm-rgb), 0.22);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-radius: 999px;
-    padding: 3px 10px;
+    padding: 3px 9px;
   }
-  .ab-ico {
-    font-size: 20px;
+  .ab-text {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    z-index: 2;
   }
   .ab-name {
-    font-size: 17px;
-    font-weight: 600;
-    color: #fff;
-    margin: 4px 0;
+    font-family: var(--y-serif);
+    font-size: 19px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    line-height: 1.4;
+    color: #fbf6ff;
   }
   .ab-desc {
-    font-size: 12.5px;
-    color: var(--y-text-sub);
-    line-height: 1.55;
-  }
-  .ab-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 6px;
-  }
-  .ab-actions .y-btn-ghost,
-  .ab-actions .y-btn-primary {
-    flex: 1;
-    padding: 10px 12px;
+    margin-top: 5px;
     font-size: 13px;
+    line-height: 1.6;
+    color: rgba(236, 228, 248, 0.7);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ab-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .ab-play {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.07em;
+    color: var(--y-text-sub);
+    cursor: pointer;
+    transition: color 0.45s ease;
+  }
+  .ab-play:hover {
+    color: #fff;
+  }
+  .ab-pick {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-left: auto;
+    font-family: inherit;
+    font-size: 13.5px;
+    letter-spacing: 0.08em;
+    color: var(--y-warm);
+    cursor: pointer;
+    transition: color 0.45s ease;
+  }
+  .ab-pick:hover {
+    color: #ffe9cd;
   }
 
   .round-foot {
@@ -161,14 +194,14 @@
     align-items: center;
     justify-content: space-between;
     margin-top: 14px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-muted);
   }
   .back-step-btn {
     background: transparent;
     border: none;
     color: #cdb8ff;
-    font-size: 12.5px;
+    font-size: 13.5px;
     cursor: pointer;
     font-family: inherit;
     padding: 4px 2px;
@@ -179,19 +212,46 @@
   }
 
   /* 耳朵人格报告结果页 */
+  /* 结果页：不套卡片，报告直接落在夜色上 */
   .result-hero {
-    padding: 22px 20px;
-    text-align: center;
     position: relative;
-    overflow: hidden;
+    padding: 8px 0 0;
+    text-align: center;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
   }
   .result-bg {
     position: absolute;
-    inset: 0;
+    left: 50%;
+    top: -30px;
+    width: 460px;
+    height: 330px;
+    margin-left: -230px;
     background-size: cover;
     background-position: center;
-    opacity: 0.26;
-    filter: blur(8px) saturate(0.8);
+    opacity: 0.16;
+    filter: blur(34px) saturate(0.9);
+    border-radius: 50%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  /* 同样垫一层没有边缘的墨，免得字压在雨丝上发灰 */
+  .result-hero::before {
+    content: "";
+    position: absolute;
+    left: -12%;
+    right: -12%;
+    top: -70px;
+    bottom: -50px;
+    background: radial-gradient(58% 56% at 50% 40%,
+      rgba(7, 5, 13, 0.74) 0%,
+      rgba(7, 5, 13, 0.42) 56%,
+      rgba(7, 5, 13, 0) 82%);
+    pointer-events: none;
     z-index: 0;
   }
   .result-body {
@@ -199,58 +259,63 @@
     z-index: 1;
   }
   .result-orb {
-    width: 76px;
-    height: 76px;
-    margin: 0 auto 12px;
+    width: 68px;
+    height: 68px;
+    margin: 0 auto 16px;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #f5edff, rgba(var(--y-accent-rgb), 0.78) 62%, #3b266f);
+    border: 1px solid rgba(var(--y-warm-rgb), 0.4);
+    background: radial-gradient(circle at 36% 34%, rgba(251, 243, 230, 0.24), rgba(var(--y-warm-rgb), 0.12) 65%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 32px;
-    box-shadow: 0 10px 34px rgba(var(--y-accent-rgb), 0.44);
+    font-size: 26px;
+    box-shadow: 0 0 40px rgba(var(--y-warm-rgb), 0.22);
   }
   .result-kicker {
-    font-size: 11.5px;
-    color: #d6c2ff;
-    letter-spacing: 1px;
+    font-size: 12.5px;
+    color: rgba(var(--y-warm-rgb), 0.85);
+    letter-spacing: 0.26em;
   }
   .result-title {
-    margin: 6px 0 8px;
-    font-size: 26px;
-    font-weight: 600;
-    color: #fff;
-    letter-spacing: 1.5px;
+    margin: 12px 0 12px;
+    font-family: var(--y-serif);
+    font-size: clamp(30px, 4.2vw, 40px);
+    font-weight: 300;
+    color: #fbf7ff;
+    letter-spacing: 0.16em;
   }
   .result-tagline {
-    font-size: 13.5px;
-    color: #dfd4f5;
-    max-width: 460px;
-    margin: 0 auto 18px;
-    line-height: 1.65;
+    font-size: 14.5px;
+    color: var(--y-text-sub);
+    max-width: 30em;
+    margin: 0 auto 6px;
+    line-height: 1.85;
   }
 
+  /* 四条维度：不再是卡片里的小卡片，直接排成四行 */
   .dim-card {
-    background: rgba(11, 8, 20, 0.5);
-    border: 1px solid rgba(218, 200, 255, 0.14);
-    border-radius: 16px;
-    padding: 14px 16px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 34px auto 0;
+    max-width: 560px;
     text-align: left;
-    margin-bottom: 14px;
   }
   .dim-row + .dim-row {
-    margin-top: 10px;
+    margin-top: 15px;
   }
   .dim-top {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
-    color: #e6dcff;
-    margin-bottom: 5px;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--y-text-sub);
+    margin-bottom: 6px;
     font-variant-numeric: tabular-nums;
   }
   .dim-bar {
-    height: 7px;
+    height: 2px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     overflow: hidden;
@@ -258,29 +323,41 @@
   .dim-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #cbb0ff, var(--y-accent));
-    transition: width 0.5s ease;
+    background: linear-gradient(90deg, rgba(var(--y-warm-rgb), 0.6), var(--y-warm));
+    transition: width 0.6s var(--y-ease);
   }
 
+  /* 配方：一条细线分隔，暖色只标在"专属"两个字上 */
   .recipe-box {
-    background: rgba(var(--y-accent-rgb), 0.12);
-    border: 1px solid rgba(var(--y-accent-rgb), 0.34);
-    border-radius: 15px;
-    padding: 13px 15px;
+    background: none;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    padding: 18px 0 0;
+    margin: 34px auto 0;
+    max-width: 560px;
     text-align: left;
-    margin-bottom: 16px;
   }
   .recipe-box-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .recipe-box-title {
     font-size: 12.5px;
-    font-weight: 600;
-    color: #efe5ff;
+    font-weight: 400;
+    letter-spacing: 0.16em;
+    color: var(--y-text-sub);
+  }
+  .recipe-box-head .y-btn-ghost {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--y-warm);
+    border-radius: 0;
   }
   .recipe-pills {
     display: flex;
@@ -288,28 +365,50 @@
     gap: 6px;
   }
   .recipe-pill {
-    font-size: 11.5px;
-    color: #efe5ff;
-    background: rgba(14, 10, 26, 0.52);
-    border: 1px solid rgba(218, 200, 255, 0.18);
+    font-size: 12px;
+    color: var(--y-text-sub);
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
     border-radius: 999px;
-    padding: 4px 10px;
+    padding: 3px 9px;
   }
 
   .result-actions {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    margin-top: 40px;
   }
-  .result-actions .y-btn-primary,
-  .result-actions .y-btn-ghost {
-    padding: 11px 12px;
-    font-size: 13px;
-    text-align: center;
+  .result-actions .y-btn-primary {
+    min-width: 210px;
+    padding: 12px 26px;
+    font-size: 14.5px;
   }
+  .result-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 26px;
+  }
+  .result-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 13.5px;
+    letter-spacing: 0.06em;
+    color: var(--y-text-muted);
+    cursor: pointer;
+    transition: color 0.45s ease;
+  }
+  .result-link:hover {
+    color: var(--y-text);
+  }
+
   .result-status {
     margin-top: 10px;
-    font-size: 12px;
+    font-size: 13px;
     color: #d6c2ff;
     min-height: 18px;
   }
@@ -321,17 +420,19 @@
 <div class="wrap-test">
   <div class="top">
     <a class="brand" href="home.html">
-      <div class="moon">☾</div>
+      <div class="moon"></div>
       <div class="name">夜息</div>
     </a>
   </div>
 
   <!-- 盲测进行中视图 -->
   <div id="quizView">
-    <div class="test-head">
-      <h1>30 秒听觉盲测</h1>
-      <p>不用会描述声音，听一听选更舒服的那段，生成你的专属耳朵人格</p>
-    </div>
+    <header class="page-hero">
+      <div class="ph-row">
+        <h1>30 秒听觉盲测</h1>
+      </div>
+      <p class="ph-sub">听两段，选更舒服的那段。</p>
+    </header>
 
     <div class="progress-wrap">
       <div class="progress-meta">
@@ -343,7 +444,7 @@
       </div>
     </div>
 
-    <div class="glass" style="padding: 16px;">
+    <div class="round-box">
       <h2 class="round-title" id="roundTitle">哪一种雨声更让你松弛？</h2>
       <div class="round-sub" id="roundSub">各听几秒，凭第一直觉点「选这段」即可</div>
 
@@ -358,7 +459,7 @@
 
   <!-- 耳朵人格报告结果视图 -->
   <div id="resultView" style="display:none">
-    <div class="glass result-hero">
+    <div class="result-hero">
       <div class="result-bg" id="resultBg"></div>
       <div class="result-body">
         <div class="result-orb" id="resultIcon">🌧</div>
@@ -371,16 +472,18 @@
         <div class="recipe-box">
           <div class="recipe-box-head">
             <span class="recipe-box-title">✦ 专属起眠声景配方</span>
-            <button type="button" class="y-btn-ghost" id="playReportBtn" style="padding:5px 12px;font-size:12px;">▶ 试听专属声景</button>
+            <button type="button" class="y-btn-ghost" id="playReportBtn" style="padding:5px 12px;font-size:13px;">▶ 试听专属声景</button>
           </div>
           <div class="recipe-pills" id="resultRecipePills"></div>
         </div>
 
         <div class="result-actions">
-          <button type="button" class="y-btn-primary" id="toDiyBtn">☰ 带进 DIY 精调</button>
           <button type="button" class="y-btn-primary" id="toAgentBtn">✦ 按档案 AI 配声</button>
-          <button type="button" class="y-btn-ghost" id="savePosterBtn">🖼 保存耳朵人格海报</button>
-          <button type="button" class="y-btn-ghost" id="retestBtn">↻ 重新测试</button>
+          <div class="result-links">
+            <button type="button" class="result-link" id="toDiyBtn">带进 DIY 精调</button>
+            <button type="button" class="result-link" id="savePosterBtn">保存耳朵人格海报</button>
+            <button type="button" class="result-link" id="retestBtn">重新测试</button>
+          </div>
         </div>
         <div class="result-status" id="resultStatus"></div>
       </div>
@@ -390,89 +493,95 @@
   <div class="foot">测出的偏好会自动写入你的耳朵档案 · 让 AI 和调音台越来越懂你</div>
 </div>
 
-<div class="tabbar">
-  <a href="home.html" class="on"><span class="ti">☾</span>今晚</a>
-  <a href="agent.html"><span class="ti">✦</span>AI 配声</a>
-  <a href="index.html"><span class="ti">☰</span>DIY</a>
-  <a href="community.html"><span class="ti">♡</span>广场</a>
-</div>
+<div class="tabbar"></div>
 
 <script src="auth_ui.js"></script>
+<script src="yexi_shell.js"></script>
 <script src="yexi_catalog.js"></script>
 <script src="yexi_mixer.js"></script>
 <script>
 var API = YEXI_API;
 var EAR_PROFILE_KEY = "yezi_ear_profile_v1";
-initAuthBar("ear_test.html");
-initAmbientStage("img/moon-water.jpg", "#8e74e8");
 
+// 敏感点测试是登录用户专属：游客直接引导登录，登录后回本页继续测
+if (yIsGuest()) {
+  location.replace("auth.html?from=ear_test.html&reason=ear_test");
+}
+
+initAuthBar("ear_test.html");
+initYexiTabbar("ear_test.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+// 盲听配对原则：同组素材、质感相近但可分辨。
+// 跨声源对比（雨 vs 海）测的是"喜欢哪种声音"，测不出耳朵的质感偏好；
+// 同一类里比细微差别，四个维度（暖/脆/空间/自然）的分数才有意义。
 var ROUNDS = [
   {
     dim: "雨幕质感",
-    title: "哪一种雨声更让你的耳朵松弛？",
-    sub: "A 绵密平滑 · B 有细碎雨滴颗粒",
+    title: "同样是雨，哪一种落法更让你松弛？",
+    sub: "A 疏落轻缓 · B 带细碎颗粒",
     a: {
-      path: "柔和雨.hq.mp3",
-      badge: "方案 A · 绵密轻柔",
-      title: "绵密细雨幕",
-      desc: "像隔着薄窗帘听雨，平滑柔和，没有明显雨滴击打点"
+      path: "乡村小雨.hq.mp3",
+      badge: "方案 A · 疏落轻缓",
+      title: "檐下乡村小雨",
+      desc: "轻缓疏落的雨点，像安静的檐下细雨"
     },
     b: {
       path: "备选_大雨打树叶_CC0.mp3",
       badge: "方案 B · 细碎颗粒",
       title: "雨落枝叶声",
-      desc: "听得见雨滴落到树叶上的清晰颗粒感，层次更分明"
+      desc: "雨滴落在树叶上的细碎颗粒感，层次更清晰"
     }
   },
   {
     dim: "空间距离",
-    title: "你更喜欢哪种空间包裹感？",
-    sub: "A 在身旁窗边 · B 在远处开阔海岸",
+    title: "同样是海浪，你更喜欢哪种距离感？",
+    sub: "A 近处平稳拍岸 · B 远处一层层推来",
     a: {
-      path: "母带_城市夜雨_CC0.mp3",
-      badge: "方案 A · 窗边贴近",
-      title: "窗边夜雨声",
-      desc: "像躺在被窝里听窗外屋檐与街巷落雨，亲近有安全感"
+      path: "海浪_湖海柔浪_451532.hq.mp3",
+      badge: "方案 A · 近岸平稳",
+      title: "湖海柔浪",
+      desc: "平稳拍岸的轻柔水浪，像就在脚边缓缓漫过"
     },
     b: {
       path: "海浪_远海.hq.mp3",
       badge: "方案 B · 远方开阔",
       title: "远方夜海潮汐",
-      desc: "声音从远处海面一层层推来，视野开阔，适合彻底放空"
+      desc: "从远处海面一层层推来的潮声，更开阔"
     }
   },
   {
     dim: "深夜氛围",
-    title: "夜深时，哪种自然背景更安心？",
-    sub: "A 几乎静止的微风 · B 带一点夏夜生机",
+    title: "同样是炉火，哪种火声更安心？",
+    sub: "A 极轻余烬 · B 带一点木柴噼啪",
     a: {
-      path: "夜风.hq.mp3",
-      badge: "方案 A · 林梢静风",
-      title: "林间拂过晚风",
-      desc: "极简平稳的风声流动，没有太多变化，让思绪缓缓停下来"
+      path: "炉火_夜营氛围_766127.hq.mp3",
+      badge: "方案 A · 极轻余烬",
+      title: "夜营微火",
+      desc: "极轻柔平稳的余烬声，几乎没有任何突起"
     },
     b: {
-      path: "虫鸣.hq.mp3",
-      badge: "方案 B · 夏夜生机",
-      title: "夏夜院落虫鸣",
-      desc: "像小时候外婆家夏夜纳凉，有一点点温柔的生命气息"
+      path: "炉火_营地篝火_62487.hq.mp3",
+      badge: "方案 B · 轻微噼啪",
+      title: "营地篝火",
+      desc: "木柴燃烧带一点轻微噼啪，多一点生气"
     }
   },
   {
     dim: "音色底色",
-    title: "最后一组，哪种质感更合胃口？",
-    sub: "A 暖厚低频包裹 · B 清澈流水透亮",
+    title: "同样是流水，哪种质感更合胃口？",
+    sub: "A 平稳宽缓 · B 清亮通透",
     a: {
-      path: "雨中低鸣.hq.mp3",
-      badge: "方案 A · 暖厚低频",
-      title: "暖夜低鸣雨底",
-      desc: "低频温暖绵厚，像一条厚毛毯轻轻盖住思绪"
+      path: "溪流_柔和河水_707576.hq.mp3",
+      badge: "方案 A · 平稳宽缓",
+      title: "柔和河水",
+      desc: "宽阔缓流，平稳不刺耳，像厚毯一样裹着"
     },
     b: {
       path: "溪流.hq.mp3",
-      badge: "方案 B · 清澈流水",
-      title: "山涧清亮溪流",
-      desc: "清透流动的山间小溪，帮人从杂乱思绪里清醒放空"
+      badge: "方案 B · 清亮通透",
+      title: "山涧溪流",
+      desc: "清亮舒缓的山间流水，透着一点清凉感"
     }
   }
 ];
@@ -641,26 +750,29 @@ function renderRound() {
       var opt = r[side];
       var meta = ySoundMeta(opt.path);
       var card = document.createElement("div");
-      card.className = "glass ab-card";
+      var wrap = document.createElement("div");
+      wrap.className = "ab-item";
+      card.className = "ab-card";
       card.id = "abCard_" + side;
       card.innerHTML =
         '<div class="ab-bg" style="background-image:url(' + meta.img + ')"></div>' +
-        '<div class="ab-inner">' +
-          '<div>' +
-            '<div class="ab-top">' +
-              '<span class="ab-badge">' + yEscape(opt.badge) + '</span>' +
-              '<span class="ab-ico">' + meta.icon + '</span>' +
-            '</div>' +
-            '<div class="ab-name">' + yEscape(opt.title) + '</div>' +
-            '<div class="ab-desc">' + yEscape(opt.desc) + '</div>' +
-          '</div>' +
-          '<div class="ab-actions">' +
-            '<button type="button" class="y-btn-ghost ab-play-btn" id="abPlay_' + side + '">▶ 试听</button>' +
-            '<button type="button" class="y-btn-primary" id="abPick_' + side + '">选这段 ›</button>' +
-          '</div>' +
+        '<div class="ab-shade"></div>' +
+        '<span class="ab-badge">' + yEscape(opt.badge) + '</span>' +
+        '<div class="ab-text">' +
+          '<div class="ab-name">' + yEscape(opt.title) + '</div>' +
+          '<div class="ab-desc">' + yEscape(opt.desc) + '</div>' +
         '</div>';
-      grid.appendChild(card);
+      wrap.innerHTML =
+        '<div class="ab-row">' +
+          '<button type="button" class="y-btn-ghost ab-play ab-play-btn" id="abPlay_' + side + '">▶ 试听</button>' +
+          '<button type="button" class="ab-pick" id="abPick_' + side + '">选这段 ›</button>' +
+        '</div>';
+      wrap.insertBefore(card, wrap.firstChild);
+      grid.appendChild(wrap);
 
+      card.onclick = function() {
+        toggleAbPreview(side, opt);
+      };
       document.getElementById("abPlay_" + side).onclick = function() {
         toggleAbPreview(side, opt);
       };

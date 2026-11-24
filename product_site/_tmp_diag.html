@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>配方广场 · 夜息</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+/* =========================================================
+   配方广场：画面在前，参数在后
+   卡片沿用首页的 4:5 满图卡；配比、听感、微调收进「详情」
+   ========================================================= */
+
+.sub-tabs {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin: clamp(26px, 4vh, 38px) 0 22px;
+  padding: 0;
+  border-bottom: none;
+}
+.sub-tab {
+  position: relative;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 6px 0 12px;
+  font-family: var(--y-serif);
+  font-size: 14.5px;
+  letter-spacing: 0.16em;
+  color: var(--y-text-muted);
+  cursor: pointer;
+  transition: color 0.6s ease;
+}
+.sub-tab:hover { color: var(--y-text-sub); }
+.sub-tab.sel { color: var(--y-text); }
+.sub-tab.sel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--y-warm);
+  box-shadow: 0 0 10px var(--y-warm);
+}
+
+/* ---------- 瀑布：一屏两排、不塞满 ---------- */
+#feed {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 26px 20px;
+  align-items: start;
+}
+/* 手机：一屏一张，顺着往下滚。卡片撑满内容宽度，
+   不再用 66vw 的横向卡册——那样一屏只能看到一个半，画面被挤小 */
+@media (max-width: 619px) {
+  #feed {
+    gap: 34px;
+    justify-items: center;
+  }
+  .item {
+    width: 100%;
+    /* 窄窗口/平板竖屏时别把一张卡撑成一整屏那么高 */
+    max-width: 440px;
+  }
+}
+@media (min-width: 620px) {
+  #feed { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 900px) {
+  #feed { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+/* ---------- 画面：与首页卡片同一套 ---------- */
+.cover {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #110d1a;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  transition: box-shadow 0.8s var(--y-ease);
+}
+.cover-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.55) brightness(0.62) contrast(1.05) sepia(0.14);
+  transform: scale(1.02);
+  transition: transform 6s var(--y-ease), filter 0.8s ease;
+}
+.cover:hover .cover-img {
+  transform: scale(1.09);
+  filter: saturate(0.7) brightness(0.74) contrast(1.05) sepia(0.12);
+}
+.cover-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7, 5, 13, 0) 32%, rgba(7, 5, 13, 0.9) 100%);
+}
+.cover.playing {
+  box-shadow: 0 24px 64px -18px rgba(var(--y-warm-rgb), 0.42);
+}
+.cover-text {
+  position: absolute;
+  left: 15px;
+  right: 15px;
+  bottom: 15px;
+  z-index: 2;
+}
+.cover-name {
+  font-family: var(--y-serif);
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  color: #fbf6ff;
+}
+.cover-desc {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  color: rgba(236, 228, 248, 0.66);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.badge-new {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: #fff3e2;
+  background: rgba(var(--y-warm-rgb), 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+/* 官方示范角标：和真人新作区分，颜色压低一档 */
+.badge-official {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(236, 228, 248, 0.72);
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+/* ---------- 真人身份行：谁发的、什么时候 ---------- */
+.who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+.avatar {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--y-serif);
+  font-size: 12px;
+  color: #fbf6ff;
+  background: rgba(var(--y-warm-rgb), 0.18);
+  border: 1px solid rgba(var(--y-warm-rgb), 0.28);
+  overflow: hidden;
+}
+.who-name {
+  font-size: 12.5px;
+  color: var(--y-text-sub);
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+.who-time {
+  font-size: 11.5px;
+  color: var(--y-text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.who:hover .who-name { color: var(--y-warm); }
+.who.is-official { cursor: default; }
+.who.is-official:hover .who-name { color: var(--y-text-sub); }
+
+/* 一句创作故事：真人自己的话 */
+.story-line {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: rgba(var(--y-warm-rgb), 0.82);
+  letter-spacing: 0.02em;
+  margin: -2px 0 1px;
+  font-style: italic;
+}
+.story-line:empty { display: none; }
+
+/* 被改编提示 */
+.fork-hint {
+  font-size: 12px;
+  color: rgba(226, 216, 244, 0.5);
+  cursor: pointer;
+}
+.fork-hint:hover { color: var(--y-warm); }
+
+/* 播放时的三根小柱：只在"正在响"的时候出现 */
+.eq {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 13px;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.eq i {
+  width: 2px;
+  height: 100%;
+  background: var(--y-warm);
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: yEq 1.4s ease-in-out infinite;
+}
+.eq i:nth-child(2) { animation-delay: -0.5s; }
+.eq i:nth-child(3) { animation-delay: -0.9s; }
+@keyframes yEq {
+  0%, 100% { transform: scaleY(0.25); }
+  50%      { transform: scaleY(1); }
+}
+.cover.playing .eq { opacity: 1; }
+
+/* ---------- 图下那一行：三个文字动作 ---------- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  min-height: 22px;
+}
+.act {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.07em;
+  color: var(--y-text-sub);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.45s ease;
+}
+.act:hover { color: #fff; }
+.act.play { color: var(--y-warm); }
+.act.on { color: var(--y-warm); }
+.act .n {
+  font-size: 12px;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+.act.more {
+  margin-left: auto;
+  color: rgba(226, 216, 244, 0.4);
+  font-size: 13px;
+}
+.act.more:hover { color: var(--y-text-sub); }
+
+.mini {
+  font-size: 12.5px;
+  color: rgba(var(--y-warm-rgb), 0.8);
+  line-height: 1.6;
+  margin-top: -2px;
+}
+.mini:empty { display: none; }
+
+.feed-empty {
+  grid-column: 1 / -1;
+  padding: 40px 0;
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: var(--y-text-sub);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* 页脚：一句话就够，不要免责声明墙 */
+.note {
+  margin-top: 44px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+  color: var(--y-text-muted);
+}
+.note a { color: rgba(var(--y-warm-rgb), 0.85); text-decoration: none; }
+
+/* =========================================================
+   详情：先是一张片子（封面 + 标题 + 作者），再是条理清楚的参数
+   ========================================================= */
+.y-modal.detail-modal {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  border-radius: 14px;
+  background: #120e1c;
+}
+
+/* 顶部画面：一点微光，不铺满整屏 */
+.d-hero {
+  position: relative;
+  flex: 0 0 auto;
+  height: clamp(170px, 33vh, 224px);
+  overflow: hidden;
+}
+.d-hero-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.55) brightness(0.62) contrast(1.05) sepia(0.14);
+}
+.d-hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7, 5, 13, 0.08) 0%, rgba(7, 5, 13, 0.3) 46%, rgba(18, 14, 28, 0.98) 100%);
+}
+.d-hero-text {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 14px;
+  z-index: 2;
+}
+.d-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(var(--y-warm-rgb), 0.9);
+  margin-bottom: 8px;
+}
+.d-hero-text h3 {
+  margin: 0;
+  font-family: var(--y-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  line-height: 1.32;
+  color: #fdf9ff;
+}
+.d-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: rgba(236, 228, 248, 0.58);
+}
+.d-hero-meta .d-av {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--y-serif);
+  font-size: 11px;
+  color: #fbf6ff;
+  border: 1px solid rgba(var(--y-warm-rgb), 0.26);
+}
+.d-hero-meta .d-sep { opacity: 0.5; }
+.d-hero-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(7, 5, 13, 0.46);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.d-hero-close:hover { background: rgba(7, 5, 13, 0.7); color: #fff; }
+
+/* 正文：一条条细线分开，不用一堆卡片和胶囊 */
+.d-body {
+  padding: 2px 20px 20px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  overscroll-behavior: contain;
+}
+.d-quote {
+  font-family: var(--y-serif);
+  font-size: 14.5px;
+  line-height: 1.95;
+  letter-spacing: 0.02em;
+  color: rgba(236, 228, 248, 0.8);
+  margin-top: 4px;
+}
+.d-parent {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgba(var(--y-warm-rgb), 0.72);
+  margin-top: 6px;
+}
+.d-sec {
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.d-sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+.d-sec-title {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: rgba(236, 228, 248, 0.62);
+}
+.d-sec-note {
+  margin-left: auto;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: rgba(226, 216, 244, 0.34);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 声层：名字、比例条、数字、声像，一行看明白 */
+.track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px 32px 58px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+.track-name {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--y-text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-bar {
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.track-bar i {
+  display: block;
+  height: 100%;
+  min-width: 5px;
+  border-radius: 2px;
+  background: rgba(var(--y-warm-rgb), 0.72);
+}
+.track-pct {
+  font-size: 12px;
+  text-align: right;
+  color: rgba(236, 228, 248, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+.track-pan {
+  font-size: 11.5px;
+  text-align: right;
+  color: rgba(226, 216, 244, 0.42);
+  white-space: nowrap;
+}
+
+/* 听感：小方块按钮，不用胶囊 */
+.eval-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.eval-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 12.5px;
+  letter-spacing: 0.03em;
+  color: var(--y-text-sub);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 7px 11px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.45s ease, color 0.45s ease, background 0.45s ease;
+}
+.eval-chip:hover { border-color: rgba(var(--y-warm-rgb), 0.38); color: #fff; }
+.eval-chip.on { border-color: rgba(var(--y-warm-rgb), 0.55); background: rgba(var(--y-warm-rgb), 0.1); color: #fff3e2; }
+.eval-chip .c { font-size: 11.5px; color: rgba(226, 216, 244, 0.45); }
+.eval-chip.on .c { color: rgba(var(--y-warm-rgb), 0.85); }
+
+.d-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.d-actions .y-btn-primary,
+.d-actions .y-btn-ghost {
+  font-size: 13.5px;
+  padding: 10px 16px;
+}
+.d-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.d-foot .cmt-toggle { margin-top: 0; }
+.btn-danger {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: rgba(226, 216, 244, 0.3);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.btn-danger:hover { color: rgba(255, 160, 185, 0.85); }
+
+.locked-box {
+  padding: 13px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--y-text-sub);
+}
+.locked-box.clickable { cursor: pointer; color: var(--y-warm); border-color: rgba(var(--y-warm-rgb), 0.28); }
+.locked-box.clickable:hover { background: rgba(var(--y-warm-rgb), 0.09); }
+
+.diff-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.diff-pill {
+  font-size: 12px;
+  color: rgba(233, 183, 131, 0.82);
+  background: rgba(var(--y-warm-rgb), 0.08);
+  border-radius: 6px;
+  padding: 3px 9px;
+}
+
+/* 创作者弹层还在用这两条 */
+.d-line {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--y-text-sub);
+}
+.d-label {
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  color: var(--y-text-sub);
+  margin: 20px 0 9px;
+}
+
+/* 手机上从底部升起，像一张真的详情页，而不是浮在中间的对话框 */
+@media (max-width: 520px) {
+  .y-modal-mask.detail-mask { padding: 0; align-items: flex-end; }
+  .detail-mask .detail-modal {
+    position: relative;
+    max-width: none;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .detail-mask .detail-modal::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 32px;
+    height: 3px;
+    margin-left: -16px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.24);
+    z-index: 4;
+  }
+  .detail-mask .d-hero { height: 196px; }
+  .detail-mask .d-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+}
+
+/* ---------- 弹窗 ---------- */
+.y-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(7, 5, 13, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.y-modal-mask.open { display: flex; }
+.y-modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 22px;
+  background: rgba(16, 12, 26, 0.95);
+  border: none;
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.y-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.y-modal-head h3 {
+  margin: 0;
+  font-family: var(--y-serif);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: #fbf7ff;
+}
+.y-modal-close {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(226, 216, 244, 0.7);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.y-modal-close:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.fork-item {
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.fork-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.fork-item-title {
+  font-family: var(--y-serif);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: #fbf7ff;
+}
+.fork-item-meta {
+  font-size: 12.5px;
+  color: var(--y-text-muted);
+}
+.fork-item-acts {
+  display: flex;
+  gap: 14px;
+  margin-top: 9px;
+}
+.fork-item-acts button {
+  padding: 0;
+  font-size: 13px;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+.fork-item-acts .y-btn-primary { color: var(--y-warm); }
+.fork-item-acts .y-btn-ghost { color: var(--y-text-sub); }
+.policy-badge {
+  font-size: 12px;
+  color: var(--y-text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ---------- 评论区：默认折叠，点开才看 ---------- */
+.cmt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--y-text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 14px;
+}
+.cmt-toggle:hover { color: var(--y-text-sub); }
+.cmt-box { margin-top: 10px; }
+.cmt-list { display: flex; flex-direction: column; gap: 12px; }
+.cmt-item {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--y-text-sub);
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.cmt-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.cmt-who { color: rgba(var(--y-warm-rgb), .85); font-size: 12px; }
+.cmt-time { color: var(--y-text-muted); font-size: 11px; }
+.cmt-del {
+  margin-left: auto;
+  color: rgba(226,216,244,.32);
+  font-size: 11px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.cmt-del:hover { color: rgba(255,160,185,.85); }
+.cmt-body { white-space: pre-wrap; word-break: break-word; }
+.cmt-empty {
+  font-size: 12.5px;
+  color: var(--y-text-muted);
+  line-height: 1.7;
+  padding: 4px 0 10px;
+}
+.cmt-form { display: flex; gap: 8px; margin-top: 12px; }
+.cmt-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255,255,255,.05);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #fbf6ff;
+  outline: none;
+}
+.cmt-input::placeholder { color: rgba(226,216,244,.3); }
+.cmt-send {
+  flex: 0 0 auto;
+  background: rgba(var(--y-warm-rgb), .2);
+  color: #fff5e8;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 13px;
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.cmt-send:hover { background: rgba(var(--y-warm-rgb), .32); }
+.cmt-hint { font-size: 11px; color: var(--y-text-muted); margin-top: 6px; }
+
+/* ---------- 创作者弹层 ---------- */
+.creator-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.creator-avatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--y-serif);
+  font-size: 20px;
+  color: #fbf6ff;
+  background: rgba(var(--y-warm-rgb), .18);
+  border: 1px solid rgba(var(--y-warm-rgb), .3);
+}
+.creator-name { font-family: var(--y-serif); font-size: 17px; color: #fbf7ff; letter-spacing: .06em; }
+.creator-since { font-size: 11.5px; color: var(--y-text-muted); margin-top: 3px; }
+.creator-stats { display: flex; gap: 22px; margin: 16px 0; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); }
+.creator-stat { font-size: 12px; color: var(--y-text-muted); }
+.creator-stat b { display: block; font-size: 18px; color: rgba(var(--y-warm-rgb), .9); font-weight: 400; font-variant-numeric: tabular-nums; }
+.creator-work {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  cursor: pointer;
+}
+.creator-work:hover .cw-title { color: var(--y-warm); }
+.cw-thumb { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 5px; background-size: cover; background-position: center; }
+.cw-title { font-family: var(--y-serif); font-size: 13.5px; color: #fbf7ff; letter-spacing: .05em; }
+.cw-meta { font-size: 11.5px; color: var(--y-text-muted); margin-top: 3px; }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
+      <div class="name">夜息</div>
+    </a>
+    <a href="index.html" class="pill-link">发一张配方</a>
+  </div>
+
+  <header class="page-hero">
+    <div class="ph-row">
+      <h1>配方广场</h1>
+    </div>
+    <p class="ph-sub">听见别人为睡着调的声音。喜欢的，可以存一份给自己。</p>
+  </header>
+
+  <div class="sub-tabs" id="tabs"></div>
+  <div id="feed"></div>
+
+  <div class="note">所有声层都来自真实 CC0 录音，可安心用于睡前收听。</div>
+</div>
+
+<!-- 衍生变体弹窗 -->
+<div class="y-modal-mask" id="forksModal" role="dialog" aria-modal="true" aria-labelledby="forksModalTitle">
+  <div class="y-modal">
+    <div class="y-modal-head">
+      <h3 id="forksModalTitle">衍生变体</h3>
+      <button type="button" class="y-modal-close" id="forksCloseBtn" aria-label="关闭">×</button>
+    </div>
+    <div id="forksBody" style="font-size:13.5px;color:var(--y-text-sub)">正在加载衍生变体…</div>
+  </div>
+</div>
+
+<!-- 创作者主页 -->
+<div class="y-modal-mask" id="creatorModal" role="dialog" aria-modal="true" aria-labelledby="creatorModalTitle">
+  <div class="y-modal">
+    <div class="y-modal-head">
+      <h3 id="creatorModalTitle">创作者</h3>
+      <button type="button" class="y-modal-close" id="creatorCloseBtn" aria-label="关闭">×</button>
+    </div>
+    <div id="creatorBody"></div>
+  </div>
+</div>
+
+<!-- 配方详情 -->
+<div class="y-modal-mask detail-mask" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="y-modal detail-modal">
+    <div class="d-hero">
+      <div class="d-hero-img" id="detailCover"></div>
+      <div class="d-hero-shade"></div>
+      <button type="button" class="y-modal-close d-hero-close" id="detailCloseBtn" aria-label="关闭">×</button>
+      <div class="d-hero-text">
+        <div class="d-kicker" id="detailKicker">夜息广场</div>
+        <h3 id="detailTitle">配方详情</h3>
+        <div class="d-hero-meta" id="detailSub"></div>
+      </div>
+    </div>
+    <div class="d-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="tabbar"></div>
+
+<script>try{localStorage.setItem("yezi_guest","1")}catch(e){}</script>
+<script src="auth_ui.js"></script>
+<script src="yexi_shell.js"></script>
+<script src="yexi_catalog.js"></script>
+<script>
+var API = YEXI_API;
+initAuthBar("community.html");
+initYexiTabbar("community.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+// 这 6 条是官方示例（样板间），作者不是真人用户，会被打上"官方示范"角标并排在真人作品之后
+var RECIPES = [
+  {
+    id: "r1", title: "窗边夜雨", author: "夜息", group: "雨声", isOfficial: true,
+    img: "img/rain-window.jpg", accent: "#8e74e8",
+    say: "睡不着，想要窗外下雨的声音，暖一点、稳一点", tags: ["雨声", "暖", "入睡", "稳"],
+    desc: "城市夜雨打底，混一点柔和雨。像躺在被窝里听窗外细雨，轻柔包裹。",
+    items: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.6, pan: 0, mode: "loop", density: 0.4 },
+      { path: "柔和雨.hq.mp3", weight: 0.4, pan: -0.2, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r2", title: "雨打树叶", author: "夜息", group: "雨声", isOfficial: true,
+    img: "img/raindrops-macro.jpg", accent: "#5fa896",
+    say: "想要雨落在树叶上的声音，有细碎颗粒感", tags: ["雨声", "树叶", "颗粒"],
+    desc: "雨滴打在树叶上的细碎声，比纯雨幕多一点清脆层次。",
+    items: [
+      { path: "备选_大雨打树叶_CC0.mp3", weight: 0.7, pan: -0.25, mode: "loop", density: 0.4 },
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.3, pan: 0.1, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r3", title: "远海放空", author: "夜息", group: "自然", isOfficial: true,
+    img: "img/ocean-waves.jpg", accent: "#5889d6",
+    say: "太累了，想听远处的海浪，什么都不想", tags: ["海浪", "放空", "自然"],
+    desc: "远处的海浪一层层推过来，声音从远处传来，适合放空和发呆。",
+    items: [
+      { path: "海浪_远海.hq.mp3", weight: 0.7, pan: 0, mode: "loop", density: 0.4 },
+      { path: "海浪_黑海.hq.mp3", weight: 0.3, pan: -0.22, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r4", title: "夏夜虫鸣", author: "夜息", group: "自然", isOfficial: true,
+    img: "img/starry-mountain-lake.jpg", accent: "#9b85d6",
+    say: "夏天的晚上，有虫鸣和一点风", tags: ["虫鸣", "夜风", "夏天", "自然"],
+    desc: "虫鸣配夜风，像小时候夏天在外婆家院子里纳凉的夜晚。",
+    items: [
+      { path: "虫鸣.hq.mp3", weight: 0.5, pan: -0.4, mode: "intermittent", density: 0.55 },
+      { path: "夜风.hq.mp3", weight: 0.5, pan: 0.35, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r5", title: "山涧溪流", author: "夜息", group: "自然", isOfficial: true,
+    img: "img/forest-stream.jpg?v=2", accent: "#59a5c7",
+    say: "想听山里小溪流水的声音", tags: ["溪流", "自然", "清澈"],
+    desc: "山间溪流，水声清亮但不尖锐。配一点暖夜低鸣，多一点包裹感。",
+    items: [
+      { path: "溪流.hq.mp3", weight: 0.8, pan: -0.16, mode: "loop", density: 0.4 },
+      { path: "雨中低鸣.hq.mp3", weight: 0.2, pan: 0.16, mode: "loop", density: 0.4 }
+    ]
+  },
+  {
+    id: "r6", title: "雨夜远雷", author: "夜息", group: "雨声", isOfficial: true,
+    img: "img/city-rain-night.jpg", accent: "#7d6bc4",
+    say: "下雨天，天边隐约有远雷，低频饱满有包裹感", tags: ["雨声", "远雷", "低频", "包裹"],
+    desc: "雨声里混一点天边远远滚过的低沉雷声，低频更厚实深沉。",
+    items: [
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.7, pan: 0, mode: "loop", density: 0.4 },
+      { path: "远雷.hq.mp3", weight: 0.35, pan: 0.48, mode: "intermittent", density: 0.3 }
+    ]
+  }
+];
+
+var currentGroup = "全部";
+var groups = ["全部", "社区发布", "雨声", "自然"];
+var activePreviewAudio = null;
+var activePreviewId = "";
+var communityPosts = [];
+var loggedUsername = "";
+
+var EVAL_TAGS = [
+  { key: "steady", label: "秒睡稳态" },
+  { key: "warm", label: "暖厚包裹" },
+  { key: "crisp", label: "清脆颗粒" },
+  { key: "deep", label: "深沉低频" }
+];
+var VOTED_KEY = "yezi_community_voted_v1";
+var COUNTS_KEY = "yezi_community_counts_v1";
+var POST_TOKENS_KEY = "yezi_my_post_tokens_v1";
+var communityVotes = {};
+var myVoted = {};
+var myPostTokens = {};
+
+function loadLocalJson(key) {
+  try {
+    var raw = localStorage.getItem(key);
+    var parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveLocalJson(key, obj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(obj || {}));
+  } catch (e) {}
+}
+
+myVoted = loadLocalJson(VOTED_KEY);
+communityVotes = loadLocalJson(COUNTS_KEY);
+myPostTokens = loadLocalJson(POST_TOKENS_KEY);
+
+function formatDateShort(ts) {
+  if (!ts) return "";
+  var d = new Date(ts * 1000);
+  return (d.getMonth() + 1) + "/" + d.getDate();
+}
+
+// 把时间戳说成人话：刚刚 / 3小时前 / 昨天 / 11/20
+function formatTimeAgo(ts) {
+  if (!ts) return "";
+  var nowSec = Date.now() / 1000;
+  var diff = nowSec - ts;
+  if (diff < 0) diff = 0;
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return Math.floor(diff / 60) + "分钟前";
+  if (diff < 86400) return Math.floor(diff / 3600) + "小时前";
+  if (diff < 172800) return "昨天";
+  return formatDateShort(ts);
+}
+
+// 头像：用昵称里的第一个字/字母，配一组固定的暖色调，不用真脸照片
+var AVATAR_TONES = [
+  "rgba(142,116,232,.28)", "rgba(95,168,150,.28)", "rgba(88,137,214,.28)",
+  "rgba(155,133,214,.28)", "rgba(89,165,199,.28)", "rgba(212,151,110,.28)"
+];
+function avatarFor(name) {
+  var s = String(name || "夜");
+  var ch = s.charAt(0).toUpperCase();
+  var sum = 0;
+  for (var i = 0; i < s.length; i++) sum += s.charCodeAt(i);
+  var bg = AVATAR_TONES[sum % AVATAR_TONES.length];
+  return { ch: ch, bg: bg };
+}
+
+var POLICY_LABELS = {
+  open: "开放共创",
+  star_to_fork: "借走解锁",
+  listen_only: "仅限聆听"
+};
+
+function normalizeUserPost(raw) {
+  var items = Array.isArray(raw && raw.items) ? raw.items : [];
+  var leadPath = raw.lead_path || (items.length > 0 ? items[0].path : "");
+  var lead = ySoundMeta(leadPath);
+  if (raw && raw.counts && typeof raw.counts === "object") {
+    communityVotes[raw.id] = raw.counts;
+  }
+  if (raw && raw.starred_by_me) {
+    myVoted[raw.id + ":borrow"] = true;
+  }
+  return {
+    id: raw.id,
+    title: raw.title || "深夜声景",
+    author: raw.author || "深夜旅人",
+    group: raw.group || "自然",
+    img: lead.img || "img/moon-water.jpg",
+    accent: lead.accent || "#8e74e8",
+    say: raw.title || "",
+    tags: [],
+    desc: raw.story || "来自社区创作者的真实 CC0 调音配方",
+    story: raw.story || "",
+    remix_of: raw.remix_of || null,
+    remix_policy: raw.remix_policy || "open",
+    diff_summary: Array.isArray(raw.diff_summary) ? raw.diff_summary : [],
+    fork_count: raw.fork_count || 0,
+    is_mine: !!raw.is_mine,
+    unlocked: raw.unlocked !== false,
+    items_locked: !!raw.items_locked,
+    items: items,
+    created_at: raw.created_at || 0,
+    comment_count: raw.comment_count || 0,
+    isUserPost: true
+  };
+}
+
+function allFeedRecipes() {
+  var list = [];
+  for (var i = 0; i < communityPosts.length; i++) {
+    list.push(normalizeUserPost(communityPosts[i]));
+  }
+  for (var j = 0; j < RECIPES.length; j++) {
+    list.push(RECIPES[j]);
+  }
+  // 真人作品排前，官方示例排后——打开广场第一屏看到的是真人
+  list.sort(function(a, b) {
+    var ao = a.isOfficial ? 1 : 0;
+    var bo = b.isOfficial ? 1 : 0;
+    if (ao !== bo) return ao - bo;
+    return (b.created_at || 0) - (a.created_at || 0);
+  });
+  return list;
+}
+
+function canDeletePost(r) {
+  if (!r || !r.isUserPost) return false;
+  if (r.is_mine) return true;
+  if (myPostTokens[r.id]) return true;
+  if (loggedUsername && r.author === loggedUsername) return true;
+  return false;
+}
+
+function formatPanShort(pan) {
+  var p = parseFloat(pan) || 0;
+  var pct = Math.round(Math.abs(p) * 100);
+  if (pct < 5) return "正中";
+  return (p < 0 ? "左" : "右") + pct + "%";
+}
+
+// 一层一行：名字、比例条、百分比、声像。比一排胶囊好读，也看得出谁多谁少
+function formatRecipeRows(items) {
+  var html = "";
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var m = ySoundMeta(it.path);
+    var w = Math.round((it.weight || 0) * 100);
+    var pan = formatPanShort(it.pan);
+    var panText = pan;
+    if (it.mode === "intermittent") {
+      panText = pan + " · 偶发";
+    }
+    html +=
+      '<div class="track">' +
+        '<span class="track-name">' + yEscape(m.name) + '</span>' +
+        '<span class="track-bar"><i style="width:' + w + '%"></i></span>' +
+        '<span class="track-pct">' + w + '%</span>' +
+        '<span class="track-pan">' + yEscape(panText) + '</span>' +
+      '</div>';
+  }
+  return html;
+}
+
+function getRecipeEvalCount(rid, tag) {
+  var entry = communityVotes[rid];
+  if (!entry || typeof entry[tag] !== "number") return 0;
+  return Math.max(0, entry[tag]);
+}
+
+function renderEvalHtml(rid) {
+  var total = 0;
+  for (var k = 0; k < EVAL_TAGS.length; k++) total += getRecipeEvalCount(rid, EVAL_TAGS[k].key);
+  var html =
+    '<div class="d-sec-head">' +
+      '<span class="d-sec-title">听感</span>' +
+      '<span class="d-sec-note">' + (total > 0 ? total + ' 人留下过印象' : '点一下，留个印象') + '</span>' +
+    '</div><div class="eval-chips">';
+  for (var i = 0; i < EVAL_TAGS.length; i++) {
+    var t = EVAL_TAGS[i];
+    var voted = !!myVoted[rid + ":" + t.key];
+    var cnt = getRecipeEvalCount(rid, t.key);
+    html += '<button type="button" class="eval-chip' + (voted ? ' on' : '') +
+      '" data-rid="' + yEscape(rid) + '" data-tag="' + yEscape(t.key) + '">' +
+      '<span>' + t.label + '</span>' +
+      (cnt > 0 ? '<span class="c">' + cnt + '</span>' : '') +
+      '</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function syncBorrowBtn(rid) {
+  var btn = document.getElementById("borrow_" + rid);
+  if (!btn) return;
+  var voted = !!myVoted[rid + ":borrow"];
+  var cnt = getRecipeEvalCount(rid, "borrow");
+  btn.classList.toggle("on", voted);
+  btn.innerHTML = '<span>借我一晚</span>' + (cnt > 0 ? '<span class="n">' + cnt + '</span>' : '');
+}
+
+function toggleEvalVote(rid, tag) {
+  if (yNeedLogin("给广场的配方投票", "community.html")) return;
+  var vKey = rid + ":" + tag;
+  var wasVoted = !!myVoted[vKey];
+  var delta = wasVoted ? -1 : 1;
+
+  if (wasVoted) delete myVoted[vKey];
+  else myVoted[vKey] = true;
+  saveLocalJson(VOTED_KEY, myVoted);
+
+  if (!communityVotes[rid]) communityVotes[rid] = {};
+  communityVotes[rid][tag] = Math.max(0, getRecipeEvalCount(rid, tag) + delta);
+  saveLocalJson(COUNTS_KEY, communityVotes);
+
+  syncBorrowBtn(rid);
+  var box = document.getElementById("eval_" + rid);
+  if (box) {
+    box.innerHTML = renderEvalHtml(rid);
+    bindEvalClicks(box);
+  }
+
+  yPost("/api/community_vote", { recipe_id: rid, tag: tag, delta: delta })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      if (d.counts) {
+        communityVotes[rid] = d.counts;
+        saveLocalJson(COUNTS_KEY, communityVotes);
+      }
+      if (typeof d.voted === "boolean") {
+        if (d.voted) myVoted[vKey] = true;
+        else delete myVoted[vKey];
+        saveLocalJson(VOTED_KEY, myVoted);
+      }
+      if (tag === "borrow") {
+        var changed = false;
+        for (var pi = 0; pi < communityPosts.length; pi++) {
+          if (communityPosts[pi].id !== rid) continue;
+          if (d.unlocked && Array.isArray(d.items)) {
+            communityPosts[pi].items = d.items;
+            communityPosts[pi].items_locked = false;
+            communityPosts[pi].unlocked = true;
+            communityPosts[pi].starred_by_me = true;
+            changed = true;
+          } else if (delta === -1 && communityPosts[pi].remix_policy === "star_to_fork" && !communityPosts[pi].is_mine) {
+            communityPosts[pi].items = [];
+            communityPosts[pi].items_locked = true;
+            communityPosts[pi].unlocked = false;
+            communityPosts[pi].starred_by_me = false;
+            changed = true;
+          }
+        }
+        if (changed) {
+          renderFeed();
+          // 详情还开着，就顺手刷成解锁后的样子，不用关掉再点一次
+          var dm = detailEl();
+          if (dm && dm.classList.contains("open")) {
+            for (var qi = 0; qi < communityPosts.length; qi++) {
+              if (communityPosts[qi].id === rid) openDetail(communityPosts[qi]);
+            }
+          }
+          return;
+        }
+      }
+      syncBorrowBtn(rid);
+      var curBox = document.getElementById("eval_" + rid);
+      if (curBox) {
+        curBox.innerHTML = renderEvalHtml(rid);
+        bindEvalClicks(curBox);
+      }
+    })
+    .catch(function() {});
+}
+
+function bindEvalClicks(container) {
+  var btns = container.querySelectorAll(".eval-chip");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].onclick = function() {
+      toggleEvalVote(this.getAttribute("data-rid"), this.getAttribute("data-tag"));
+    };
+  }
+}
+
+function deleteUserPost(r) {
+  var tok = myPostTokens[r.id] || "";
+  yPost("/api/community_posts/delete", { id: r.id, delete_token: tok })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      delete myPostTokens[r.id];
+      saveLocalJson(POST_TOKENS_KEY, myPostTokens);
+      var next = [];
+      for (var i = 0; i < communityPosts.length; i++) {
+        if (communityPosts[i].id !== r.id) next.push(communityPosts[i]);
+      }
+      communityPosts = next;
+      renderFeed();
+    })
+    .catch(function() {});
+}
+
+function renderTabs() {
+  var box = document.getElementById("tabs");
+  box.innerHTML = "";
+  for (var i = 0; i < groups.length; i++) {
+    (function(g) {
+      var el = document.createElement("div");
+      el.className = "sub-tab" + (g === currentGroup ? " sel" : "");
+      el.textContent = g;
+      el.onclick = function() {
+        currentGroup = g;
+        renderTabs();
+        renderFeed();
+      };
+      box.appendChild(el);
+    })(groups[i]);
+  }
+}
+
+// 听感标签只在详情里出现，不放在卡片上：卡片一行只留「试听 / 借我一晚 / 详情」
+function renderFeed() {
+  var feed = document.getElementById("feed");
+  feed.innerHTML = "";
+  var list = allFeedRecipes();
+  var shownCount = 0;
+
+  for (var i = 0; i < list.length; i++) {
+    (function(r) {
+      if (currentGroup === "社区发布" && !r.isUserPost) return;
+      if (currentGroup !== "全部" && currentGroup !== "社区发布" && r.group !== currentGroup) return;
+      shownCount += 1;
+
+      var borrowVoted = !!myVoted[r.id + ":borrow"];
+      var borrowCnt = getRecipeEvalCount(r.id, "borrow");
+      var playing = activePreviewId === r.id;
+      var official = !!r.isOfficial;
+      var badge = official
+        ? '<span class="badge-official">官方示范</span>'
+        : (r.isUserPost ? '<span class="badge-new">社区新作</span>' : '');
+
+      // 真人身份行：头像 + 昵称 + 时间（官方也显示，但标出来并且点了没反应）
+      var av = avatarFor(r.author);
+      var whoHtml =
+        '<div class="who' + (official ? ' is-official' : '') + '" id="who_' + r.id + '">' +
+          '<div class="avatar" style="background:' + av.bg + '">' + yEscape(av.ch) + '</div>' +
+          '<span class="who-name">' + yEscape(r.author) + (official ? ' · 夜息团队' : '') + '</span>' +
+          '<span class="who-time">' + yEscape(formatTimeAgo(r.created_at)) + '</span>' +
+        '</div>';
+
+      // 创作故事：只有真人作品有，来自发帖时填的 story
+      var storyHtml = r.story
+        ? '<div class="story-line">“' + yEscape(r.story) + '”</div>'
+        : '';
+
+      var forkHtml = (r.isUserPost && r.fork_count > 0)
+        ? '<div class="fork-hint" id="forkhint_' + r.id + '">↻ 被改编 ' + r.fork_count + ' 次 · 看看别人怎么改的</div>'
+        : "";
+
+      var el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML =
+        '<div class="cover' + (playing ? " playing" : "") + '" id="cover_' + r.id + '">' +
+          '<div class="cover-img" style="background-image:url(' + r.img + ')"></div>' +
+          '<div class="cover-shade"></div>' +
+          badge +
+          '<div class="eq" aria-hidden="true"><i></i><i></i><i></i></div>' +
+          '<div class="cover-text">' +
+            '<div class="cover-name">' + yEscape(r.title) + '</div>' +
+            '<div class="cover-desc">' + yEscape(r.desc) + '</div>' +
+          '</div>' +
+        '</div>' +
+        whoHtml +
+        storyHtml +
+        forkHtml +
+        '<div class="row">' +
+          '<button type="button" class="act play" id="p_' + r.id + '">' + (playing ? "暂停试听" : "▶ 试听") + '</button>' +
+          '<button type="button" class="act' + (borrowVoted ? " on" : "") + '" id="borrow_' + r.id + '">' +
+            '<span>借我一晚</span>' + (borrowCnt > 0 ? '<span class="n">' + borrowCnt + '</span>' : '') +
+          '</button>' +
+          '<button type="button" class="act more" id="d_' + r.id + '">详情</button>' +
+        '</div>' +
+        '<div class="mini" id="m_' + r.id + '"></div>';
+      feed.appendChild(el);
+
+      document.getElementById("cover_" + r.id).onclick = function() { preview(r); };
+      document.getElementById("p_" + r.id).onclick = function() { preview(r); };
+      document.getElementById("borrow_" + r.id).onclick = function() { toggleEvalVote(r.id, "borrow"); };
+      document.getElementById("d_" + r.id).onclick = function() { openDetail(r); };
+      document.getElementById("who_" + r.id).onclick = function() {
+        if (!official) openCreator(r.author);
+      };
+      var fh = document.getElementById("forkhint_" + r.id);
+      if (fh) fh.onclick = function() { openForksModal(r); };
+    })(list[i]);
+  }
+
+  if (shownCount === 0) {
+    var emptyText = currentGroup === "社区发布"
+      ? '这个角落还空着 · 去 DIY 工坊调一段你自己的，做第一个发配方的人'
+      : '这里还没有配方 · 成为第一个分享的人吧';
+    feed.innerHTML = '<div class="feed-empty">' + emptyText + '</div>';
+  }
+}
+
+/* ---------- 创作者主页：点作者名字弹出 ---------- */
+var creatorModal = document.getElementById("creatorModal");
+document.getElementById("creatorCloseBtn").onclick = function() {
+  creatorModal.classList.remove("open");
+};
+creatorModal.onclick = function(e) {
+  if (e.target === creatorModal) creatorModal.classList.remove("open");
+};
+
+function openCreator(author) {
+  var body = document.getElementById("creatorBody");
+  body.innerHTML = '<div class="d-line">正在加载创作者主页…</div>';
+  creatorModal.classList.add("open");
+
+  yGet("/api/creator?author=" + encodeURIComponent(author))
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) {
+        body.innerHTML = '<div class="d-line">加载失败</div>';
+        return;
+      }
+      var c = d.creator;
+      document.getElementById("creatorModalTitle").textContent = "@" + c.author;
+      var av = avatarFor(c.author);
+      var html =
+        '<div class="creator-head">' +
+          '<div class="creator-avatar" style="background:' + av.bg + '">' + yEscape(av.ch) + '</div>' +
+          '<div>' +
+            '<div class="creator-name">' + yEscape(c.author) + '</div>' +
+            '<div class="creator-since">' + (c.since ? '从 ' + formatDateShort(c.since) + ' 开始在这里' : '夜息社区成员') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="creator-stats">' +
+          '<div class="creator-stat"><b>' + c.post_count + '</b>发过的配方</div>' +
+          '<div class="creator-stat"><b>' + c.borrow_count + '</b>被借走</div>' +
+          '<div class="creator-stat"><b>' + c.fork_count + '</b>被改编</div>' +
+        '</div>';
+      if (c.works.length === 0) {
+        html += '<div class="cmt-empty">还没有公开的配方</div>';
+      } else {
+        html += '<div class="d-label">TA 的配方</div>';
+        for (var i = 0; i < c.works.length; i++) {
+          (function(w) {
+            var lead = "";
+            html += '<div class="creator-work" data-wid="' + yEscape(w.id) + '">' +
+              '<div class="cw-thumb" style="background-image:url(img/night-lake-stars.jpg)"></div>' +
+              '<div><div class="cw-title">' + yEscape(w.title) + '</div>' +
+              '<div class="cw-meta">' + yEscape(formatTimeAgo(w.created_at)) + ' · ' + yEscape(w.grp || '自然') + '</div></div>' +
+            '</div>';
+          })(c.works[i]);
+        }
+      }
+      body.innerHTML = html;
+
+      // 点作品：直接在广场里跳到这张配方（关掉弹层，切到全部，滚到位置）
+      var works = body.querySelectorAll(".creator-work");
+      for (var wi = 0; wi < works.length; wi++) {
+        (function(el, wid) {
+          el.onclick = function() {
+            creatorModal.classList.remove("open");
+            currentGroup = "全部";
+            renderTabs();
+            renderFeed();
+            setTimeout(function() {
+              var card = document.getElementById("cover_" + wid);
+              if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 80);
+          };
+        })(works[wi], works[wi].getAttribute("data-wid"));
+      }
+    })
+    .catch(function() {
+      body.innerHTML = '<div class="d-line">加载失败，请稍后再试</div>';
+    });
+}
+
+/* ---------- 短评论：默认折叠，点开才加载 ---------- */
+function renderCommentList(r, comments, box) {
+  var html = "";
+  if (comments.length === 0) {
+    html += '<div class="cmt-empty">还没有人留言。说一句你听着的感觉就好，比如「听着听着就睡过去了」。</div>';
+  } else {
+    html += '<div class="cmt-list">';
+    for (var i = 0; i < comments.length; i++) {
+      (function(c) {
+        var mine = loggedUsername && c.author === loggedUsername;
+        html += '<div class="cmt-item">' +
+          '<div class="cmt-head">' +
+            '<span class="cmt-who">' + yEscape(c.author) + '</span>' +
+            '<span class="cmt-time">' + yEscape(formatTimeAgo(c.created_at)) + '</span>' +
+            (mine ? '<button type="button" class="cmt-del" data-cid="' + yEscape(c.id) + '">删除</button>' : '') +
+          '</div>' +
+          '<div class="cmt-body">' + yEscape(c.body) + '</div>' +
+        '</div>';
+      })(comments[i]);
+    }
+    html += '</div>';
+  }
+  var canWrite = !yIsGuest();
+  if (canWrite) {
+    html += '<div class="cmt-form">' +
+      '<input class="cmt-input" id="cmtinput_' + r.id + '" maxlength="80" placeholder="说一句你的感觉（最多 80 字）">' +
+      '<button type="button" class="cmt-send" id="cmtsend_' + r.id + '">留言</button>' +
+    '</div>';
+  } else {
+    html += '<div class="cmt-hint">登录后可以留言 · <a href="auth.html?from=community.html" style="color:rgba(var(--y-warm-rgb),.85)">去登录</a></div>';
+  }
+  box.innerHTML = html;
+
+  var sendBtn = document.getElementById("cmtsend_" + r.id);
+  if (sendBtn) {
+    sendBtn.onclick = function() {
+      var input = document.getElementById("cmtinput_" + r.id);
+      var body = input ? input.value.trim() : "";
+      if (!body) { input.focus(); return; }
+      sendBtn.disabled = true;
+      yPost("/api/comment", { post_id: r.id, body: body })
+        .then(function(res) { return res.json(); })
+        .then(function(d) {
+          sendBtn.disabled = false;
+          if (!d || !d.ok) {
+            box.insertAdjacentHTML("afterbegin", '<div class="cmt-hint">' + yEscape((d && d.error) || "留言失败") + '</div>');
+            return;
+          }
+          loadComments(r, box, true);
+        })
+        .catch(function() {
+          sendBtn.disabled = false;
+          box.insertAdjacentHTML("afterbegin", '<div class="cmt-hint">连接失败，请稍后再试</div>');
+        });
+    };
+  }
+  var dels = box.querySelectorAll(".cmt-del");
+  for (var di = 0; di < dels.length; di++) {
+    (function(btn) {
+      btn.onclick = function() {
+        var cid = btn.getAttribute("data-cid");
+        yPost("/api/comment/delete", { id: cid })
+          .then(function(res) { return res.json(); })
+          .then(function(d) { if (d && d.ok) loadComments(r, box, true); })
+          .catch(function() {});
+      };
+    })(dels[di]);
+  }
+}
+
+function loadComments(r, box, keepOpen) {
+  yGet("/api/comments?post_id=" + encodeURIComponent(r.id))
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      renderCommentList(r, d.comments || [], box);
+      // 本地计数同步：发完留言后卡片上的数字也跟着变
+      r.comment_count = (d.comments || []).length;
+      if (keepOpen) {
+        var toggle = document.getElementById("cmttoggle_" + r.id);
+        if (toggle) toggle.textContent = "留言 · " + r.comment_count + " 条";
+      }
+    })
+    .catch(function() {
+      box.innerHTML = '<div class="cmt-empty">留言暂时加载不出来，稍后再试</div>';
+    });
+}
+
+/* ---------- 详情：把配比、听感、微调收进一个弹窗 ---------- */
+function detailEl() {
+  return document.getElementById("detailModal");
+}
+
+function closeDetail() {
+  var m = detailEl();
+  if (m) m.classList.remove("open");
+}
+
+function openDetail(r) {
+  var m = detailEl();
+  if (!m) return;
+  var policy = r.remix_policy || "open";
+
+  // 顶部：封面铺底，标题和作者压在画面下沿
+  var cover = document.getElementById("detailCover");
+  if (cover) cover.style.backgroundImage = "url(" + r.img + ")";
+  var kind = r.isOfficial ? "官方示范" : (r.isUserPost ? "社区新作" : "社区配方");
+  document.getElementById("detailKicker").textContent =
+    kind + " · " + (POLICY_LABELS[policy] || "开放共创");
+  document.getElementById("detailTitle").textContent = r.title;
+
+  var av = avatarFor(r.author);
+  var ago = formatTimeAgo(r.created_at);
+  document.getElementById("detailSub").innerHTML =
+    '<span class="d-av" style="background:' + av.bg + '">' + yEscape(av.ch) + '</span>' +
+    '<span>' + yEscape(r.author) + (r.isOfficial ? ' · 夜息团队' : '') + '</span>' +
+    (ago ? '<span class="d-sep">·</span><span>' + yEscape(ago) + '</span>' : '');
+
+  var html = "";
+  if (r.remix_of && r.remix_of.title) {
+    html += '<div class="d-parent">↻ 改编自 @' + yEscape(r.remix_of.author || "夜息") +
+      " ·《" + yEscape(r.remix_of.title) + "》</div>";
+  }
+
+  // 一句话就够：作者的 story 优先，没有就用作品描述
+  var say = r.story || r.desc || "";
+  if (say) {
+    html += '<div class="d-quote">' + yEscape(say) + "</div>";
+  }
+
+  if (r.diff_summary && r.diff_summary.length) {
+    html += '<div class="d-sec"><div class="d-sec-head"><span class="d-sec-title">改了什么</span></div>' +
+      '<div class="diff-pills">';
+    for (var di = 0; di < r.diff_summary.length; di++) {
+      html += '<span class="diff-pill">' + yEscape(r.diff_summary[di]) + "</span>";
+    }
+    html += '</div></div>';
+  }
+
+  if (!r.items_locked) {
+    html += '<div class="d-sec">' +
+      '<div class="d-sec-head">' +
+        '<span class="d-sec-title">声层</span>' +
+        '<span class="d-sec-note">' + r.items.length + ' 层叠在一起</span>' +
+      '</div>' +
+      formatRecipeRows(r.items) +
+    '</div>';
+  } else if (policy === "star_to_fork") {
+    html += '<div class="d-sec"><div class="locked-box clickable" id="unlock_' + r.id +
+      '">借我一晚，就解锁这几层的精确配比，也能带进工坊改</div></div>';
+  } else {
+    html += '<div class="d-sec"><div class="locked-box">作者只留了聆听 · 配比不外传</div></div>';
+  }
+
+  html += '<div class="d-sec" id="eval_' + r.id + '">' + renderEvalHtml(r.id) + "</div>";
+
+  // 动作：先在弹窗里听一遍，再决定借不借、要不要改
+  html += '<div class="d-actions">';
+  if (r.items_locked && policy === "star_to_fork") {
+    html += '<button type="button" class="y-btn-primary" id="u_' + r.id + '">借我一晚 · 解锁配比</button>';
+  } else {
+    html += '<button type="button" class="y-btn-primary" id="u_' + r.id + '">↻ Remix 微调</button>';
+  }
+  html += '<button type="button" class="y-btn-ghost" id="dp_' + r.id + '">▶ 试听这段</button>';
+  html += '<button type="button" class="y-btn-ghost" id="c_' + r.id + '">声音明信片</button>';
+  html += "</div>";
+
+  // 底部：留言折叠，删除只给作者
+  var cmtCnt = r.comment_count || 0;
+  html += '<div class="d-foot">';
+  html += '<button type="button" class="cmt-toggle" id="cmttoggle_' + r.id + '">' +
+    '留言' + (cmtCnt > 0 ? ' · ' + cmtCnt + ' 条' : '') + '</button>';
+  if (r.isUserPost && r.fork_count > 0) {
+    html += '<button type="button" class="cmt-toggle" id="forks_' + r.id + '">被改编 ' +
+      r.fork_count + " 次</button>";
+  }
+  if (canDeletePost(r)) {
+    html += '<button type="button" class="btn-danger" id="del_' + r.id + '">删除这张配方</button>';
+  }
+  html += '</div>';
+  html += '<div class="cmt-box" id="cmtbox_' + r.id + '" style="display:none"></div>';
+  html += '<div class="mini" id="dm_' + r.id + '"></div>';
+
+  document.getElementById("detailBody").innerHTML = html;
+
+  document.getElementById("cmttoggle_" + r.id).onclick = function() {
+    var box = document.getElementById("cmtbox_" + r.id);
+    if (box.style.display === "none") {
+      box.style.display = "block";
+      loadComments(r, box);
+    } else {
+      box.style.display = "none";
+    }
+  };
+
+  var ev = document.getElementById("eval_" + r.id);
+  if (ev) bindEvalClicks(ev);
+
+  var ub = document.getElementById("unlock_" + r.id);
+  if (ub) {
+    ub.onclick = function() { toggleEvalVote(r.id, "borrow"); };
+  }
+  document.getElementById("u_" + r.id).onclick = function() {
+    if (r.items_locked && policy === "star_to_fork") {
+      toggleEvalVote(r.id, "borrow");
+      return;
+    }
+    useIt(r);
+  };
+  document.getElementById("dp_" + r.id).onclick = function() { preview(r); };
+  document.getElementById("c_" + r.id).onclick = function() {
+    var msg = document.getElementById("dm_" + r.id);
+    if (r.items_locked) {
+      msg.textContent = policy === "star_to_fork"
+        ? "点「借我一晚」解锁配比后即可生成明信片"
+        : "作者设为仅限聆听，暂不导出配比明信片";
+      return;
+    }
+    msg.textContent = "正在绘制声音明信片…";
+    yRenderPostcardPng({
+      title: r.title,
+      author: r.author,
+      story: r.desc,
+      img: r.img,
+      accent: r.accent,
+      remix_of: r.remix_of,
+      tracks: r.items
+    }, function() {
+      msg.textContent = "已下载「" + r.title + "_声音明信片.png」";
+    });
+  };
+  var fkBtn = document.getElementById("forks_" + r.id);
+  if (fkBtn) {
+    fkBtn.onclick = function() {
+      closeDetail();
+      openForksModal(r);
+    };
+  }
+  var delBtn = document.getElementById("del_" + r.id);
+  if (delBtn) {
+    delBtn.onclick = function() {
+      closeDetail();
+      deleteUserPost(r);
+    };
+  }
+
+  m.classList.add("open");
+  var body = document.getElementById("detailBody");
+  if (body) body.scrollTop = 0;
+}
+
+var sharedPreviewAudio = null;
+
+function stopCurrentPreview() {
+  if (activePreviewAudio) {
+    activePreviewAudio.pause();
+    activePreviewAudio.onended = null;
+    activePreviewAudio = null;
+  }
+  if (activePreviewId) {
+    var oldBtn = document.getElementById("p_" + activePreviewId);
+    if (oldBtn) oldBtn.textContent = "▶ 试听";
+    var oldFkBtn = document.getElementById("fk_play_" + activePreviewId);
+    if (oldFkBtn) oldFkBtn.textContent = "试听";
+    var oldDpBtn = document.getElementById("dp_" + activePreviewId);
+    if (oldDpBtn) oldDpBtn.textContent = "▶ 试听这段";
+    activePreviewId = "";
+  }
+}
+
+function preview(r) {
+  var msg = document.getElementById("m_" + r.id) || document.getElementById("dm_" + r.id);
+  if (activePreviewId === r.id && activePreviewAudio) {
+    stopCurrentPreview();
+    if (msg) msg.textContent = "已暂停试听";
+    ySetAmbient(r.img, r.accent, false);
+    return;
+  }
+  stopCurrentPreview();
+  if (msg) msg.textContent = "正在准备试听…";
+
+  var usePlayApi = !!(r.isUserPost && r.items_locked);
+  var req = usePlayApi
+    ? yPost("/api/play", { post_id: r.id, title: r.title, seconds: 20 })
+    : yPost("/api/preview", { items: r.items, seconds: 20 });
+
+  req
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (d.error) { if (msg) msg.textContent = d.error; return; }
+      var audioUrl = usePlayApi ? (API + d.audio) : (API + "/api/preview_audio?t=" + Date.now());
+      if (!sharedPreviewAudio) sharedPreviewAudio = new Audio();
+      sharedPreviewAudio.src = audioUrl;
+      activePreviewAudio = sharedPreviewAudio;
+      if (typeof yBindAmbientAudio === "function") yBindAmbientAudio(activePreviewAudio);
+      activePreviewId = r.id;
+      var btn = document.getElementById("p_" + r.id);
+      if (btn) btn.textContent = "暂停试听";
+      var fkBtn = document.getElementById("fk_play_" + r.id);
+      if (fkBtn) fkBtn.textContent = "暂停试听";
+      var dpBtn = document.getElementById("dp_" + r.id);
+      if (dpBtn) dpBtn.textContent = "❚❚ 暂停";
+      activePreviewAudio.play().catch(function() {});
+      ySetAmbient(r.img, r.accent, true);
+      if (msg) msg.textContent = "正在试听「" + r.title + "」";
+      activePreviewAudio.onended = function() {
+        if (btn) btn.textContent = "试听";
+        if (fkBtn) fkBtn.textContent = "试听";
+        if (dpBtn) dpBtn.textContent = "▶ 试听这段";
+        activePreviewId = "";
+        activePreviewAudio = null;
+        ySetAmbient(r.img, r.accent, false);
+        if (msg) msg.textContent = "试听结束 · 可点「借我一晚」收藏或进工坊微调";
+      };
+    })
+    .catch(function(e) { if (msg) msg.textContent = "连接失败：" + e.message; });
+}
+
+var forksModal = document.getElementById("forksModal");
+document.getElementById("forksCloseBtn").onclick = function() {
+  forksModal.classList.remove("open");
+};
+forksModal.onclick = function(e) {
+  if (e.target === forksModal) forksModal.classList.remove("open");
+};
+
+document.getElementById("detailCloseBtn").onclick = function() { closeDetail(); };
+detailEl().onclick = function(e) {
+  if (e.target === detailEl()) closeDetail();
+};
+
+function openForksModal(r) {
+  document.getElementById("forksModalTitle").textContent = "《" + r.title + "》的衍生变体";
+  var body = document.getElementById("forksBody");
+  body.innerHTML = "正在加载衍生变体…";
+  forksModal.classList.add("open");
+
+  yGet("/api/community_post?id=" + encodeURIComponent(r.id))
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) {
+        body.textContent = (d && d.error) || "加载失败";
+        return;
+      }
+      var forks = Array.isArray(d.forks) ? d.forks : [];
+      if (forks.length === 0) {
+        body.textContent = "还没有衍生变体";
+        return;
+      }
+      var html = "";
+      for (var i = 0; i < forks.length; i++) {
+        var fk = normalizeUserPost(forks[i]);
+        var diffHtml = "";
+        if (fk.diff_summary && fk.diff_summary.length) {
+          diffHtml = '<div class="diff-pills">';
+          for (var j = 0; j < fk.diff_summary.length; j++) {
+            diffHtml += '<span class="diff-pill">' + yEscape(fk.diff_summary[j]) + '</span>';
+          }
+          diffHtml += '</div>';
+        }
+        var pol = fk.remix_policy || "open";
+        var canRmx = !fk.items_locked && (pol !== "listen_only" || fk.is_mine);
+        html +=
+          '<div class="fork-item">' +
+            '<div class="fork-item-head">' +
+              '<span class="fork-item-title">' + yEscape(fk.title) + '</span>' +
+              '<span class="policy-badge">' + yEscape(POLICY_LABELS[pol] || "开放共创") + '</span>' +
+            '</div>' +
+            '<div class="fork-item-meta">by ' + yEscape(fk.author) + (fk.created_at ? ' · ' + yEscape(formatDateShort(fk.created_at)) : '') + '</div>' +
+            diffHtml +
+            '<div class="fork-item-acts">' +
+              '<button type="button" class="y-btn-ghost" id="fk_play_' + fk.id + '">试听</button>' +
+              (canRmx ? '<button type="button" class="y-btn-primary" id="fk_rmx_' + fk.id + '">↻ Remix 微调</button>' : '') +
+            '</div>' +
+          '</div>';
+      }
+      body.innerHTML = html;
+
+      for (var k = 0; k < forks.length; k++) {
+        (function(rawFk) {
+          var fk = normalizeUserPost(rawFk);
+          var pBtn = document.getElementById("fk_play_" + fk.id);
+          if (pBtn) pBtn.onclick = function() { preview(fk); };
+          var rBtn = document.getElementById("fk_rmx_" + fk.id);
+          if (rBtn) rBtn.onclick = function() { useIt(fk); };
+        })(forks[k]);
+      }
+    })
+    .catch(function() {
+      body.textContent = "加载衍生变体失败";
+    });
+}
+
+function useIt(r) {
+  var code = yEncodeMix({ title: r.title, tracks: r.items });
+  if (code) {
+    var qs = "?remix_id=" + encodeURIComponent(r.id || "") +
+      "&remix_title=" + encodeURIComponent(r.title || "") +
+      "&remix_author=" + encodeURIComponent(r.author || "夜息");
+    location.href = "index.html" + qs + "#mix=" + encodeURIComponent(code);
+  } else {
+    location.href = "agent.html?say=" + encodeURIComponent(r.say);
+  }
+}
+
+renderTabs();
+renderFeed();
+
+yGet("/api/me")
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && d.logged_in && d.username) {
+      loggedUsername = d.username;
+      renderFeed();
+    }
+  })
+  .catch(function() {});
+
+yGet("/api/community_posts")
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && Array.isArray(d.posts)) {
+      communityPosts = d.posts;
+      renderFeed();
+    }
+  })
+  .catch(function() {});
+
+yGet("/api/community_votes")
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && d.votes && typeof d.votes === "object") {
+      communityVotes = d.votes;
+      saveLocalJson(COUNTS_KEY, communityVotes);
+    }
+    if (d && d.my_votes && typeof d.my_votes === "object") {
+      myVoted = d.my_votes;
+      saveLocalJson(VOTED_KEY, myVoted);
+    }
+    renderFeed();
+  })
+  .catch(function() {});
+</script>
+<script>setTimeout(function(){
+  try{ openDetail(RECIPES[0]); }catch(e){ document.body.setAttribute("data-diag","ERR "+e.message); return; }
+  setTimeout(function(){
+    var m=document.getElementById("detailModal");
+    var md=m.querySelector(".detail-modal");
+    var b=document.getElementById("detailBody");
+    var hero=m.querySelector(".d-hero");
+    var info="IH="+window.innerHeight+" maskH="+Math.round(m.getBoundingClientRect().height)+" modalH="+Math.round(md.getBoundingClientRect().height)+" modalTop="+Math.round(md.getBoundingClientRect().top)+" heroH="+Math.round(hero.getBoundingClientRect().height)+" bodyC="+b.clientHeight+" bodyS="+b.scrollHeight+" ovf="+getComputedStyle(b).overflowY+" modalOvf="+getComputedStyle(md).overflow;
+    b.scrollTop=300; info+=" afterScroll="+b.scrollTop;
+    document.body.setAttribute("data-diag",info);
+  },500);
+},3500);</script>
+</body>
+</html>

@@ -17,10 +17,27 @@ function ySetToken(token) {
   }
 }
 
+function yClientId() {
+  try {
+    var cid = localStorage.getItem("yezi_client_id");
+    if (!cid || !/^[A-Za-z0-9_-]{4,40}$/.test(cid)) {
+      cid = "c_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      localStorage.setItem("yezi_client_id", cid);
+    }
+    return cid;
+  } catch (e) {
+    return "";
+  }
+}
+
 function yHeaders(withJson) {
   var h = {};
   if (withJson) {
     h["Content-Type"] = "application/json";
+  }
+  var cid = yClientId();
+  if (cid) {
+    h["X-Yexi-Client"] = cid;
   }
   var token = yToken();
   if (token) {
@@ -57,14 +74,18 @@ function initAuthBar(fromPage) {
   var style = document.createElement("style");
   style.textContent =
     ".auth-slot{display:flex;align-items:center;gap:8px;flex:0 0 auto}" +
-    ".auth-link{font-size:12px;color:#d9c4ff;text-decoration:none;" +
-      "border:1px solid rgba(196,168,255,.4);border-radius:15px;padding:5px 11px;" +
-      "background:rgba(196,168,255,.08)}" +
-    ".auth-name{font-size:12px;color:#c9bce0;max-width:90px;overflow:hidden;" +
-      "text-overflow:ellipsis;white-space:nowrap}" +
-    ".auth-out{font-size:11px;color:#a99cc4;background:transparent;" +
-      "border:1px solid rgba(196,168,255,.25);border-radius:13px;padding:4px 9px;" +
-      "cursor:pointer;font-family:inherit}";
+    ".auth-link{font-size:12px;letter-spacing:.08em;color:rgba(236,228,248,.82);text-decoration:none;" +
+      "border:none;border-radius:999px;padding:6px 14px;" +
+      "background:rgba(255,255,255,.07);transition:background .5s ease,color .5s ease}" +
+    ".auth-link:hover{background:rgba(233,183,131,.18);color:#fff}" +
+    ".auth-name{font-size:12px;color:rgba(236,228,248,.86);max-width:96px;overflow:hidden;" +
+      "text-overflow:ellipsis;white-space:nowrap;text-decoration:none;" +
+      "border-bottom:1px dashed rgba(233,183,131,.4);padding-bottom:1px}" +
+    ".auth-name:hover{color:#fff;border-bottom-color:rgba(233,183,131,.85)}" +
+    ".auth-out{font-size:11px;color:rgba(226,216,244,.6);background:rgba(255,255,255,.055);" +
+      "border:none;border-radius:999px;padding:4px 10px;" +
+      "cursor:pointer;font-family:inherit;transition:background .5s ease,color .5s ease}" +
+    ".auth-out:hover{background:rgba(233,183,131,.16);color:#fff}";
   document.head.appendChild(style);
 
   var slot = document.createElement("div");
@@ -75,8 +96,8 @@ function initAuthBar(fromPage) {
 
   yGet("/api/me").then(function(r) { return r.json(); }).then(function(d) {
     if (!d.logged_in) return;
-    slot.innerHTML = '<span class="auth-name" title="' + yEscape(d.username) +
-      '">' + yEscape(d.username) + '</span>' +
+    slot.innerHTML = '<a class="auth-name" href="me.html" title="打开我的 ASMR 主页：' + yEscape(d.username) +
+      '">' + yEscape(d.username) + '</a>' +
       '<button class="auth-out" id="authOutBtn">退出</button>';
     document.getElementById("authOutBtn").onclick = function() {
       yPost("/api/logout", {}).then(function() {
@@ -91,3 +112,50 @@ function initAuthBar(fromPage) {
     // 后端没开时安静降级，不影响听声音
   });
 }
+
+// ===== 游客模式边界：受限操作统一引导登录 =====
+// 判断当前是不是游客（有 token 才是登录用户）
+function yIsGuest() {
+  return !yToken();
+}
+
+// 游客点了需要登录的功能：给出温和提示，不破坏睡前氛围
+// what = 功能名，fromPage = 登录后回哪个页面
+function yNeedLogin(what, fromPage) {
+  if (!yIsGuest()) return false;
+  var page = fromPage || (location.pathname.split("/").pop() || "home.html");
+  var msg = "登录后才能" + what + "，游客可以先听听看";
+  // 优先用页面自带的 toast（如果有），否则用浏览器原生确认
+  if (typeof window.showToast === "function") {
+    window.showToast(msg);
+    return true;
+  }
+  var go = window.confirm(msg + "\n\n现在去登录？");
+  if (go) {
+    location.href = "auth.html?from=" + encodeURIComponent(page);
+  }
+  return true;
+}
+
+// ===== 入口门闸：没登录、也没选过游客，就先去 gate.html 二选一 =====
+// gate.html 和 auth.html 自己不拦，否则会来回跳
+function yGateCheck() {
+  var page = location.pathname.split("/").pop() || "index.html";
+  if (page === "gate.html" || page === "auth.html") return;
+
+  // 有 token 说明登录过，直接放行
+  if (yToken()) return;
+
+  // 选过游客就记住，不再弹
+  try {
+    if (localStorage.getItem("yezi_guest") === "1") return;
+  } catch (e) {
+    // 本地存储不可用时别把人挡在外面
+    return;
+  }
+
+  var from = page;
+  if (!/^[A-Za-z0-9_-]+\.html$/.test(from)) from = "home.html";
+  location.href = "gate.html?from=" + encodeURIComponent(from);
+}
+yGateCheck();

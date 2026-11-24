@@ -10,6 +10,7 @@ import sys
 import urllib.request
 
 import qwen_client
+import sound_catalog
 
 # 本地模型地址需显式配置环境变量 LOCAL_LLM_URL，避免误请求 8080 静态端口
 LOCAL_URL = os.environ.get("LOCAL_LLM_URL", "").strip()
@@ -47,33 +48,49 @@ def from_rules(say):
     }
     # 先把"不要/别/没有"后面的东西剔除，再判断场景，避免"不要雷声"被当成要雷
     positive = say
-    for bad in ["不要雷声", "不要雷", "别打雷", "没有雷", "不要音乐", "不要人声"]:
+    for bad in [
+        "不要雷声", "不要打雷", "不要雷", "别打雷", "没有雷",
+        "不要音乐", "不要人声", "不要炉火", "不要火", "不要鸟", "不要采耳", "不要敲",
+    ]:
         positive = positive.replace(bad, "")
 
-    # 场景
-    if any(k in positive for k in ["海", "潮汐", "浪"]):
+    # 场景（优先识别炉火与近场 ASMR，再识别自然水域/风/雨）
+    if any(k in positive for k in ["炉火", "壁炉", "篝火", "炭火", "营火"]):
+        intent["scene"] = "fire"
+        intent["scene_detail"] = "温暖壁炉炉火"
+    elif any(k in positive for k in [
+        "采耳", "掏耳", "羽毛", "毛刷", "梳头", "梳发", "麦套", "扫麦",
+        "翻书", "翻页", "写字", "铅笔", "轻敲", "敲击", "抓挠", "海绵",
+        "糖纸", "揉捏", "搓手", "asmr", "ASMR",
+    ]):
+        intent["scene"] = "asmr"
+        intent["scene_detail"] = "近场轻柔 ASMR 触发音"
+    elif any(k in positive for k in ["海", "潮汐", "浪"]):
         intent["scene"] = "ocean"
         intent["scene_detail"] = "远处的海浪"
-    elif any(k in positive for k in ["溪", "流", "小河"]):
+    elif any(k in positive for k in ["溪", "流", "小河", "河水"]):
         intent["scene"] = "stream"
         intent["scene_detail"] = "山间溪流"
     elif any(k in positive for k in ["雷"]):
         intent["scene"] = "thunder"
         intent["scene_detail"] = "远处的雨和闷雷"
-    elif any(k in positive for k in ["风"]):
+    elif any(k in positive for k in ["鸟", "夜莺", "虫", "森林"]):
+        intent["scene"] = "forest"
+        intent["scene_detail"] = "森林虫鸣夜风"
+    elif any(k in positive for k in ["风", "麦田"]):
         intent["scene"] = "wind"
-        intent["scene_detail"] = "夜晚的风"
+        intent["scene_detail"] = "林间夜晚的风"
     # 心情
-    if any(k in say for k in ["专注", "学习", "工作", "自习"]):
+    if any(k in say for k in ["专注", "学习", "工作", "自习", "写东西", "看书"]):
         intent["mood"] = "focus"
     elif any(k in say for k in ["放松", "放空", "太累"]):
         intent["mood"] = "relax"
     # 暖 / 稳 / 禁忌
     if any(k in say for k in ["暖", "温柔", "柔和", "不刺耳"]):
         intent["warmth"] = "warm"
-    if any(k in say for k in ["稳", "别突然", "不要炸", "别炸"]):
+    if any(k in say for k in ["稳", "别突然", "不要炸", "别炸", "平稳"]):
         intent["dynamics"] = "steady"
-    for word in ["雷声", "尖锐", "白噪音", "循环", "人声", "音乐"]:
+    for word in ["雷声", "尖锐", "白噪音", "循环", "人声", "音乐", "噼啪", "鸟鸣"]:
         if word in say:
             intent["avoid"].append(word)
     return intent
@@ -86,8 +103,7 @@ def check(intent):
     for k in needed:
         if k not in intent:
             return False
-    if intent["scene"] not in ["rain", "ocean", "forest", "stream",
-                               "thunder", "wind", "fire", "mix"]:
+    if intent["scene"] not in qwen_client.SCENE_ENUM:
         return False
     return True
 
@@ -116,62 +132,43 @@ def understand(say):
 
 # ===== 多轮对话式 Agent 声景编排（支持思考解释、多轨参数、耳朵档案与增量微调） =====
 
-TRACK_CATALOG = {
-    "母带_城市夜雨_CC0.mp3": {
-        "name": "城市夜雨", "layer": "bed", "pan": 0.0, "mode": "loop", "density": 0.4,
-        "role_note": "暖厚窗外主雨幕",
-    },
-    "柔和雨.hq.mp3": {
-        "name": "柔和雨幕", "layer": "bed", "pan": 0.0, "mode": "loop", "density": 0.4,
-        "role_note": "绵密轻柔防吵底幕",
-    },
-    "乡村小雨.hq.mp3": {
-        "name": "乡村小雨", "layer": "bed", "pan": 0.0, "mode": "loop", "density": 0.4,
-        "role_note": "疏落檐下留白小雨",
-    },
-    "海浪_远海.hq.mp3": {
-        "name": "远海潮汐", "layer": "bed", "pan": 0.0, "mode": "loop", "density": 0.4,
-        "role_note": "远处推来的海浪",
-    },
-    "海浪_黑海.hq.mp3": {
-        "name": "深沉黑海", "layer": "bed", "pan": 0.0, "mode": "loop", "density": 0.4,
-        "role_note": "厚重低沉夜海潮声",
-    },
-    "溪流.hq.mp3": {
-        "name": "山涧溪流", "layer": "bed", "pan": -0.15, "mode": "loop", "density": 0.4,
-        "role_note": "清亮舒缓山间流水",
-    },
-    "备选_大雨打树叶_CC0.mp3": {
-        "name": "雨打树叶", "layer": "texture", "pan": -0.30, "mode": "loop", "density": 0.4,
-        "role_note": "枝叶间细碎雨滴感",
-    },
-    "夜风.hq.mp3": {
-        "name": "林间夜风", "layer": "texture", "pan": 0.35, "mode": "loop", "density": 0.4,
-        "role_note": "林梢吹过的晚风",
-    },
-    "雨中低鸣.hq.mp3": {
-        "name": "暖夜低鸣", "layer": "texture", "pan": 0.0, "mode": "loop", "density": 0.4,
-        "role_note": "低频暖意包裹垫底",
-    },
-    "远雷.hq.mp3": {
-        "name": "远处闷雷", "layer": "accent", "pan": 0.48, "mode": "intermittent", "density": 0.28,
-        "role_note": "天际偶尔滚过闷雷",
-    },
-    "虫鸣.hq.mp3": {
-        "name": "夏夜虫鸣", "layer": "accent", "pan": -0.42, "mode": "intermittent", "density": 0.50,
-        "role_note": "院落夏夜虫鸣点缀",
-    },
-}
+TRACK_CATALOG = sound_catalog.build_track_catalog_dict()
+ALLOWED_TRACK_SET = set(sound_catalog.ALLOWED_TRACK_FILES)
 
-ALLOWED_TRACK_SET = set(qwen_client.ALLOWED_TRACK_FILES)
+ASMR_KEYWORDS = (
+    "采耳", "掏耳", "羽毛", "毛刷", "梳头", "梳发", "麦套", "防风罩",
+    "扫麦", "轻触麦", "翻书", "翻页", "写字", "铅笔", "笔记", "轻敲",
+    "敲击", "抓挠", "海绵", "糖纸", "揉捏", "搓手", "轻抚", "asmr", "ASMR",
+)
+UNSUPPORTED_SOURCE_KEYWORDS = ("人声", "耳语", "说话", "讲故事", "口腔音", "咖啡馆", "颂钵", "钵音")
 
 
 def _clamp(val, lo, hi):
     return max(lo, min(hi, val))
 
 
+def _extract_avoid_tracks(user_context=None):
+    if not isinstance(user_context, dict):
+        return set()
+    raw = user_context.get("avoid_tracks") or []
+    return {os.path.basename(str(x).strip()) for x in raw if str(x).strip()}
+
+
+def _pick_non_avoided(candidates, avoid_tracks, fallback=None):
+    for fn in candidates:
+        if fn in ALLOWED_TRACK_SET and fn not in avoid_tracks:
+            return fn
+    if fallback and fallback in ALLOWED_TRACK_SET:
+        return fallback
+    for fn in candidates:
+        if fn in ALLOWED_TRACK_SET:
+            return fn
+    return "母带_城市夜雨_CC0.mp3"
+
+
 def _extract_collected_slots(full_text, user_context=None):
     avoid_flags = _extract_avoid_flags(full_text, user_context)
+    avoid_tracks = _extract_avoid_tracks(user_context)
     positive = _clean_positive_text(full_text)
 
     state = ""
@@ -179,37 +176,51 @@ def _extract_collected_slots(full_text, user_context=None):
         state = "失眠入睡"
     elif any(k in full_text for k in ("凌晨", "易醒", "焦虑")):
         state = "凌晨安神"
-    elif any(k in full_text for k in ("专注", "自习", "学习", "写东西", "工作")):
+    elif any(k in full_text for k in ("专注", "自习", "学习", "写东西", "工作", "看书")):
         state = "安静专注"
     elif any(k in full_text for k in ("累", "放空", "发呆", "放松")):
         state = "疲惫放空"
 
     scene = ""
-    if "黑海" in positive:
+    if any(k in positive for k in ("炉火", "壁炉", "篝火", "炭火", "营火")):
+        scene = "壁炉暖火" if "壁炉" in positive else "营地篝火"
+    elif any(k in positive for k in ("帐篷", "露营")) and any(k in positive for k in ("雨", "滴")):
+        scene = "帐篷夜雨"
+    elif "黑海" in positive:
         scene = "深沉黑海"
+    elif any(k in positive for k in ("沙滩", "海边")):
+        scene = "沙滩柔浪"
     elif any(k in positive for k in ("海", "潮汐", "浪")):
         scene = "远海潮汐"
-    elif any(k in positive for k in ("溪", "流水", "小河")):
+    elif any(k in positive for k in ("溪", "流水", "小河", "河水")):
         scene = "山涧溪流"
     elif any(k in positive for k in ("乡村", "檐下", "外婆家", "院子")) and any(k in positive for k in ("雨", "滴")):
         scene = "檐下乡村小雨"
     elif any(k in positive for k in ("雨", "雷")):
         scene = "窗外雨夜"
-    elif "虫" in positive or "夏夜" in positive or "院" in positive:
-        scene = "夏夜院落"
-    elif "风" in positive:
-        scene = "林间夜风"
+    elif any(k in positive for k in ("采耳", "掏耳", "羽毛", "麦套", "扫麦")):
+        scene = "近场采耳轻拂"
+    elif any(k in positive for k in ("翻书", "翻页", "写字", "铅笔", "笔记")):
+        scene = "深夜伴读"
+    elif any(k in positive for k in ASMR_KEYWORDS):
+        scene = "近场 ASMR"
+    elif "鸟" in positive or "夜莺" in positive or "虫" in positive or "夏夜" in positive or "院" in positive:
+        scene = "夏夜林院"
+    elif any(k in positive for k in ("林风", "树林", "森林", "麦田", "风")):
+        scene = "林间微风"
 
     texture = ""
     tex_parts = []
-    if any(k in positive for k in ("暖", "毯子", "包裹", "低鸣", "沉稳")):
+    if any(k in positive for k in ("暖", "毯子", "包裹", "低鸣", "沉稳", "壁炉")):
         tex_parts.append("暖厚包裹")
     if any(k in positive for k in ("柔", "绵密", "怕吵", "不吵", "轻一点", "不刺耳", "轻缓", "疏落")):
         tex_parts.append("轻柔绵密")
-    if any(k in positive for k in ("树叶", "雨叶", "枝叶", "颗粒", "细碎")):
-        tex_parts.append("雨打树叶颗粒")
+    if any(k in positive for k in ("树叶", "雨叶", "枝叶", "颗粒", "细碎", "噼啪")):
+        tex_parts.append("自然颗粒")
     if any(k in positive for k in ("清透", "清爽", "清亮", "干净", "真实", "母带")):
         tex_parts.append("清透自然")
+    if any(k in positive for k in ("酥麻", "轻拂", "扫麦", "采耳", "翻书", "写字")):
+        tex_parts.append("近场触发")
     if tex_parts:
         texture = " · ".join(tex_parts[:2])
 
@@ -220,7 +231,7 @@ def _extract_collected_slots(full_text, user_context=None):
         rhythm_parts.append("偶发留白")
     if any(k in full_text for k in ("稳", "别突然", "不要炸", "别炸", "平稳", "持续", "单层", "纯净")):
         rhythm_parts.append("平稳持续")
-    if any(k in positive for k in ("夜风", "微风", "风", "虫", "低鸣")) and scene not in ("林间夜风", "夏夜院落"):
+    if any(k in positive for k in ("夜风", "微风", "风", "虫", "鸟", "夜莺", "低鸣")) and scene not in ("林间微风", "夏夜林院"):
         rhythm_parts.append("多层陪伴")
     elif "雷" in positive and "雷" not in avoid_flags and "雷_档案" not in avoid_flags and "雷_记忆" not in avoid_flags:
         rhythm_parts.append("远雷偶发")
@@ -231,14 +242,20 @@ def _extract_collected_slots(full_text, user_context=None):
         avoid_labels.append("避开雷声")
     if any(f in avoid_flags for f in ("颗粒_档案", "颗粒_记忆", "树叶")):
         avoid_labels.append("避开尖锐颗粒")
+    if "噼啪" in avoid_flags:
+        avoid_labels.append("避开噼啪声")
     if "风" in avoid_flags:
         avoid_labels.append("不要夜风")
     if "虫" in avoid_flags:
         avoid_labels.append("不要虫鸣")
+    if "鸟" in avoid_flags:
+        avoid_labels.append("不要鸟鸣")
     if "低鸣" in avoid_flags:
         avoid_labels.append("不要音乐垫")
     if any(k in full_text for k in ("别太吵", "不要太吵", "不吵", "太杂", "别杂")):
         avoid_labels.append("不杂不吵")
+    if avoid_tracks:
+        avoid_labels.append("避开历史否决音轨")
     avoid = "、".join(avoid_labels)
 
     return {
@@ -285,7 +302,7 @@ def _sanitize_agent_design(raw, fallback_say="", force_compose=False, collected_
 
     raw_intent = raw.get("intent") if isinstance(raw.get("intent"), dict) else {}
     scene = str(raw_intent.get("scene") or "rain")
-    if scene not in ("rain", "ocean", "forest", "stream", "thunder", "wind", "fire", "mix"):
+    if scene not in qwen_client.SCENE_ENUM:
         scene = "rain"
     mood = str(raw_intent.get("mood") or "sleep")
     if mood not in ("sleep", "calm", "focus", "relax"):
@@ -440,6 +457,10 @@ def _extract_avoid_flags(say, user_context=None):
         ("风", ["不要风", "别加风", "没有风"]),
         ("树叶", ["不要树叶", "别放树叶", "不要雨叶"]),
         ("低鸣", ["不要低鸣", "不要音乐", "不要垫"]),
+        ("鸟", ["不要鸟", "别加鸟", "没有鸟"]),
+        ("火", ["不要火", "不要炉火", "不要篝火"]),
+        ("噼啪", ["不要噼啪", "别噼啪", "不要太吵", "别太吵"]),
+        ("敲击", ["不要敲", "别敲"]),
     ]
     for flag, kws in neg_patterns:
         if any(k in say for k in kws):
@@ -471,6 +492,9 @@ def _clean_positive_text(say):
         "千万别打雷", "不要雷声", "不要打雷", "别打雷", "不要雷", "没有雷",
         "不要虫鸣", "不要虫", "别放虫", "不要夜风", "不要风", "不要树叶",
         "不要低鸣", "不要音乐", "不要人声", "不要炸", "别炸", "别突然",
+        "不要鸟鸣", "不要鸟", "别加鸟", "不要炉火", "不要篝火", "不要火",
+        "不要噼啪", "别噼啪", "不要采耳", "不要敲击", "不要敲", "别敲",
+        "不要羽毛", "不要翻书", "不要写字", "不要糖纸",
     ]:
         positive = positive.replace(bad, "")
     return positive
@@ -515,6 +539,29 @@ def _parse_pan_override(say):
     return None
 
 
+# 叠加元素与关键词映射表（供规则编排与局部微调复用）
+OVERLAY_SPECS = [
+    (("树叶", "雨叶", "枝叶", "颗粒", "细碎"), "备选_大雨打树叶_CC0.mp3", 0.38, -0.32, "loop", 0.4, "树叶"),
+    (("麦田",), "微风_麦田柔风_447810.hq.mp3", 0.36, 0.28, "loop", 0.4, "风"),
+    (("风", "微风", "夜风"), "夜风.hq.mp3", 0.34, 0.36, "loop", 0.4, "风"),
+    (("鸟", "夜莺"), "鸟鸣_夜莺鸣叫_853566.hq.mp3", 0.30, 0.42, "intermittent", 0.30, "鸟"),
+    (("虫", "虫鸣"), "虫鸣.hq.mp3", 0.42, -0.44, "intermittent", 0.50, "虫"),
+    (("采耳", "掏耳"), "ASMR_采耳_690078.hq.mp3", 0.46, -0.20, "loop", 0.4, "采耳"),
+    (("麦套", "防风罩", "扫麦"), "ASMR_麦套轻扫抓挠_803595.hq.mp3", 0.48, 0.0, "loop", 0.4, "麦套"),
+    (("轻触麦",), "ASMR_轻触麦克风_530347.hq.mp3", 0.34, 0.0, "loop", 0.4, "麦套"),
+    (("羽毛",), "ASMR_羽毛轻拂_708086.hq.mp3", 0.40, 0.32, "intermittent", 0.38, "羽毛"),
+    (("梳头",), "ASMR_轻柔梳头_825798.hq.mp3", 0.42, 0.18, "intermittent", 0.40, "毛刷"),
+    (("毛刷", "梳发"), "ASMR_毛刷梳发_765369.hq.mp3", 0.42, -0.18, "intermittent", 0.40, "毛刷"),
+    (("翻书", "翻页", "看书"), "ASMR_翻书单人_360781.hq.mp3", 0.38, -0.28, "intermittent", 0.45, "翻书"),
+    (("写字", "铅笔", "笔记"), "ASMR_铅笔写字柔_336381.hq.mp3", 0.40, 0.25, "loop", 0.4, "写字"),
+    (("海绵",), "ASMR_海绵抓挠_690084.hq.mp3", 0.38, 0.25, "loop", 0.4, "海绵"),
+    (("轻敲", "敲击", "指尖"), "ASMR_指尖轻敲刮擦_866230.hq.mp3", 0.34, -0.32, "intermittent", 0.40, "敲击"),
+    (("手部", "搓手"), "ASMR_手部轻搓抓挠_684746.hq.mp3", 0.32, 0.20, "intermittent", 0.32, "抓挠"),
+    (("轻抚", "抓挠"), "ASMR_轻抚抓挠_695629.hq.mp3", 0.38, -0.22, "intermittent", 0.38, "抓挠"),
+    (("糖纸", "揉捏"), "ASMR_糖纸揉捏_802609.hq.mp3", 0.28, 0.30, "intermittent", 0.32, "糖纸"),
+]
+
+
 def _apply_incremental_tweak(say, current_tracks, user_context=None):
     tracks = [_build_track(t["path"], t.get("weight"), t.get("pan"), t.get("mode"), t.get("density"), t.get("role_note"))
               for t in current_tracks if t.get("path") in ALLOWED_TRACK_SET]
@@ -524,6 +571,7 @@ def _apply_incremental_tweak(say, current_tracks, user_context=None):
     changes = []
     reasoning = []
     avoid_flags = _extract_avoid_flags(say, user_context)
+    avoid_tracks = _extract_avoid_tracks(user_context)
 
     def find_idx(path):
         for i, t in enumerate(tracks):
@@ -531,37 +579,66 @@ def _apply_incremental_tweak(say, current_tracks, user_context=None):
                 return i
         return -1
 
-    def remove_path(path, label):
+    def remove_path(path, label=None):
         idx = find_idx(path)
         if idx != -1:
             tracks.pop(idx)
-            changes.append("移除了" + label)
+            changes.append("移除了" + (label or TRACK_CATALOG[path]["name"]))
 
-    # 1. 明确删除元素
-    if _has_negated_target(say, "雷") or "太突然" in say or "别炸" in say:
-        remove_path("远雷.hq.mp3", "远处闷雷")
-    if _has_negated_target(say, "风"):
-        remove_path("夜风.hq.mp3", "林间夜风")
-    if _has_negated_target(say, "虫"):
-        remove_path("虫鸣.hq.mp3", "夏夜虫鸣")
-    if _has_negated_target(say, "树叶") or _has_negated_target(say, "雨叶"):
-        remove_path("备选_大雨打树叶_CC0.mp3", "雨打树叶")
+    # 1. 明确删除元素（覆盖自然元素与新增的鸟鸣/炉火/近场 ASMR）
+    remove_rules = [
+        ("雷", ("远雷.hq.mp3",)),
+        ("风", ("夜风.hq.mp3", "微风_麦田柔风_447810.hq.mp3", "林风_树林波浪风_637989.hq.mp3", "林风_Akacie_73708.hq.mp3", "微风_小镇傍晚风_321904.hq.mp3")),
+        ("虫", ("虫鸣.hq.mp3",)),
+        ("鸟", ("鸟鸣_夜莺鸣叫_853566.hq.mp3",)),
+        ("夜莺", ("鸟鸣_夜莺鸣叫_853566.hq.mp3",)),
+        ("树叶", ("备选_大雨打树叶_CC0.mp3",)),
+        ("雨叶", ("备选_大雨打树叶_CC0.mp3",)),
+        ("火", ("炉火_壁炉低燃_836535.hq.mp3", "炉火_夜营氛围_766127.hq.mp3", "炉火_营地篝火_62487.hq.mp3")),
+        ("采耳", ("ASMR_采耳_690078.hq.mp3",)),
+        ("羽毛", ("ASMR_羽毛轻拂_708086.hq.mp3",)),
+        ("毛刷", ("ASMR_毛刷梳发_765369.hq.mp3", "ASMR_轻柔梳头_825798.hq.mp3")),
+        ("梳头", ("ASMR_轻柔梳头_825798.hq.mp3", "ASMR_毛刷梳发_765369.hq.mp3")),
+        ("翻书", ("ASMR_翻书单人_360781.hq.mp3", "ASMR_翻书多人_575764.hq.mp3")),
+        ("写字", ("ASMR_铅笔写字柔_336381.hq.mp3", "ASMR_铅笔写字轻快_376706.hq.mp3")),
+        ("敲", ("ASMR_指尖轻敲刮擦_866230.hq.mp3", "ASMR_木件桌游轻敲_569788.hq.mp3")),
+        ("糖纸", ("ASMR_糖纸揉捏_802609.hq.mp3",)),
+        ("抓挠", ("ASMR_手部轻搓抓挠_684746.hq.mp3", "ASMR_轻抚抓挠_695629.hq.mp3", "ASMR_海绵抓挠_690084.hq.mp3")),
+        ("麦套", ("ASMR_麦套轻扫抓挠_803595.hq.mp3",)),
+    ]
+    for kw, paths in remove_rules:
+        if _has_negated_target(say, kw) or (kw == "雷" and ("太突然" in say or "别炸" in say)):
+            for p in paths:
+                remove_path(p)
     if _has_negated_target(say, "低鸣") or _has_negated_target(say, "音乐") or "雨声小" in say or "雨太小" in say:
         remove_path("雨中低鸣.hq.mp3", "暖夜低鸣")
 
-    # 2. 经典整体反馈
+    # 2. 经典整体反馈（跨全部 41 段多场景生效）
     if any(k in say for k in ("吵", "刺耳", "太尖")):
-        remove_path("远雷.hq.mp3", "远处闷雷")
-        remove_path("备选_大雨打树叶_CC0.mp3", "雨打树叶")
+        for harsh in ("远雷.hq.mp3", "备选_大雨打树叶_CC0.mp3", "ASMR_木件桌游轻敲_569788.hq.mp3", "ASMR_糖纸揉捏_802609.hq.mp3"):
+            remove_path(harsh)
         swapped = False
+        used_paths = {t["path"] for t in tracks}
         for i, t in enumerate(tracks):
-            if TRACK_CATALOG[t["path"]]["layer"] == "bed" and "雨" in TRACK_CATALOG[t["path"]]["name"]:
-                tracks[i] = _build_track("柔和雨.hq.mp3", min(t["weight"], 0.65), 0.0, "loop", 0.4, "轻柔防吵主雨幕")
-                swapped = True
-            else:
-                t["weight"] = round(max(0.18, t["weight"] * 0.72), 2)
-        changes.append("切换柔和雨幕并整体调轻" if swapped else "整体压轻了高频与响度")
-        reasoning.append("识别到“太吵/刺耳”：撤掉颗粒冲击并柔化底幕")
+            meta = TRACK_CATALOG[t["path"]]
+            if meta["layer"] == "bed" or i == 0:
+                alts = sound_catalog.find_alternatives(
+                    t["path"],
+                    prefer_softer=True,
+                    exclude_filenames=avoid_tracks | used_paths,
+                    avoid_tags=["吵", "尖锐", "削波", "噼啪"],
+                )
+                if alts and meta["intensity"] != "soft":
+                    new_fn = alts[0]["filename"]
+                    tracks[i] = _build_track(new_fn, min(t["weight"], 0.65), t["pan"], "loop", 0.4)
+                    used_paths.add(new_fn)
+                    swapped = True
+                    changes.append(f"将「{meta['name']}」换成更轻柔的「{alts[0]['name']}」")
+                    continue
+            t["weight"] = round(max(0.18, t["weight"] * 0.72), 2)
+        if not swapped:
+            changes.append("整体压轻了高频与响度")
+        reasoning.append("识别到“太吵/刺耳”：撤掉瞬态冲击并切换更柔和稳重的版本")
 
     if any(k in say for k in ("杂", "乱", "好几层")):
         tracks.sort(key=lambda x: x["weight"], reverse=True)
@@ -578,10 +655,26 @@ def _apply_incremental_tweak(say, current_tracks, user_context=None):
         reasoning.append("识别到“不真实”：回归最稳妥的真实录音母带")
 
     if any(k in say for k in ("闷", "没细节", "听不清")):
-        if find_idx("备选_大雨打树叶_CC0.mp3") == -1:
+        main_meta = TRACK_CATALOG[tracks[0]["path"]]
+        if main_meta["scene"] == "rain" and find_idx("备选_大雨打树叶_CC0.mp3") == -1:
             tracks.append(_build_track("备选_大雨打树叶_CC0.mp3", 0.35, -0.30, "loop", 0.4, "补充细碎雨滴细节"))
             changes.append("加入左前「雨打树叶」补回颗粒细节")
-            reasoning.append("识别到“太闷”：增加雨滴打在枝叶上的纹理层")
+        else:
+            used_paths = {t["path"] for t in tracks}
+            alts = sound_catalog.find_alternatives(
+                tracks[0]["path"],
+                prefer_more_detail=True,
+                exclude_filenames=avoid_tracks | used_paths,
+            )
+            if alts:
+                tracks[0] = _build_track(alts[0]["filename"], tracks[0]["weight"], tracks[0]["pan"], tracks[0]["mode"], tracks[0]["density"])
+                changes.append(f"将「{main_meta['name']}」换成细节更丰富的「{alts[0]['name']}」")
+            else:
+                for t in tracks:
+                    if TRACK_CATALOG[t["path"]]["layer"] != "bed":
+                        t["weight"] = round(min(0.85, t["weight"] * 1.25), 2)
+                changes.append("适度提升了细节层清晰度")
+        reasoning.append("识别到“太闷/没细节”：增加清晰纹理细节")
 
     if any(k in say for k in ("更稳", "稳一点", "别突然")):
         remove_path("远雷.hq.mp3", "远处闷雷")
@@ -601,19 +694,30 @@ def _apply_incremental_tweak(say, current_tracks, user_context=None):
 
     # 2.5 底幕替换（保留已有配角纹理与点缀）
     if any(k in say for k in ("换", "改")) and not any(k in say for k in ("偶发", "偶尔", "持续")):
+        bed_swap_rules = [
+            (("帐篷", "露营"), "帐篷雨_小帐篷大雨_592996.hq.mp3"),
+            (("柔和", "轻雨", "细雨"), "柔和雨.hq.mp3"),
+            (("乡村", "小雨"), "乡村小雨.hq.mp3"),
+            (("城市",), "母带_城市夜雨_CC0.mp3"),
+            (("夜营", "余烬"), "炉火_夜营氛围_766127.hq.mp3"),
+            (("篝火",), "炉火_营地篝火_62487.hq.mp3"),
+            (("壁炉", "炉火", "火"), "炉火_壁炉低燃_836535.hq.mp3"),
+            (("黑海",), "海浪_黑海.hq.mp3"),
+            (("沙滩",), "海浪_沙滩柔浪_325197.hq.mp3"),
+            (("湖", "柔浪"), "海浪_湖海柔浪_451532.hq.mp3"),
+            (("海", "浪"), "海浪_远海.hq.mp3"),
+            (("河水", "柔和河"), "溪流_柔和河水_707576.hq.mp3"),
+            (("小溪",), "溪流_小溪循环_767320.hq.mp3"),
+            (("野外溪",), "溪流_野外溪水_180732.hq.mp3"),
+            (("溪",), "溪流.hq.mp3"),
+            (("林风", "树林", "森林"), "林风_树林波浪风_637989.hq.mp3"),
+            (("傍晚", "微风"), "微风_小镇傍晚风_321904.hq.mp3"),
+        ]
         new_bed = None
-        if "柔和" in say or "轻雨" in say or "细雨" in say:
-            new_bed = "柔和雨.hq.mp3"
-        elif "乡村" in say or "小雨" in say:
-            new_bed = "乡村小雨.hq.mp3"
-        elif "城市" in say:
-            new_bed = "母带_城市夜雨_CC0.mp3"
-        elif "黑海" in say:
-            new_bed = "海浪_黑海.hq.mp3"
-        elif "海" in say or "浪" in say:
-            new_bed = "海浪_远海.hq.mp3"
-        elif "溪" in say:
-            new_bed = "溪流.hq.mp3"
+        for kws, cand_fn in bed_swap_rules:
+            if any(k in say for k in kws):
+                new_bed = cand_fn
+                break
         if new_bed and find_idx(new_bed) == -1:
             replaced = False
             for i, t in enumerate(tracks):
@@ -632,55 +736,31 @@ def _apply_incremental_tweak(say, current_tracks, user_context=None):
 
     add_cues = ("加", "来点", "添", "配", "放", "多点", "补", "要")
     if any(c in say for c in add_cues):
-        if "风" in say and not _has_negated_target(say, "风"):
-            idx = find_idx("夜风.hq.mp3")
-            p = pan_override if pan_override is not None else 0.35
-            if idx == -1 and len(tracks) < 4:
-                tracks.append(_build_track("夜风.hq.mp3", 0.34, p, "intermittent" if want_intermittent else "loop", 0.45))
-                changes.append("在" + ("左侧" if p < -0.1 else ("右侧" if p > 0.1 else "前方")) + "加入了「林间夜风」")
-        if "虫" in say and not _has_negated_target(say, "虫"):
-            idx = find_idx("虫鸣.hq.mp3")
-            p = pan_override if pan_override is not None else -0.42
-            if idx == -1 and len(tracks) < 4:
-                tracks.append(_build_track("虫鸣.hq.mp3", 0.40, p, "loop" if want_loop else "intermittent", 0.50))
-                changes.append("加入了「夏夜虫鸣」")
+        for kws, path, w, default_pan, default_mode, den, flag in OVERLAY_SPECS:
+            if len(tracks) >= 4:
+                break
+            if any(k in say for k in kws) and not _has_negated_target(say, flag) and flag not in avoid_flags:
+                if find_idx(path) == -1 and path not in avoid_tracks:
+                    p = pan_override if pan_override is not None else default_pan
+                    mode = "intermittent" if want_intermittent else ("loop" if want_loop else default_mode)
+                    tracks.append(_build_track(path, w, p, mode, den))
+                    changes.append(f"加入了「{TRACK_CATALOG[path]['name']}」")
         if "雷" in say and not _has_negated_target(say, "雷") and "雷" not in avoid_flags:
-            idx = find_idx("远雷.hq.mp3")
-            p = pan_override if pan_override is not None else 0.48
-            if idx == -1 and len(tracks) < 4:
+            if find_idx("远雷.hq.mp3") == -1 and len(tracks) < 4:
+                p = pan_override if pan_override is not None else 0.48
                 tracks.append(_build_track("远雷.hq.mp3", 0.36, p, "loop" if want_loop else "intermittent", 0.28))
-                changes.append("在右侧天边加入了「远处闷雷」（偶发）")
-        if ("树叶" in say or "雨叶" in say) and not _has_negated_target(say, "树叶"):
-            idx = find_idx("备选_大雨打树叶_CC0.mp3")
-            p = pan_override if pan_override is not None else -0.32
-            if idx == -1 and len(tracks) < 4:
-                tracks.append(_build_track("备选_大雨打树叶_CC0.mp3", 0.36, p, "loop"))
-                changes.append("加入了「雨打树叶」细节层")
+                changes.append("在右侧天边加入了「天际远雷」（偶发）")
         if ("低鸣" in say or "暖" in say or "厚" in say) and not _has_negated_target(say, "低鸣"):
             if find_idx("雨中低鸣.hq.mp3") == -1 and len(tracks) < 4:
                 tracks.append(_build_track("雨中低鸣.hq.mp3", 0.28, 0.0, "loop"))
                 changes.append("加入了「暖夜低鸣」托住温度")
 
     # 4. 针对已有轨道的节奏 / 方位 / 轻重微调
-    target_map = [
-        ("雷", "远雷.hq.mp3"),
-        ("虫", "虫鸣.hq.mp3"),
-        ("风", "夜风.hq.mp3"),
-        ("树叶", "备选_大雨打树叶_CC0.mp3"),
-        ("低鸣", "雨中低鸣.hq.mp3"),
-        ("海", "海浪_远海.hq.mp3"),
-        ("浪", "海浪_远海.hq.mp3"),
-        ("溪", "溪流.hq.mp3"),
-        ("雨", "母带_城市夜雨_CC0.mp3"),
-    ]
     targeted = []
-    for kw, path in target_map:
-        if kw in say and find_idx(path) != -1:
-            targeted.append(path)
-    if not targeted and "雨" in say:
-        for t in tracks:
-            if TRACK_CATALOG[t["path"]]["layer"] == "bed":
-                targeted.append(t["path"])
+    for t in tracks:
+        meta = TRACK_CATALOG[t["path"]]
+        if any(tag in say for tag in meta["tags"]) or meta["name"] in say:
+            targeted.append(t["path"])
 
     if want_intermittent:
         chosen = targeted or [t["path"] for t in tracks if TRACK_CATALOG[t["path"]]["layer"] != "bed"]
@@ -740,13 +820,16 @@ def _apply_incremental_tweak(say, current_tracks, user_context=None):
     reply = "好的，已经" + "，".join(changes) + "。现在这段的层次会更贴合你。"
 
     collected_tweak = _extract_collected_slots(say, user_context)
+    lead_scene = TRACK_CATALOG[tracks[0]["path"]]["scene"]
+    if lead_scene not in qwen_client.SCENE_ENUM:
+        lead_scene = "mix"
     return _sanitize_agent_design({
         "action": "compose",
         "title": title[:14],
         "reply": reply,
         "collected": collected_tweak,
         "intent": {
-            "scene": "rain" if any("雨" in TRACK_CATALOG[t["path"]]["name"] for t in tracks) else "mix",
+            "scene": lead_scene,
             "scene_detail": title,
             "mood": "sleep",
             "warmth": "warm" if "暖" in say or find_idx("雨中低鸣.hq.mp3") != -1 else "neutral",
@@ -782,7 +865,7 @@ def _build_ask_turn(collected, merged_text, user_context=None):
             "title": "待选夜色",
             "reply": "先定一个主画面。",
             "question": "今晚想听哪种夜色？",
-            "options": ["窗外夜雨", "远处海浪", "夏夜虫鸣微风", "山间小溪"],
+            "options": ["窗外夜雨", "壁炉炉火", "远处海浪", "轻柔采耳ASMR"],
             "collected": collected,
             "reasoning": [
                 "已了解你的基本状态",
@@ -792,18 +875,24 @@ def _build_ask_turn(collected, merged_text, user_context=None):
         }, merged_text, force_compose=False, collected_fallback=collected)
 
     if not tex_txt:
-        if "海" in scene_txt:
+        if "海" in scene_txt or "浪" in scene_txt:
             q = "偏爱哪种海浪听感？"
-            opts = ["远海柔和推浪", "深沉厚重黑海", "远海带点暖意", "清透纯海浪"]
+            opts = ["远海柔和推浪", "深沉厚重黑海", "长段平稳湖浪", "清透沙滩浪"]
         elif "溪" in scene_txt:
             q = "溪流想要哪种氛围？"
-            opts = ["清亮纯山溪", "溪水配雨打树叶", "加点暖意包裹", "轻柔平缓点"]
-        elif "夏夜" in scene_txt or "夜风" in scene_txt:
-            q = "夏夜想偏哪种感觉？"
-            opts = ["安静院落纳凉", "带点暖意夜风", "加点稀疏小雨", "清透多留白"]
+            opts = ["柔和缓流河水", "清亮山涧小溪", "加点夜莺鸟鸣", "溪水配夜风"]
+        elif "火" in scene_txt:
+            q = "炉火想要哪种燃感？"
+            opts = ["平稳壁炉低燃", "极柔和夜营微火", "带木柴噼啪篝火", "炉火配雨声"]
+        elif "ASMR" in scene_txt or "采耳" in scene_txt or "伴读" in scene_txt:
+            q = "近场 ASMR 想配点自然底吗？"
+            opts = ["纯近场触发就好", "配一点柔和夜雨", "配温暖壁炉低燃", "稀疏偶发轻一点"]
+        elif "夏夜" in scene_txt or "微风" in scene_txt:
+            q = "林院想偏哪种感觉？"
+            opts = ["安静林间空气", "林风配稀疏夜莺", "加点夏夜虫鸣", "麦田沙沙微风"]
         else:
             q = "这场雨想要什么质感？"
-            opts = ["绵密暖厚像毯子", "带雨打树叶颗粒", "轻缓檐下小雨", "沉稳城市夜雨"]
+            opts = ["绵密暖厚像毯子", "露营帐篷大雨", "轻缓檐下小雨", "沉稳城市夜雨"]
         return _sanitize_agent_design({
             "action": "ask",
             "title": scene_txt,
@@ -821,9 +910,9 @@ def _build_ask_turn(collected, merged_text, user_context=None):
     if not rhythm_txt and not avoid_txt:
         q = "还要加点陪伴或点缀吗？"
         if any(f in avoid_flags for f in ("雷", "雷_档案", "雷_记忆")):
-            opts = ["纯净单层就够了", "右侧加点林间夜风", "加暖夜低鸣更稳", "左侧偶尔几声虫鸣"]
+            opts = ["纯净单层就够了", "右侧加点林间夜风", "偶尔一点羽毛轻拂", "左侧偶尔几声虫鸣"]
         else:
-            opts = ["纯净平稳，别打雷", "右侧加点林间夜风", "天边偶尔一声闷雷", "左侧偶尔几声虫鸣"]
+            opts = ["纯净平稳，别打雷", "右侧加点林间夜风", "天边偶尔一声闷雷", "加点稀疏夜莺鸟鸣"]
         return _sanitize_agent_design({
             "action": "ask",
             "title": scene_txt,
@@ -874,6 +963,42 @@ def design_soundscape_rules(
         k in say for k in ("直接生成", "直接配", "跳过", "按目前信息", "不用再问")
     )
 
+    # 越界声源诚实边界检测（如人声耳语/讲故事/口腔音等库里完全未收录的声源）
+    positive_merged = _clean_positive_text(merged_text)
+    has_unsupported = any(k in positive_merged for k in UNSUPPORTED_SOURCE_KEYWORDS)
+    has_supported_scene = any(
+        k in positive_merged
+        for k in ("雨", "海", "浪", "溪", "火", "炉", "风", "虫", "鸟", "夜莺") + ASMR_KEYWORDS
+    )
+    if has_unsupported and not has_supported_scene:
+        avoid_tracks = _extract_avoid_tracks(user_context)
+        t1 = _pick_non_avoided(["ASMR_采耳_690078.hq.mp3", "ASMR_麦套轻扫抓挠_803595.hq.mp3"], avoid_tracks)
+        t2 = _pick_non_avoided(["ASMR_羽毛轻拂_708086.hq.mp3", "柔和雨.hq.mp3"], avoid_tracks)
+        tracks = [_build_track(t1, 0.56, 0.0, "loop")]
+        if t2 != t1:
+            tracks.append(_build_track(t2, 0.36, 0.25, "intermittent", 0.35))
+        return _sanitize_agent_design({
+            "action": "compose",
+            "title": "轻柔近场替代",
+            "reply": "目前素材库暂未收录人声耳语或讲故事等声源，先为你搭配最轻柔的「轻柔采耳 + 羽毛轻拂」近场组合试试。",
+            "collected": _extract_collected_slots(merged_text, user_context),
+            "final_prompt": "暂未收录人声耳语，推荐近场轻柔采耳与羽毛轻拂替代",
+            "intent": {
+                "scene": "asmr",
+                "scene_detail": "近场轻柔采耳与羽毛轻拂",
+                "mood": "sleep",
+                "warmth": "warm",
+                "dynamics": "steady",
+                "avoid": [],
+            },
+            "reasoning": [
+                "诚实边界：库内暂无真人耳语/口腔/讲故事录音",
+                "改用已验收的近场采耳与羽毛轻拂替代",
+            ],
+            "tracks": tracks,
+            "followups": ["换成城市夜雨", "加一点柔和雨", "声音更轻柔"],
+        }, merged_text, force_compose=True)
+
     collected = _extract_collected_slots(merged_text, user_context)
     if not current_tracks and not skip_qa:
         ask_turn = _build_ask_turn(collected, merged_text, user_context)
@@ -883,6 +1008,7 @@ def design_soundscape_rules(
     # 出稿时用合并后的全部上下文，避免第2~3轮短回答丢失初始主场景
     full_say = merged_text
     avoid_flags = _extract_avoid_flags(full_say, user_context)
+    avoid_tracks = _extract_avoid_tracks(user_context)
     positive = _clean_positive_text(full_say)
 
     tracks = []
@@ -892,96 +1018,171 @@ def design_soundscape_rules(
     warmth = "neutral"
     dynamics = "natural"
 
-    if any(k in full_say for k in ("专注", "自习", "学习", "写东西", "工作")):
+    if any(k in full_say for k in ("专注", "自习", "学习", "写东西", "工作", "看书", "笔记")):
         mood = "focus"
     elif any(k in full_say for k in ("放空", "发呆", "放松", "太累", "累")):
         mood = "relax"
 
-    if any(k in full_say for k in ("暖", "温柔", "柔和", "不刺耳", "毯子")):
+    if any(k in full_say for k in ("暖", "温柔", "柔和", "不刺耳", "毯子", "壁炉")):
         warmth = "warm"
     elif any(k in full_say for k in ("清透", "清爽", "凉")):
         warmth = "cool"
 
-    if any(k in full_say for k in ("稳", "别突然", "不要炸", "别炸")) or "雷" in avoid_flags or "雷_档案" in avoid_flags:
+    if any(k in full_say for k in ("稳", "别突然", "不要炸", "别炸", "平稳", "别太吵", "不要太吵")) or "雷" in avoid_flags or "雷_档案" in avoid_flags:
         dynamics = "steady"
 
-    # 1. 选底幕（推荐单选，避免多个满频雨/海浪互糊）
+    # 1. 选主底幕（覆盖自然场景 18 段 + 纯 ASMR 起手场景）
     bed_path = None
-    if "黑海" in positive:
-        bed_path = "海浪_黑海.hq.mp3"
+    if any(k in positive for k in ("炉火", "壁炉", "篝火", "炭火", "营火")) and "火" not in avoid_flags:
+        if any(k in positive for k in ("夜营", "微火", "余烬", "别太吵", "不要太吵", "怕吵", "不吵", "极柔")):
+            bed_path = _pick_non_avoided(["炉火_夜营氛围_766127.hq.mp3", "炉火_壁炉低燃_836535.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("篝火", "噼啪", "木柴")) and "噼啪" not in avoid_flags:
+            bed_path = _pick_non_avoided(["炉火_营地篝火_62487.hq.mp3", "炉火_壁炉低燃_836535.hq.mp3"], avoid_tracks)
+        else:
+            bed_path = _pick_non_avoided(["炉火_壁炉低燃_836535.hq.mp3", "炉火_夜营氛围_766127.hq.mp3"], avoid_tracks)
+        scene = "fire"
+    elif any(k in positive for k in ("帐篷", "露营")) and any(k in positive for k in ("雨", "滴")):
+        bed_path = _pick_non_avoided(["帐篷雨_小帐篷大雨_592996.hq.mp3", "母带_城市夜雨_CC0.mp3"], avoid_tracks)
+        scene = "rain"
+    elif "黑海" in positive:
+        bed_path = _pick_non_avoided(["海浪_黑海.hq.mp3", "海浪_远海.hq.mp3"], avoid_tracks)
+        scene = "ocean"
+    elif any(k in positive for k in ("沙滩", "海边")):
+        bed_path = _pick_non_avoided(["海浪_沙滩柔浪_325197.hq.mp3", "海浪_湖海柔浪_451532.hq.mp3"], avoid_tracks)
+        scene = "ocean"
+    elif any(k in positive for k in ("湖浪", "柔浪")):
+        bed_path = _pick_non_avoided(["海浪_湖海柔浪_451532.hq.mp3", "海浪_远海.hq.mp3"], avoid_tracks)
         scene = "ocean"
     elif any(k in positive for k in ("海", "潮汐", "浪")):
-        bed_path = "海浪_远海.hq.mp3"
+        if dynamics == "steady" or warmth == "warm":
+            bed_path = _pick_non_avoided(["海浪_湖海柔浪_451532.hq.mp3", "海浪_远海.hq.mp3"], avoid_tracks)
+        else:
+            bed_path = _pick_non_avoided(["海浪_远海.hq.mp3", "海浪_湖海柔浪_451532.hq.mp3"], avoid_tracks)
         scene = "ocean"
-    elif any(k in positive for k in ("溪", "流水", "小河")):
-        bed_path = "溪流.hq.mp3"
+    elif any(k in positive for k in ("溪", "流水", "小河", "河水")):
+        if any(k in positive for k in ("河水", "长", "柔和", "平稳", "不吵", "暖")):
+            bed_path = _pick_non_avoided(["溪流_柔和河水_707576.hq.mp3", "溪流_小溪循环_767320.hq.mp3", "溪流.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("小溪", "安静", "轻缓")):
+            bed_path = _pick_non_avoided(["溪流_小溪循环_767320.hq.mp3", "溪流_柔和河水_707576.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("野外", "水花")):
+            bed_path = _pick_non_avoided(["溪流_野外溪水_180732.hq.mp3", "溪流_柔和河水_707576.hq.mp3"], avoid_tracks)
+        else:
+            bed_path = _pick_non_avoided(["溪流.hq.mp3", "溪流_柔和河水_707576.hq.mp3"], avoid_tracks)
         scene = "stream"
     elif any(k in positive for k in ("乡村", "檐下", "外婆家", "院子")) and any(k in positive for k in ("雨", "滴")):
-        bed_path = "乡村小雨.hq.mp3"
+        bed_path = _pick_non_avoided(["乡村小雨.hq.mp3", "柔和雨.hq.mp3"], avoid_tracks)
         scene = "rain"
-    elif any(k in positive for k in ("柔和雨", "轻雨", "细雨", "怕吵", "不吵", "轻柔", "柔一点", "绵密柔和")):
-        bed_path = "柔和雨.hq.mp3"
+    elif any(k in positive for k in ("柔和雨", "轻雨", "细雨", "怕吵", "不吵", "轻柔", "柔一点", "绵密柔和")) and "雨" in positive:
+        bed_path = _pick_non_avoided(["柔和雨.hq.mp3", "乡村小雨.hq.mp3", "母带_城市夜雨_CC0.mp3"], avoid_tracks)
         scene = "rain"
-    elif any(k in positive for k in ("雨", "睡不着", "失眠", "夜色", "加班", "雷")):
-        if "颗粒_档案" in avoid_flags or "颗粒_记忆" in avoid_flags:
-            bed_path = "柔和雨.hq.mp3"
+    elif any(k in positive for k in ("雨", "雷")):
+        if "颗粒_档案" in avoid_flags or "颗粒_记忆" in avoid_flags or any(k in positive for k in ("柔和", "怕吵", "别太吵")):
+            bed_path = _pick_non_avoided(["柔和雨.hq.mp3", "母带_城市夜雨_CC0.mp3"], avoid_tracks)
         else:
-            bed_path = "母带_城市夜雨_CC0.mp3"
+            bed_path = _pick_non_avoided(["母带_城市夜雨_CC0.mp3", "柔和雨.hq.mp3"], avoid_tracks)
         scene = "rain"
-    elif "虫" in positive or "风" in positive:
-        bed_path = "夜风.hq.mp3"
-        scene = "forest" if "虫" in positive else "wind"
+    elif any(k in positive for k in ASMR_KEYWORDS):
+        # 纯近场 ASMR 场景（未同时要求自然雨/海/溪/火铺底）
+        scene = "asmr"
+        if any(k in positive for k in ("麦套", "防风罩", "扫麦")):
+            bed_path = _pick_non_avoided(["ASMR_麦套轻扫抓挠_803595.hq.mp3", "ASMR_采耳_690078.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("采耳", "掏耳")):
+            bed_path = _pick_non_avoided(["ASMR_采耳_690078.hq.mp3", "ASMR_麦套轻扫抓挠_803595.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("梳头", "毛刷", "梳发")):
+            bed_path = _pick_non_avoided(["ASMR_轻柔梳头_825798.hq.mp3", "ASMR_毛刷梳发_765369.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("翻书", "翻页", "看书")):
+            bed_path = _pick_non_avoided(["ASMR_翻书多人_575764.hq.mp3", "ASMR_翻书单人_360781.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("写字", "铅笔", "笔记")):
+            bed_path = _pick_non_avoided(["ASMR_铅笔写字柔_336381.hq.mp3", "ASMR_铅笔写字轻快_376706.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("羽毛",)):
+            bed_path = _pick_non_avoided(["ASMR_羽毛轻拂_708086.hq.mp3", "ASMR_采耳_690078.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("海绵",)):
+            bed_path = _pick_non_avoided(["ASMR_海绵抓挠_690084.hq.mp3", "ASMR_麦套轻扫抓挠_803595.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("轻敲", "敲击", "指尖")):
+            bed_path = _pick_non_avoided(["ASMR_指尖轻敲刮擦_866230.hq.mp3", "ASMR_木件桌游轻敲_569788.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("糖纸", "揉捏")):
+            bed_path = _pick_non_avoided(["ASMR_糖纸揉捏_802609.hq.mp3", "ASMR_海绵抓挠_690084.hq.mp3"], avoid_tracks)
+        elif any(k in positive for k in ("轻抚", "抓挠", "搓手")):
+            bed_path = _pick_non_avoided(["ASMR_轻抚抓挠_695629.hq.mp3", "ASMR_手部轻搓抓挠_684746.hq.mp3"], avoid_tracks)
+        else:
+            bed_path = _pick_non_avoided(["ASMR_麦套轻扫抓挠_803595.hq.mp3", "ASMR_采耳_690078.hq.mp3"], avoid_tracks)
+    elif any(k in positive for k in ("林风", "树林", "森林", "松涛")):
+        if any(k in positive for k in ("静", "轻", "柔", "不吵")):
+            bed_path = _pick_non_avoided(["林风_Akacie_73708.hq.mp3", "林风_树林波浪风_637989.hq.mp3"], avoid_tracks)
+        else:
+            bed_path = _pick_non_avoided(["林风_树林波浪风_637989.hq.mp3", "林风_Akacie_73708.hq.mp3"], avoid_tracks)
+        scene = "wind"
+    elif any(k in positive for k in ("麦田", "傍晚", "山谷", "微风")):
+        bed_path = _pick_non_avoided(["微风_小镇傍晚风_321904.hq.mp3", "微风_麦田柔风_447810.hq.mp3"], avoid_tracks)
+        scene = "wind"
+    elif any(k in positive for k in ("鸟", "夜莺", "虫", "风")):
+        bed_path = _pick_non_avoided(["林风_Akacie_73708.hq.mp3", "夜风.hq.mp3"], avoid_tracks)
+        scene = "forest" if ("虫" in positive or "鸟" in positive or "夜莺" in positive) else "wind"
     else:
-        bed_path = "母带_城市夜雨_CC0.mp3"
+        bed_path = _pick_non_avoided(["母带_城市夜雨_CC0.mp3", "柔和雨.hq.mp3"], avoid_tracks)
         scene = "rain"
 
-    tracks.append(_build_track(bed_path, 0.72 if bed_path != "夜风.hq.mp3" else 0.56))
-    reasoning.append(f"综合初始提示词与问答确认，选定「{TRACK_CATALOG[bed_path]['name']}」作为单一主底幕")
+    lead_mode = TRACK_CATALOG[bed_path]["mode"] if scene == "asmr" and TRACK_CATALOG[bed_path]["duration_sec"] < 20 else "loop"
+    tracks.append(_build_track(bed_path, 0.70 if scene != "asmr" else 0.60, 0.0, lead_mode))
+    reasoning.append(f"综合需求与标签匹配，选定「{TRACK_CATALOG[bed_path]['name']}」作为主声轨")
 
-    # 2. 叠加纹理与点缀层（支持多元素组合 + 局部分向解析）
-    if any(k in positive for k in ("树叶", "雨叶", "枝叶", "颗粒", "细碎")) and "树叶" not in avoid_flags and bed_path != "备选_大雨打树叶_CC0.mp3":
-        p = _pan_for_clause(positive, ("树叶", "雨叶", "枝叶"), -0.32)
-        tracks.append(_build_track("备选_大雨打树叶_CC0.mp3", 0.38, p, "loop"))
+    # 2. 叠加兼容的纹理与点缀层（支持跨自然与 ASMR 混搭，严格避开 avoid_tracks）
+    def add_if_valid(path, w, p, mode, den):
+        if len(tracks) >= 4:
+            return
+        if path in avoid_tracks or any(t["path"] == path for t in tracks):
+            return
+        tracks.append(_build_track(path, w, p, mode, den))
 
-    if "风" in positive and "风" not in avoid_flags and bed_path != "夜风.hq.mp3":
-        p = _pan_for_clause(positive, ("风", "微风", "夜风"), 0.36)
-        tracks.append(_build_track("夜风.hq.mp3", 0.34, p, "loop"))
-
-    if "虫" in positive and "虫" not in avoid_flags:
-        p = _pan_for_clause(positive, ("虫", "虫鸣"), -0.44)
-        is_inter = True if ("偶" in positive or "时起时歇" in positive or "稀疏" in positive or bed_path != "夜风.hq.mp3") else False
-        tracks.append(_build_track("虫鸣.hq.mp3", 0.42, p, "intermittent" if is_inter else "loop", 0.50))
+    for kws, path, w, default_pan, default_mode, den, flag in OVERLAY_SPECS:
+        if len(tracks) >= 4:
+            break
+        if any(k in positive for k in kws) and flag not in avoid_flags and path != bed_path:
+            # 避免同一个关键词选出重复语义轨道（例如"翻书"不重复叠双书）
+            if any(TRACK_CATALOG[t["path"]]["scene"] == TRACK_CATALOG[path]["scene"] and TRACK_CATALOG[t["path"]]["name"][:2] == TRACK_CATALOG[path]["name"][:2] for t in tracks):
+                continue
+            p = _pan_for_clause(positive, kws, default_pan)
+            mode = "intermittent" if any(k in positive for k in ("偶", "稀疏", "点缀")) else default_mode
+            add_if_valid(path, w, p, mode, den)
 
     if "雷" in positive and "雷" not in avoid_flags and "雷_档案" not in avoid_flags and "雷_记忆" not in avoid_flags:
         p = _pan_for_clause(positive, ("雷", "闷雷", "远雷"), 0.48)
-        tracks.append(_build_track("远雷.hq.mp3", 0.36, p, "intermittent", 0.28))
+        add_if_valid("远雷.hq.mp3", 0.36, p, "intermittent", 0.28)
         scene = "thunder"
 
     if (warmth == "warm" or "低鸣" in positive) and "低鸣" not in avoid_flags and bed_path in ("母带_城市夜雨_CC0.mp3", "柔和雨.hq.mp3", "海浪_远海.hq.mp3"):
-        if len(tracks) < 3 and "溪" not in positive:
-            tracks.append(_build_track("雨中低鸣.hq.mp3", 0.28, 0.0, "loop"))
+        if len(tracks) < 3 and "溪" not in positive and scene != "asmr":
+            add_if_valid("雨中低鸣.hq.mp3", 0.28, 0.0, "loop", 0.4)
 
     if isinstance(user_context, dict) and isinstance(user_context.get("ear_profile"), dict):
         arch = user_context["ear_profile"].get("archetype_name")
         if arch:
             reasoning.append(f"已结合你的「{arch}」耳朵档案偏好过滤敏感声音")
+    if avoid_tracks:
+        reasoning.append("已自动避开你历史否决过的音轨")
 
     if len(tracks) > 1:
         layer_names = "、".join(TRACK_CATALOG[t["path"]]["name"] for t in tracks[1:])
-        reasoning.append(f"叠加「{layer_names}」并拉开左右方位与偶发留白")
+        reasoning.append(f"搭配「{layer_names}」并拉开左右方位与呼吸感")
     else:
         reasoning.append("保持单轨纯净真实录音，避免多余层干扰入睡")
 
     # 3. 构造标题、最终提示词与回复
-    if scene == "ocean":
-        title = "星夜远海" if "夜风.hq.mp3" in {t["path"] for t in tracks} else "远海放空"
+    if scene == "fire":
+        title = TRACK_CATALOG[bed_path]["name"]
+    elif scene == "asmr":
+        title = TRACK_CATALOG[tracks[0]["path"]]["name"]
+        if len(tracks) > 1:
+            title = title + "·" + TRACK_CATALOG[tracks[1]["path"]]["name"]
+    elif scene == "ocean":
+        title = "星夜远海" if "夜风.hq.mp3" in {t["path"] for t in tracks} else TRACK_CATALOG[bed_path]["name"]
     elif scene == "stream":
-        title = "山涧清溪"
+        title = TRACK_CATALOG[bed_path]["name"]
     elif scene == "forest":
-        title = "夏夜院落"
+        title = "夏夜林院"
     elif scene == "thunder":
         title = "雨夜远雷"
-    elif warmth == "warm":
+    elif warmth == "warm" and bed_path == "母带_城市夜雨_CC0.mp3":
         title = "窗边暖雨"
     else:
         title = TRACK_CATALOG[bed_path]["name"]
@@ -993,7 +1194,7 @@ def design_soundscape_rules(
 
     return _sanitize_agent_design({
         "action": "compose",
-        "title": title,
+        "title": title[:20],
         "reply": reply,
         "collected": collected,
         "final_prompt": final_prompt,

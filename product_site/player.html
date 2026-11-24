@@ -4,63 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · 正在播放</title>
+<link rel="stylesheet" href="theme.css?v=12">
 <style>
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
   body{
-    margin:0;color:#f4effc;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    background:#0d0916;overflow:hidden;
+    overflow:hidden;
+    background:#07050d;
   }
-  /* 夜底：月亮光晕 + 水面，随时间慢慢暗下去 */
-  .stage{position:fixed;inset:0;transition:opacity 1.2s ease;
-    background-image:radial-gradient(circle at 50% 30%,rgba(183,148,246,.18),transparent 45%),
-      linear-gradient(180deg,#161029 0%,#0d0916 70%)}
-  .moon{position:absolute;left:50%;top:20%;transform:translateX(-50%);
-    width:120px;height:120px;border-radius:50%;
-    background:radial-gradient(circle at 38% 36%,#f3e9ff,#c9a8ff 60%,#8b6fd6);
-    box-shadow:0 0 60px 18px rgba(201,168,255,.35);
-    animation:breathe 5s ease-in-out infinite}
-  .water{position:absolute;left:0;right:0;bottom:0;height:42%;
-    background:linear-gradient(180deg,rgba(139,111,214,.06),rgba(18,10,34,.9));
-    border-top:1px solid rgba(196,168,255,.12)}
-  @keyframes breathe{0%,100%{opacity:.75;transform:translateX(-50%) scale(1)}
-    50%{opacity:1;transform:translateX(-50%) scale(1.04)}}
+  /* 夜底：暖月光晕 + 水面，随时间慢慢暗下去 */
+  .stage{
+    position:fixed;inset:0;transition:opacity 0.8s var(--y-ease);
+    background-image:
+      radial-gradient(circle at 50% 28%, rgba(var(--y-warm-rgb), 0.16), transparent 46%),
+      radial-gradient(120% 80% at 20% 100%, rgba(142, 116, 232, 0.14), transparent 60%),
+      linear-gradient(180deg, #100b1d 0%, #07050d 72%);
+  }
+  .moon{
+    position:absolute;left:50%;top:19%;transform:translateX(-50%);
+    width:118px;height:118px;border-radius:50%;
+    background:radial-gradient(circle at 36% 34%, #fbf3e6 0%, #e9cfa6 48%, rgba(233, 183, 131, 0.25) 78%, transparent 82%);
+    box-shadow:0 0 64px 18px rgba(var(--y-warm-rgb), 0.26);
+    animation:breathe 6.5s ease-in-out infinite;
+  }
+  .water{
+    position:absolute;left:0;right:0;bottom:0;height:42%;
+    background:linear-gradient(180deg, rgba(var(--y-warm-rgb), 0.04), rgba(7, 5, 13, 0.94));
+    border-top:1px solid rgba(255, 255, 255, 0.06);
+  }
+  @keyframes breathe{
+    0%,100%{opacity:.78;transform:translateX(-50%) scale(0.98)}
+    50%{opacity:1;transform:translateX(-50%) scale(1.05)}
+  }
 
   /* 内容层：控件会随时间淡出 */
-  .ui{position:relative;height:100%;display:flex;flex-direction:column;
-    padding:22px 20px max(24px,env(safe-area-inset-bottom));transition:opacity 1.2s ease}
-  .top{display:flex;align-items:center;justify-content:space-between}
-  .back{color:#c9bce0;text-decoration:none;font-size:14px;background:rgba(196,168,255,.08);
-    border:1px solid rgba(196,168,255,.2);border-radius:18px;padding:8px 14px}
-  .mode-chip{font-size:12px;color:#c9bce0;border:1px solid rgba(196,168,255,.25);
-    border-radius:16px;padding:7px 13px;background:rgba(20,12,38,.4);cursor:pointer}
+  .ui{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;
+    padding:22px 20px max(24px,env(safe-area-inset-bottom));transition:opacity 0.7s var(--y-ease)}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:0}
+  .back{color:var(--y-text-sub);text-decoration:none;font-size:13px;letter-spacing:.08em;background:rgba(255,255,255,.065);
+    border:none;border-radius:999px;padding:7px 14px;transition:background .5s ease,color .5s ease}
+  .back:hover{background:rgba(var(--y-warm-rgb),.16);color:#fff}
+  .mode-chip{font-size:12px;letter-spacing:.08em;color:var(--y-text-sub);border:none;
+    border-radius:999px;padding:7px 14px;background:rgba(255,255,255,.065);cursor:pointer;transition:background .5s ease,color .5s ease}
+  .mode-chip:hover{background:rgba(var(--y-warm-rgb),.16);color:#fff}
   .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;margin-top:-40px}
-  .title{font-size:24px;font-weight:600;letter-spacing:2px;color:#fff}
-  .subtitle{font-size:14px;color:#a99cc4;margin-top:10px}
-  .timer-left{font-size:13px;color:#d9c4ff;margin-top:18px;min-height:18px}
+    text-align:center;margin-top:-36px;transition:opacity 0.6s ease}
+  .title{font-family:var(--y-serif);font-size:clamp(24px,4vw,32px);font-weight:300;letter-spacing:.16em;color:#fbf7ff}
+  .subtitle{font-size:13.5px;letter-spacing:.06em;color:var(--y-text-sub);margin-top:10px}
+  .timer-left{font-size:12.5px;letter-spacing:.12em;color:var(--y-warm);margin-top:18px;min-height:18px}
 
-  .controls{display:flex;flex-direction:column;gap:12px}
-  .ctrl-row{display:flex;gap:10px;justify-content:center}
-  .btn{border:1px solid rgba(196,168,255,.35);background:rgba(196,168,255,.1);
-    color:#e6d8ff;border-radius:14px;padding:14px 18px;font-size:14px;cursor:pointer;
-    font-family:inherit;min-height:48px}
-  .btn.primary{background:linear-gradient(135deg,#d9b8ff,#b794f6);color:#2a1646;
-    border-color:transparent;font-weight:600}
-  .btn.pause{width:64px;border-radius:50%;padding:0;font-size:18px}
+  .controls{display:flex;flex-direction:column;gap:12px;transition:opacity 0.6s ease}
+  .ctrl-row{display:flex;gap:12px;justify-content:center;align-items:center}
+  .btn{border:none;background:rgba(255,255,255,.065);
+    color:var(--y-text-sub);border-radius:999px;padding:12px 20px;font-size:13.5px;letter-spacing:.08em;cursor:pointer;
+    font-family:inherit;min-height:46px;transition:color .5s ease,background .5s ease}
+  .btn:hover{background:rgba(var(--y-warm-rgb),.16);color:#fff}
+  .btn.pause{width:64px;height:64px;border-radius:50%;padding:0;font-size:18px;
+    border:1px solid rgba(var(--y-warm-rgb),.45);background:radial-gradient(circle at 38% 32%,rgba(255,246,232,.22),rgba(255,255,255,.04) 60%),rgba(20,14,30,.45);
+    color:#fff8ee;box-shadow:0 0 28px rgba(var(--y-warm-rgb),.22)}
   .timers{display:none;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
   .timers.open{display:flex}
-  .timer{border:1px solid rgba(196,168,255,.28);background:rgba(196,168,255,.08);
-    color:#c9bce0;border-radius:18px;padding:9px 15px;font-size:13px;cursor:pointer;font-family:inherit}
-  .timer.on{background:linear-gradient(135deg,#7d5fc4,#5f42a3);color:#fff;border-color:transparent}
-  .hint{font-size:11px;color:#8d80a8;text-align:center;margin-top:6px;line-height:1.6;min-height:16px}
+  .timer{border:none;background:rgba(255,255,255,.055);
+    color:var(--y-text-sub);border-radius:999px;padding:8px 15px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:background .45s ease,color .45s ease}
+  .timer.on{background:rgba(var(--y-warm-rgb),.22);color:#fff7eb}
+  .hint{font-size:11.5px;letter-spacing:.1em;color:var(--y-text-muted);text-align:center;margin-top:6px;line-height:1.6;min-height:16px}
 
   .goodnight{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-    flex-direction:column;background:#0b0812;z-index:50;transition:opacity 1.5s ease}
+    flex-direction:column;background:#07050d;z-index:50;transition:opacity 0.8s ease}
   .goodnight.show{display:flex}
-  .goodnight .g-moon{font-size:56px;color:#c9a8ff;opacity:.7}
-  .goodnight .g-t{font-size:22px;letter-spacing:4px;color:#e6d8ff;margin-top:18px}
+  .goodnight .g-moon{width:88px;height:88px;border-radius:50%;font-size:0;color:transparent;
+    border:1px solid rgba(var(--y-warm-rgb),.45);background:radial-gradient(circle,rgba(var(--y-warm-rgb),.16),transparent 70%);
+    box-shadow:0 0 42px rgba(var(--y-warm-rgb),.22)}
+  .goodnight .g-t{font-family:var(--y-serif);font-weight:300;font-size:24px;letter-spacing:.4em;color:#fbf7ff;margin-top:24px}
 
   audio{display:none}
   @media(prefers-reduced-motion:reduce){
@@ -73,6 +87,7 @@
 <div class="stage" id="stage">
   <div class="moon"></div>
   <div class="water"></div>
+  <div class="ambient-grain"></div>
 </div>
 
 <div class="ui" id="ui">
@@ -81,7 +96,7 @@
     <div class="mode-chip" id="modeChip">☾ 睡眠模式</div>
   </div>
 
-  <div class="center">
+  <div class="center" id="center">
     <div class="title" id="trackTitle">正在播放</div>
     <div class="subtitle" id="trackSub">真实录音 · 零处理</div>
     <div class="timer-left" id="timerLeft"></div>

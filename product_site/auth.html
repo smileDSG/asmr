@@ -4,50 +4,141 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>登录 · 夜息</title>
+<link rel="stylesheet" href="theme.css?v=12">
 <style>
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{
-    margin:0;color:#f4effc;min-height:100vh;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    background:radial-gradient(circle at 50% 12%,rgba(139,111,214,.22),transparent 52%),#120d1b;
-    line-height:1.6;padding-bottom:40px;
+  .auth-wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 0 20px 64px;
   }
-  .wrap{max-width:420px;margin:0 auto;padding:0 20px}
-  .back{display:inline-block;color:#c9a8ff;text-decoration:none;font-size:13px;padding:20px 0 8px}
-  .head{text-align:center;padding:10px 0 26px}
-  .head .moon{width:62px;height:62px;margin:0 auto 16px;border-radius:20px;
-    background:linear-gradient(150deg,#8b6fd6,#5a3fa0);display:flex;align-items:center;
-    justify-content:center;font-size:30px;box-shadow:0 8px 26px rgba(139,111,214,.42)}
-  .head h1{font-size:24px;font-weight:600;letter-spacing:2px;margin:0;color:#fff}
-  .head p{font-size:13px;color:#a99cc4;margin:8px 0 0}
-  .card{background:#1c1530;border:1px solid rgba(196,168,255,.16);border-radius:18px;padding:20px}
-  .switch{display:flex;background:#16102a;border:1px solid rgba(196,168,255,.16);
-    border-radius:12px;padding:4px;margin-bottom:20px}
-  .switch button{flex:1;padding:10px;border:none;border-radius:9px;background:transparent;
-    color:#a99cc4;font-size:14px;font-family:inherit;cursor:pointer}
-  .switch button.on{background:linear-gradient(135deg,#7d5fc4,#5f42a3);color:#fff;font-weight:600}
-  label{display:block;font-size:13px;color:#c9bce0;margin:0 0 8px}
-  input{width:100%;background:#16102a;border:1px solid rgba(196,168,255,.22);
-    border-radius:11px;color:#f4effc;padding:13px 14px;font-size:15px;
-    font-family:inherit;outline:none;margin-bottom:16px}
-  input:focus{border-color:rgba(201,168,255,.65)}
-  input::placeholder{color:#7d719a}
-  .submit{width:100%;background:linear-gradient(135deg,#d9b8ff,#b794f6);color:#2a1646;
-    border:none;border-radius:11px;padding:14px;font-size:15px;font-weight:600;
-    cursor:pointer;font-family:inherit;margin-top:2px}
-  .submit:disabled{opacity:.5;cursor:wait}
-  .msg{font-size:12px;color:#e8c07a;min-height:18px;margin:-4px 0 10px;line-height:1.6}
-  .tip{font-size:12px;color:#8d80a8;line-height:1.8;margin:16px 0 0;text-align:center}
-  .foot{text-align:center;color:#8d80a8;font-size:11px;margin-top:26px;line-height:1.9}
-  @media(max-width:380px){.head h1{font-size:21px}}
+  .back {
+    display: inline-block;
+    color: var(--y-text-sub);
+    text-decoration: none;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding: 24px 0 10px;
+    transition: color 0.5s ease;
+  }
+  .back:hover { color: var(--y-warm); }
+  .head { text-align: center; padding: 12px 0 28px; }
+  .head .moon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 34%, #fbf3e6 0%, #e9cfa6 46%, rgba(233, 183, 131, 0.16) 74%, transparent 78%);
+    font-size: 0;
+    color: transparent;
+    box-shadow: 0 0 36px rgba(var(--y-warm-rgb), 0.34);
+  }
+  .head h1 {
+    font-family: var(--y-serif);
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 0.16em;
+    margin: 0;
+    color: #fbf7ff;
+  }
+  .head p {
+    font-size: 13px;
+    color: var(--y-text-sub);
+    letter-spacing: 0.05em;
+    margin: 8px 0 0;
+  }
+  .card {
+    background: var(--y-glass);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: none;
+    border-radius: 22px;
+    padding: 24px;
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.48);
+  }
+  .switch {
+    display: flex;
+    background: rgba(7, 5, 13, 0.52);
+    border: none;
+    border-radius: 999px;
+    padding: 4px;
+    margin-bottom: 22px;
+  }
+  .switch button {
+    flex: 1;
+    padding: 9px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--y-text-muted);
+    font-size: 13.5px;
+    letter-spacing: 0.1em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.45s ease, color 0.45s ease;
+  }
+  .switch button.on {
+    background: rgba(var(--y-warm-rgb), 0.18);
+    color: #fff7eb;
+    font-weight: 500;
+  }
+  label {
+    display: block;
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+    color: var(--y-text-sub);
+    margin: 0 0 8px;
+  }
+  input {
+    width: 100%;
+    background: rgba(5, 3, 10, 0.56);
+    border: none;
+    border-radius: 13px;
+    color: var(--y-text);
+    padding: 13px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 16px;
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+  }
+  input:focus {
+    background: rgba(5, 3, 10, 0.72);
+    box-shadow: 0 0 0 2px rgba(var(--y-warm-rgb), 0.32);
+  }
+  input::placeholder { color: var(--y-text-muted); }
+  .submit {
+    width: 100%;
+    background: linear-gradient(135deg, #f3e2c8, #e4b682);
+    color: #1d120a;
+    border: none;
+    border-radius: 999px;
+    padding: 13px;
+    font-size: 14.5px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    font-family: inherit;
+    margin-top: 4px;
+    box-shadow: 0 8px 26px rgba(var(--y-warm-rgb), 0.24);
+    transition: filter 0.45s ease, transform 0.25s ease;
+  }
+  .submit:hover { filter: brightness(1.05); }
+  .submit:disabled { opacity: .5; cursor: wait; }
+  .msg { font-size: 12px; color: var(--y-warm); min-height: 18px; margin: -4px 0 10px; line-height: 1.6; }
+  .tip { font-size: 12px; color: var(--y-text-muted); line-height: 1.85; margin: 18px 0 0; text-align: center; }
+  .foot { text-align: center; color: rgba(226, 216, 244, 0.32); font-size: 11px; letter-spacing: 0.1em; margin-top: 26px; line-height: 1.9; }
+  @media(max-width:380px){ .head h1 { font-size: 22px; } }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="ambient-stage" id="ambientStage"></div>
+<div class="auth-wrap">
   <a class="back" id="backLink" href="home.html">‹ 先不登录</a>
 
   <div class="head">
-    <div class="moon">☾</div>
+    <div class="moon"></div>
     <h1 id="title">欢迎回来</h1>
     <p id="sub">登录后，你的耳朵档案会跟着账号走</p>
   </div>
@@ -74,7 +165,9 @@
 </div>
 
 <script src="auth_ui.js"></script>
+<script src="yexi_catalog.js"></script>
 <script>
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
 var mode = "login";
 var msg = document.getElementById("msg");
 var submitBtn = document.getElementById("submitBtn");
@@ -83,6 +176,18 @@ var submitBtn = document.getElementById("submitBtn");
 var from = new URLSearchParams(location.search).get("from") || "home.html";
 if (!/^[A-Za-z0-9_-]+\.html$/.test(from)) from = "home.html";
 document.getElementById("backLink").href = from;
+// 从门闸点「先不登录」= 选游客，写个标记，别再弹门闸
+document.getElementById("backLink").onclick = function() {
+  try { localStorage.setItem("yezi_guest", "1"); } catch (e) {}
+  // 从敏感点测试来的，别退回测试页（那里会再弹登录，成死循环）
+  if (new URLSearchParams(location.search).get("reason") === "ear_test") {
+    document.getElementById("backLink").href = "home.html";
+  }
+};
+// 从敏感点测试跳来登录的，把话说清楚
+if (new URLSearchParams(location.search).get("reason") === "ear_test") {
+  document.getElementById("sub").textContent = "登录后就能测出你的耳朵敏感点，结果会存进账号";
+}
 
 function showMsg(text) {
   msg.textContent = text;
@@ -108,7 +213,7 @@ function setMode(next) {
 document.getElementById("tabLogin").onclick = function() { setMode("login"); };
 document.getElementById("tabReg").onclick = function() { setMode("reg"); };
 
-function doLogin(username, password) {
+function doLogin(username, password, after) {
   yPost("/api/login", { username: username, password: password })
     .then(function(r) { return r.json(); }).then(function(d) {
       if (!d.ok) {
@@ -120,7 +225,7 @@ function doLogin(username, password) {
       showMsg("正在整理你的耳朵档案…");
       // 迁移游客档案：失败也不能挡住登录
       yPost("/api/migrate", {}).catch(function() {}).then(function() {
-        location.href = from;
+        location.href = after || from;
       });
     }).catch(function(e) {
       showMsg("连接后端失败：" + e.message);
@@ -146,7 +251,9 @@ submitBtn.onclick = function() {
           submitBtn.disabled = false;
           return;
         }
-        doLogin(username, password);
+        // 新用户注册后直接去做敏感点测试，先认识自己的耳朵
+        showMsg("注册好了，花 30 秒测测你的耳朵…");
+        doLogin(username, password, "ear_test.html");
       }).catch(function(e) {
         showMsg("连接后端失败：" + e.message);
         submitBtn.disabled = false;

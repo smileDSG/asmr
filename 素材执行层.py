@@ -1,9 +1,11 @@
-# 执行层：意图 → 从 13 段 CC0 素材挑 + 配 → 零处理拼接
+# 执行层：意图 → 从 41 段 CC0 素材库（sound_catalog）挑 + 配 → 零处理拼接
 # 铁律：不滤波、不降噪、不压缩、不加混响、不调音
 # 唯一允许的处理：循环补时长 + 接缝短交叉淡化（避免 click，不属于音质加工）
 
 import os
 import numpy as np
+
+import sound_catalog
 
 try:
     import soundfile as _sf
@@ -52,40 +54,8 @@ def write_wav(target, data, sr):
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
-# 素材库：场景 → 候选文件 + 默认权重
-LIBRARY = {
-    "rain": [
-        ("product_assets/母带_城市夜雨_CC0.mp3", 1.0),
-        ("product_assets/备选_大雨打树叶_CC0.mp3", 0.0),
-        ("scene_assets/柔和雨.hq.mp3", 0.0),
-        ("scene_assets/乡村小雨.hq.mp3", 0.0),
-    ],
-    "ocean": [
-        ("scene_assets/海浪_远海.hq.mp3", 1.0),
-        ("scene_assets/海浪_黑海.hq.mp3", 0.0),
-    ],
-    "stream": [
-        ("scene_assets/溪流.hq.mp3", 1.0),
-    ],
-    "thunder": [
-        ("product_assets/母带_城市夜雨_CC0.mp3", 0.7),
-        ("scene_assets/远雷.hq.mp3", 0.3),
-    ],
-    "wind": [
-        ("scene_assets/夜风.hq.mp3", 1.0),
-    ],
-    "forest": [
-        ("scene_assets/虫鸣.hq.mp3", 0.5),
-        ("scene_assets/夜风.hq.mp3", 0.5),
-    ],
-    "mix": [
-        ("product_assets/母带_城市夜雨_CC0.mp3", 0.7),
-        ("scene_assets/雨中低鸣.hq.mp3", 0.3),
-    ],
-    "fire": [
-        ("scene_assets/雨中低鸣.hq.mp3", 1.0),
-    ],
-}
+# 素材库：从单一真相源 sound_catalog 动态构建按场景分布的候选权重表
+LIBRARY = sound_catalog.build_library_by_scene()
 
 # 心情 → 微调权重（只动配比，不动音质）
 MOOD_TWEAK = {
@@ -96,33 +66,89 @@ MOOD_TWEAK = {
 }
 
 
+def _item_matches_avoid(rel, avoid_list):
+    if not avoid_list:
+        return False
+    meta = sound_catalog.get_item(rel)
+    avoid_text = " ".join(str(a) for a in avoid_list)
+    if "雷" in avoid_text and "雷" in rel:
+        return True
+    if not meta:
+        return False
+    for tag in meta.get("avoid_tags", []):
+        if tag and tag in avoid_text:
+            return True
+    if meta.get("name") and meta["name"] in avoid_text:
+        return True
+    return False
+
+
 def pick(intent):
-    # 根据意图挑素材和权重，返回 [(路径, 权重), ...]
-    scene = intent["scene"]
+    # 根据意图与 sound_catalog 标签挑素材和权重，返回 [(路径, 权重), ...]
+    scene = intent.get("scene", "rain")
     if scene not in LIBRARY:
         scene = "rain"
     items = list(LIBRARY[scene])
-
-    # 用户明确不要雷 → 去掉远雷
+    detail = str(intent.get("scene_detail") or "")
     avoid = intent.get("avoid", [])
-    cleaned = []
-    for path, w in items:
-        if "雷" in path and any("雷" in str(a) for a in avoid):
-            continue
-        cleaned.append((path, w))
+
+    # 1. 按禁忌标签与名称过滤（如不要雷、不要噼啪、不要音乐垫、不要鸟等）
+    cleaned = [(rel, w) for rel, w in items if not _item_matches_avoid(rel, avoid)]
     if cleaned:
         items = cleaned
 
-    # 暖/柔 → 雨声偏向柔和雨/乡村小雨（都经用户验收，非音质加工）
-    if intent.get("warmth") == "warm" and scene == "rain":
-        items = [
-            ("product_assets/母带_城市夜雨_CC0.mp3", 0.6),
-            ("scene_assets/柔和雨.hq.mp3", 0.4),
-        ]
+    # 2. 按场景细节与暖度/动态偏好，从已入库 41 段中精细落位
+    warmth = intent.get("warmth", "neutral")
+    dynamics = intent.get("dynamics", "natural")
+
+    if scene == "rain":
+        if "帐篷" in detail and any("592996" in rel for rel, _ in items):
+            items = [("scene_assets/帐篷雨_小帐篷大雨_592996.hq.mp3", 1.0)]
+        elif warmth == "warm":
+            items = [
+                ("product_assets/母带_城市夜雨_CC0.mp3", 0.6),
+                ("scene_assets/柔和雨.hq.mp3", 0.4),
+            ]
+    elif scene == "fire":
+        if any("766127" in rel for rel, _ in items) and ("夜营" in detail or "柔" in detail or dynamics == "steady"):
+            # 若明确要壁炉低燃选 836535，否则稳/柔偏好可选夜营余烬 766127
+            if "壁炉" in detail and any("836535" in rel for rel, _ in items):
+                items = [("scene_assets/炉火_壁炉低燃_836535.hq.mp3", 1.0)]
+            else:
+                items = [("scene_assets/炉火_夜营氛围_766127.hq.mp3", 1.0)]
+        elif "篝火" in detail and any("62487" in rel for rel, _ in items):
+            items = [("scene_assets/炉火_营地篝火_62487.hq.mp3", 1.0)]
+    elif scene == "stream" and (warmth == "warm" or dynamics == "steady"):
+        if any("707576" in rel for rel, _ in items):
+            items = [("scene_assets/溪流_柔和河水_707576.hq.mp3", 1.0)]
+    elif scene == "ocean" and (warmth == "warm" or dynamics == "steady"):
+        if any("451532" in rel for rel, _ in items):
+            items = [("scene_assets/海浪_湖海柔浪_451532.hq.mp3", 1.0)]
+    elif scene == "forest" and ("鸟" in detail or "夜莺" in detail):
+        if any("853566" in rel for rel, _ in items):
+            items = [
+                ("scene_assets/林风_Akacie_73708.hq.mp3", 0.65),
+                ("scene_assets/鸟鸣_夜莺鸣叫_853566.hq.mp3", 0.35),
+            ]
+    elif scene == "asmr":
+        if "羽毛" in detail and "采耳" in detail:
+            items = [
+                ("scene_assets/ASMR_采耳_690078.hq.mp3", 0.62),
+                ("scene_assets/ASMR_羽毛轻拂_708086.hq.mp3", 0.38),
+            ]
+        elif "翻书" in detail:
+            items = [("scene_assets/ASMR_翻书多人_575764.hq.mp3", 1.0)]
+        elif "写字" in detail:
+            items = [("scene_assets/ASMR_铅笔写字柔_336381.hq.mp3", 1.0)]
+
+    # 3. 兜底再做一次禁忌检查，确保特殊覆盖分支也不会漏进禁忌轨
+    final_items = [(rel, w) for rel, w in items if not _item_matches_avoid(rel, avoid)]
+    if final_items:
+        items = final_items
 
     # 全部权重为 0 时，默认选第一个
     total = sum(w for _, w in items)
-    if total <= 0:
+    if total <= 0 and items:
         items[0] = (items[0][0], 1.0)
     return items
 

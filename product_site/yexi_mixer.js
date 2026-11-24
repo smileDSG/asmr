@@ -27,9 +27,20 @@
     var ch1 = nCh > 1 ? buffer.getChannelData(1) : ch0;
     var len = buffer.length;
 
-    // 0.25s 分块测有效 RMS，忽略近静音块，计算恒定电平补偿
+    // 0.25s 分块测有效 RMS，忽略极静音块，对齐到柔和睡前基准 (-32 dBFS / 0.025) 并保护峰值不削波
     var block = Math.max(1, Math.floor(sr * 0.25));
     var activeRms = [];
+    var sumSqAll = 0;
+    var countAll = 0;
+    var peak = 0;
+    for (var p = 0; p < len; p += 4) {
+      var pa = Math.abs(ch0[p]);
+      var pb = Math.abs(ch1[p]);
+      if (pa > peak) peak = pa;
+      if (pb > peak) peak = pb;
+      sumSqAll += (pa * pa + pb * pb) * 0.5;
+      countAll += 1;
+    }
     for (var i = 0; i + block <= len; i += block) {
       var sumSq = 0;
       for (var j = 0; j < block; j += 4) {
@@ -39,17 +50,21 @@
       }
       var samplesCount = Math.ceil(block / 4);
       var rms = Math.sqrt(sumSq / Math.max(1, samplesCount));
-      if (rms >= 0.002) {
+      if (rms >= 0.0002) {
         activeRms.push(rms);
       }
     }
 
     var calGain = 1.0;
+    var med = countAll > 0 ? Math.sqrt(sumSqAll / countAll) : 0;
     if (activeRms.length > 0) {
       activeRms.sort(function(x, y) { return x - y; });
-      var med = activeRms[Math.floor(activeRms.length * 0.5)];
-      if (med > 1e-6) {
-        calGain = clamp(0.10 / med, 0.35, 2.2);
+      med = activeRms[Math.floor(activeRms.length * 0.5)];
+    }
+    if (med > 1e-6) {
+      calGain = clamp(0.025 / med, 0.20, 20.0);
+      if (peak > 1e-6 && peak * calGain > 0.85) {
+        calGain = Math.max(0.20, 0.85 / peak);
       }
     }
 
@@ -173,6 +188,7 @@
 
     this.ctx = null;
     this.masterGain = null;
+    this.analyser = null;
     this.buffers = {};
     this.loadingPromises = {};
     this.channels = {};
@@ -191,7 +207,22 @@
       this.ctx = new Ctx();
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(this.isPlaying ? this.masterVolume : 0, this.ctx.currentTime);
-      this.masterGain.connect(this.ctx.destination);
+      try {
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 512;
+        this.analyser.smoothingTimeConstant = 0.65;
+        this.masterGain.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
+        if (typeof global.yBindAmbientAnalyser === "function") {
+          global.yBindAmbientAnalyser(this.analyser);
+        }
+      } catch (e) {
+        this.analyser = null;
+        this.masterGain.connect(this.ctx.destination);
+      }
+    }
+    if (this.analyser && typeof global.yBindAmbientAnalyser === "function") {
+      global.yBindAmbientAnalyser(this.analyser);
     }
     if (this.ctx.state === "suspended" && typeof this.ctx.resume === "function") {
       this.ctx.resume().catch(function() {});
@@ -495,7 +526,7 @@
   YexiMixer.prototype._applyChannelGain = function(ch, calGain, timeConstant) {
     if (!this.ctx || ch.disposed) return;
     var norm = this._computeNorm(this.currentTracks);
-    var target = clamp((ch.weight / norm) * (calGain || 1.0), 0, 2.5);
+    var target = clamp((ch.weight / norm) * (calGain || 1.0), 0, 20.0);
     var now = this.ctx.currentTime;
     ch.trackGain.gain.setTargetAtTime(target, now, timeConstant || 0.06);
   };
@@ -649,7 +680,7 @@
         var buffer = entry.buffer;
         var bufDur = buffer.duration;
         var trackGain = offline.createGain();
-        trackGain.gain.setValueAtTime(clamp((tr.weight / norm) * entry.calGain, 0, 2.5), 0);
+        trackGain.gain.setValueAtTime(clamp((tr.weight / norm) * entry.calGain, 0, 20.0), 0);
 
         if (typeof offline.createStereoPanner === "function") {
           var panner = offline.createStereoPanner();

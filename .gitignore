@@ -33,8 +33,11 @@ output_*.wav
 raw_rain_30s.wav
 sound_*.wav
 
-# ===== 部署副本和临时文件 =====
+# ===== 部署副本、备份和临时文件（不上传，会撑爆仓库）=====
 deploy/
+_backup_ui/
+_tmp/
+candidates_v5/
 __pycache__/
 *.pyc
 *.log

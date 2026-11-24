@@ -36,8 +36,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "🌧",
-    img: "img/rain-window.jpg",
+    icon: "",
+    img: "img/city-rain-night.jpg",
     accent: "#8e74e8",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -54,8 +54,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "☁",
-    img: "img/warm-bedroom.jpg",
+    icon: "",
+    img: "img/rain-window.jpg",
     accent: "#b88ce8",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -72,8 +72,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "🏡",
-    img: "img/moon-water.jpg",
+    icon: "",
+    img: "img/raindrops-macro.jpg",
     accent: "#7f8ce0",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -90,8 +90,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "🌊",
-    img: "img/night-lake-stars.jpg",
+    icon: "",
+    img: "img/ocean-waves.jpg",
     accent: "#5889d6",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -108,8 +108,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "🌑",
-    img: "img/night-lake-stars.jpg",
+    icon: "",
+    img: "img/ocean-deep.jpg?v=2",
     accent: "#4a6fb8",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -126,8 +126,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "💧",
-    img: "img/starry-mountain-lake.jpg",
+    icon: "",
+    img: "img/forest-stream.jpg?v=2",
     accent: "#59a5c7",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -144,8 +144,8 @@ var YEXI_SOUNDS = [
     defaultPan: -0.28,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "🍃",
-    img: "img/dark-forest-lake.jpg",
+    icon: "",
+    img: "img/raindrops-macro.jpg",
     accent: "#5fa896",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -162,8 +162,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0.32,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "🌬",
-    img: "img/dark-forest-lake.jpg",
+    icon: "",
+    img: "img/calm-forest.jpg",
     accent: "#6d94b8",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -182,7 +182,7 @@ var YEXI_SOUNDS = [
     defaultDensity: 0.4,
     isMixed: true,
     mixHint: "含柔和细雨底",
-    icon: "✨",
+    icon: "",
     img: "img/warm-bedroom.jpg",
     accent: "#c48ad4",
     license: "CC0 1.0 Public Domain",
@@ -200,8 +200,8 @@ var YEXI_SOUNDS = [
     defaultPan: 0.45,
     defaultMode: "intermittent",
     defaultDensity: 0.35,
-    icon: "⛈",
-    img: "img/dark-forest-lake.jpg",
+    icon: "",
+    img: "img/city-rain-night.jpg",
     accent: "#7d6bc4",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
@@ -218,12 +218,552 @@ var YEXI_SOUNDS = [
     defaultPan: -0.38,
     defaultMode: "loop",
     defaultDensity: 0.5,
-    icon: "🌙",
-    img: "img/moon-water.jpg",
+    icon: "",
+    img: "img/starry-mountain-lake.jpg",
     accent: "#9b85d6",
     license: "CC0 1.0 Public Domain",
     source: "Freesound",
     freesoundId: "704381",
+    sr: "44.1kHz"
+  },
+  {
+    path: "帐篷雨_小帐篷大雨_592996.hq.mp3",
+    name: "帐篷夜雨",
+    desc: "雨点密集落在小帐篷帆布上，被包裹的安全感",
+    group: "雨声",
+    layer: "bed",
+    defaultWeight: 0.68,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/rain-window.jpg",
+    accent: "#7a6fe0",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "592996",
+    sr: "48kHz"
+  },
+  {
+    path: "海浪_湖海柔浪_451532.hq.mp3",
+    name: "湖海柔浪",
+    desc: "长段平稳拍岸的轻柔水浪声",
+    group: "海浪",
+    layer: "bed",
+    defaultWeight: 0.7,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/ocean-waves.jpg",
+    accent: "#5b9bd5",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "451532",
+    sr: "48kHz"
+  },
+  {
+    path: "海浪_沙滩柔浪_325197.hq.mp3",
+    name: "沙滩柔浪",
+    desc: "海浪温柔漫过沙滩又缓缓退去",
+    group: "海浪",
+    layer: "bed",
+    defaultWeight: 0.68,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/ocean-deep.jpg?v=2",
+    accent: "#6aa8e0",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "325197",
+    sr: "44.1kHz"
+  },
+  {
+    path: "溪流_野外溪水_180732.hq.mp3",
+    name: "野外溪水",
+    desc: "自然流动的户外山谷溪水，水花质感丰沛",
+    group: "自然",
+    layer: "bed",
+    defaultWeight: 0.68,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/forest-stream.jpg?v=2",
+    accent: "#4ba3c3",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "180732",
+    sr: "48kHz"
+  },
+  {
+    path: "溪流_柔和河水_707576.hq.mp3",
+    name: "柔和河水",
+    desc: "平稳不刺耳的宽阔缓流河水，循环极自然",
+    group: "自然",
+    layer: "bed",
+    defaultWeight: 0.72,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/forest-stream.jpg?v=2",
+    accent: "#5098b8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "707576",
+    sr: "48kHz"
+  },
+  {
+    path: "溪流_小溪循环_767320.hq.mp3",
+    name: "林间小溪",
+    desc: "轻缓细小的林间溪流，平稳安静不抢耳",
+    group: "自然",
+    layer: "bed",
+    defaultWeight: 0.7,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/forest-stream.jpg?v=2",
+    accent: "#66b2cc",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "767320",
+    sr: "44.1kHz"
+  },
+  {
+    path: "林风_树林波浪风_637989.hq.mp3",
+    name: "松林风涛",
+    desc: "风一阵阵穿过高大树林，像林海波浪般涌动",
+    group: "自然",
+    layer: "bed",
+    defaultWeight: 0.65,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/calm-forest.jpg",
+    accent: "#5b9c8a",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "637989",
+    sr: "48kHz"
+  },
+  {
+    path: "林风_Akacie_73708.hq.mp3",
+    name: "静谧林风",
+    desc: "轻柔安静的林间空气流动与远树微响",
+    group: "自然",
+    layer: "bed",
+    defaultWeight: 0.68,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/calm-forest.jpg",
+    accent: "#6aa892",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "73708",
+    sr: "44.1kHz"
+  },
+  {
+    path: "微风_小镇傍晚风_321904.hq.mp3",
+    name: "傍晚微风",
+    desc: "开阔宁静的傍晚轻风，带着温柔夜幕前的松弛感",
+    group: "自然",
+    layer: "bed",
+    defaultWeight: 0.66,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/night-lake-stars.jpg",
+    accent: "#7b8dc9",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "321904",
+    sr: "48kHz"
+  },
+  {
+    path: "炉火_壁炉低燃_836535.hq.mp3",
+    name: "壁炉低燃",
+    desc: "室内壁炉木柴平稳燃烧的温暖火光声，几乎无尖锐爆响",
+    group: "炉火",
+    layer: "bed",
+    defaultWeight: 0.72,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/fireplace-night.jpg?v=2",
+    accent: "#e07a5f",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "836535",
+    sr: "44.1kHz"
+  },
+  {
+    path: "炉火_夜营氛围_766127.hq.mp3",
+    name: "夜营微火",
+    desc: "夜晚露营地极轻柔平稳的余烬微火氛围，柔和不刺耳",
+    group: "炉火",
+    layer: "bed",
+    defaultWeight: 0.74,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/fireplace-night.jpg?v=2",
+    accent: "#d9825b",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "766127",
+    sr: "48kHz"
+  },
+  {
+    path: "炉火_营地篝火_62487.hq.mp3",
+    name: "营地篝火",
+    desc: "户外木柴篝火燃烧声，带真实轻微木柴噼啪颗粒",
+    group: "炉火",
+    layer: "bed",
+    defaultWeight: 0.64,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/fireplace-night.jpg?v=2",
+    accent: "#e6915c",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "62487",
+    sr: "44.1kHz"
+  },
+  {
+    path: "微风_麦田柔风_447810.hq.mp3",
+    name: "麦田柔风",
+    desc: "轻风拂过宽阔麦田的轻柔沙沙声，温暖放松",
+    group: "自然",
+    layer: "texture",
+    defaultWeight: 0.42,
+    defaultPan: 0.28,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/wheat-sunset.jpg",
+    accent: "#9eb878",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "447810",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_麦套轻扫抓挠_803595.hq.mp3",
+    name: "麦套轻扫",
+    desc: "海绵麦套被轻缓抓挠扫过，绵密近场触发感",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.56,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#b58ae8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "803595",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_翻书多人_575764.hq.mp3",
+    name: "书房翻书",
+    desc: "自习室里轻缓持续翻阅书页的纸张沙沙声",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.42,
+    defaultPan: -0.25,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/notebook-desk.jpg?v=2",
+    accent: "#c9a078",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "575764",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_铅笔写字柔_336381.hq.mp3",
+    name: "铅笔慢写",
+    desc: "铅笔在纸面稳重均匀摩擦的柔和沙沙写字声",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.44,
+    defaultPan: 0.25,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/asmr-pencil.jpg",
+    accent: "#d4b483",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "336381",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_轻触麦克风_530347.hq.mp3",
+    name: "轻触麦头",
+    desc: "近距离轻柔碰触麦克风的细腻酥麻触发音",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.36,
+    defaultPan: 0.0,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#c07be8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "530347",
+    sr: "44.1kHz"
+  },
+  {
+    path: "ASMR_采耳_690078.hq.mp3",
+    name: "轻柔采耳",
+    desc: "近场轻柔掏耳与细微耳道触碰感，平稳舒适",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.5,
+    defaultPan: -0.2,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/asmr-earpick.jpg",
+    accent: "#d992e8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "690078",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_轻柔梳头_825798.hq.mp3",
+    name: "轻柔梳头",
+    desc: "平稳柔和的木梳梳理发丝声，亲切放松",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.45,
+    defaultPan: 0.18,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/asmr-comb.jpg",
+    accent: "#a68ae8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "825798",
+    sr: "44.1kHz"
+  },
+  {
+    path: "ASMR_毛刷梳发_765369.hq.mp3",
+    name: "毛刷梳发",
+    desc: "毛刷轻扫发丝的绵柔沙沙声，温柔解压",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.45,
+    defaultPan: -0.18,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#9484e8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "765369",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_海绵抓挠_690084.hq.mp3",
+    name: "海绵抓挠",
+    desc: "指尖轻轻抓挠海绵的细密沙沙触发音",
+    group: "ASMR",
+    layer: "texture",
+    defaultWeight: 0.4,
+    defaultPan: 0.25,
+    defaultMode: "loop",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#7eb8d6",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "690084",
+    sr: "48kHz"
+  },
+  {
+    path: "鸟鸣_夜莺鸣叫_853566.hq.mp3",
+    name: "夜莺鸟鸣",
+    desc: "林间婉转清脆的夜莺鸣叫，适合作稀疏自然点缀",
+    group: "自然",
+    layer: "accent",
+    defaultWeight: 0.3,
+    defaultPan: 0.42,
+    defaultMode: "intermittent",
+    defaultDensity: 0.3,
+    icon: "",
+    img: "img/calm-forest.jpg",
+    accent: "#76b89e",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "853566",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_羽毛轻拂_708086.hq.mp3",
+    name: "羽毛轻拂",
+    desc: "手指轻拂羽毛或羽毛轻触耳畔的纤细轻响",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.4,
+    defaultPan: 0.32,
+    defaultMode: "intermittent",
+    defaultDensity: 0.38,
+    icon: "",
+    img: "img/feather-soft.jpg",
+    accent: "#d1b3ff",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "708086",
+    sr: "44.1kHz"
+  },
+  {
+    path: "ASMR_翻书单人_360781.hq.mp3",
+    name: "深夜翻书",
+    desc: "一个人安安静静一页页翻书的清脆纸张声",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.4,
+    defaultPan: -0.28,
+    defaultMode: "intermittent",
+    defaultDensity: 0.45,
+    icon: "",
+    img: "img/notebook-desk.jpg?v=2",
+    accent: "#d4a872",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "360781",
+    sr: "44.1kHz"
+  },
+  {
+    path: "ASMR_铅笔写字轻快_376706.hq.mp3",
+    name: "轻快记笔记",
+    desc: "轻快沙沙的铅笔记录笔记声，带一点学习节奏感",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.38,
+    defaultPan: 0.3,
+    defaultMode: "intermittent",
+    defaultDensity: 0.48,
+    icon: "",
+    img: "img/asmr-pencil.jpg",
+    accent: "#c8b07a",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "376706",
+    sr: "44.1kHz"
+  },
+  {
+    path: "ASMR_指尖轻敲刮擦_866230.hq.mp3",
+    name: "指尖轻敲",
+    desc: "指尖轻敲与柔和刮擦箱体表面的近场触发音",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.36,
+    defaultPan: -0.32,
+    defaultMode: "intermittent",
+    defaultDensity: 0.4,
+    icon: "",
+    img: "img/asmr-tapping.jpg",
+    accent: "#b08ad9",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "866230",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_木件桌游轻敲_569788.hq.mp3",
+    name: "木件轻敲",
+    desc: "木质小物件与桌游棋子清脆轻敲碰触声",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.32,
+    defaultPan: 0.34,
+    defaultMode: "intermittent",
+    defaultDensity: 0.35,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#c9956b",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "569788",
+    sr: "44.1kHz"
+  },
+  {
+    path: "ASMR_手部轻搓抓挠_684746.hq.mp3",
+    name: "手部轻搓",
+    desc: "手掌干搓与指尖轻挠皮肤的近场摩擦触发音",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.34,
+    defaultPan: 0.2,
+    defaultMode: "intermittent",
+    defaultDensity: 0.32,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#d9a2b4",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "684746",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_轻抚抓挠_695629.hq.mp3",
+    name: "轻抚抓挠",
+    desc: "轻柔缓缓抚摸与抓挠的近场软触发声",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.4,
+    defaultPan: -0.22,
+    defaultMode: "intermittent",
+    defaultDensity: 0.38,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#d6a4c8",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "695629",
+    sr: "48kHz"
+  },
+  {
+    path: "ASMR_糖纸揉捏_802609.hq.mp3",
+    name: "糖纸揉捏",
+    desc: "糖纸包装被缓缓揉捏起皱的清脆沙沙触发音",
+    group: "ASMR",
+    layer: "accent",
+    defaultWeight: 0.3,
+    defaultPan: 0.3,
+    defaultMode: "intermittent",
+    defaultDensity: 0.32,
+    icon: "",
+    img: "img/warm-bedroom.jpg",
+    accent: "#e0b878",
+    license: "CC0 1.0 Public Domain",
+    source: "Freesound",
+    freesoundId: "802609",
     sr: "44.1kHz"
   }
 ];
@@ -234,9 +774,9 @@ var YEXI_STUDIO_PRESETS = [
     title: "阁楼夜雨",
     desc: "城市夜雨铺底，暖夜低鸣托住温度，右侧天边偶尔滚过一声低沉远雷",
     tracks: [
-      { path: "母带_城市夜雨_CC0.mp3", weight: 0.72, pan: 0, mode: "loop", density: 0.4 },
-      { path: "雨中低鸣.hq.mp3", weight: 0.32, pan: 0, mode: "loop", density: 0.4 },
-      { path: "远雷.hq.mp3", weight: 0.38, pan: 0.48, mode: "intermittent", density: 0.25 }
+      { path: "母带_城市夜雨_CC0.mp3", weight: 0.82, pan: 0, mode: "loop", density: 0.4 },
+      { path: "雨中低鸣.hq.mp3", weight: 0.32, pan: -0.45, mode: "loop", density: 0.4 },
+      { path: "远雷.hq.mp3", weight: 0.22, pan: 0.62, mode: "intermittent", density: 0.25 }
     ]
   },
   {
@@ -379,7 +919,7 @@ function ySoundMeta(filename) {
     defaultPan: 0,
     defaultMode: "loop",
     defaultDensity: 0.4,
-    icon: "☾",
+    icon: "",
     img: "img/moon-water.jpg",
     accent: "#8e74e8",
     license: "CC0 1.0 Public Domain",
@@ -427,12 +967,30 @@ var _ambientState = {
   bgB: null,
   activeSlot: "A",
   currentImg: "",
-  accentHex: "#8e74e8",
-  accentRgb: "142, 116, 232",
+  accentHex: "#e9b783",
+  accentRgb: "233, 183, 131",
   playing: false,
+  fxType: "night",
+  nextFxType: null,
+  fadingOut: false,
+  fade: 1,
+  level: 0,
+  avg: 0,
+  peak: 0.04,
+  inten: 0.42,
+  analyser: null,
+  ampBuf: null,
+  audioMap: [],
+  p: [],
+  extra: [],
+  rings: [],
+  t: 0,
+  last: 0,
+  lastRing: 0,
+  w: 0,
+  h: 0,
   canvas: null,
   ctx: null,
-  particles: [],
   rafId: null,
   reducedMotion: false
 };
@@ -442,18 +1000,76 @@ function _yHexToRgb(hex) {
   if (s.length === 3) {
     s = s.charAt(0) + s.charAt(0) + s.charAt(1) + s.charAt(1) + s.charAt(2) + s.charAt(2);
   }
-  if (s.length !== 6) return "142, 116, 232";
+  if (s.length !== 6) return "233, 183, 131";
   var r = parseInt(s.slice(0, 2), 16);
   var g = parseInt(s.slice(2, 4), 16);
   var b = parseInt(s.slice(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return "142, 116, 232";
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return "233, 183, 131";
   return r + ", " + g + ", " + b;
 }
 
-function initAmbientStage(initialImg, initialAccent) {
+function _yInferFxType(imgUrl, explicitFx) {
+  if (explicitFx) return explicitFx;
+  var s = String(imgUrl || "").toLowerCase();
+  if (s.indexOf("rain") >= 0) return "rain";
+  if (s.indexOf("fireplace") >= 0) return "fire";
+  if (s.indexOf("ocean") >= 0 || s.indexOf("stream") >= 0 || s.indexOf("water") >= 0) return "water";
+  if (s.indexOf("forest") >= 0 || s.indexOf("wheat") >= 0) return "wind";
+  if (s.indexOf("asmr") >= 0 || s.indexOf("feather") >= 0 || s.indexOf("notebook") >= 0 || s.indexOf("book") >= 0) return "asmr";
+  if (s.indexOf("warm-bedroom") >= 0) return "bed";
+  return "night";
+}
+
+function _yRnd(a, b) {
+  return a + Math.random() * (b - a);
+}
+
+function yBindAmbientAnalyser(analyserNode) {
+  if (!analyserNode) return;
+  _ambientState.analyser = analyserNode;
+  if (!_ambientState.ampBuf || _ambientState.ampBuf.length !== analyserNode.fftSize) {
+    _ambientState.ampBuf = new Uint8Array(analyserNode.fftSize);
+  }
+}
+
+function yBindAmbientAudio(audioEl) {
+  if (!audioEl) return;
+  for (var i = 0; i < _ambientState.audioMap.length; i++) {
+    if (_ambientState.audioMap[i].el === audioEl) {
+      var entry = _ambientState.audioMap[i];
+      if (entry.ctx && entry.ctx.state === "suspended") {
+        entry.ctx.resume().catch(function() {});
+      }
+      if (entry.analyser) yBindAmbientAnalyser(entry.analyser);
+      return;
+    }
+  }
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    var ctx = new AC();
+    var src = ctx.createMediaElementSource(audioEl);
+    var an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    an.smoothingTimeConstant = 0.6;
+    src.connect(an);
+    an.connect(ctx.destination);
+    _ambientState.audioMap.push({ el: audioEl, ctx: ctx, analyser: an });
+    yBindAmbientAnalyser(an);
+  } catch (e) {
+    // 浏览器策略或跨源限制时安静退化到呼吸模拟
+  }
+}
+
+function initAmbientStage(initialImg, initialAccent, initialFx) {
   if (_ambientState.inited) {
-    if (initialImg || initialAccent) {
-      ySetAmbient(initialImg || _ambientState.currentImg, initialAccent || _ambientState.accentHex, _ambientState.playing);
+    if (initialImg || initialAccent || initialFx) {
+      ySetAmbient(
+        initialImg || _ambientState.currentImg,
+        initialAccent || _ambientState.accentHex,
+        _ambientState.playing,
+        initialFx
+      );
     }
     return;
   }
@@ -471,7 +1087,8 @@ function initAmbientStage(initialImg, initialAccent) {
     '<div class="ambient-bg" id="ambientBgB"></div>' +
     '<div class="ambient-glow"></div>' +
     '<canvas class="ambient-canvas" id="ambientCanvas"></canvas>' +
-    '<div class="ambient-vignette"></div>';
+    '<div class="ambient-vignette"></div>' +
+    '<div class="ambient-grain"></div>';
 
   _ambientState.bgA = document.getElementById("ambientBgA");
   _ambientState.bgB = document.getElementById("ambientBgB");
@@ -486,28 +1103,36 @@ function initAmbientStage(initialImg, initialAccent) {
       if (_ambientState.reducedMotion && _ambientState.rafId) {
         cancelAnimationFrame(_ambientState.rafId);
         _ambientState.rafId = null;
-        _drawAmbientFrame(true);
+        _ambientState.inten = 0.55;
+        _drawAmbientFrame(true, 1);
       } else if (!_ambientState.reducedMotion && !_ambientState.rafId) {
+        _ambientState.last = 0;
         _tickAmbient();
       }
     });
   }
 
-  _initParticles();
-  window.addEventListener("resize", _resizeAmbientCanvas);
   _resizeAmbientCanvas();
+  window.addEventListener("resize", function() {
+    _resizeAmbientCanvas();
+    _buildAmbientFx(_ambientState.fxType);
+  });
 
-  ySetAmbient(initialImg || "img/moon-water.jpg", initialAccent || "#8e74e8", false);
+  var startImg = initialImg || "img/night-lake-stars.jpg";
+  var startFx = _yInferFxType(startImg, initialFx);
+  _buildAmbientFx(startFx);
+  ySetAmbient(startImg, initialAccent || "#e9b783", false, startFx);
 
   if (_ambientState.reducedMotion) {
-    _drawAmbientFrame(true);
+    _ambientState.inten = 0.55;
+    _drawAmbientFrame(true, 1);
   } else {
     _tickAmbient();
   }
 }
 
-function ySetAmbient(imgUrl, accentHex, isPlaying) {
-  if (!_ambientState.inited) initAmbientStage();
+function ySetAmbient(imgUrl, accentHex, isPlaying, fxType) {
+  if (!_ambientState.inited) initAmbientStage(imgUrl, accentHex, fxType);
   if (accentHex) {
     _ambientState.accentHex = accentHex;
     _ambientState.accentRgb = _yHexToRgb(accentHex);
@@ -517,6 +1142,11 @@ function ySetAmbient(imgUrl, accentHex, isPlaying) {
   if (typeof isPlaying === "boolean") {
     _ambientState.playing = isPlaying;
     document.body.classList.toggle("is-playing", isPlaying);
+  }
+  var nextFx = _yInferFxType(imgUrl || _ambientState.currentImg, fxType);
+  if (nextFx && nextFx !== _ambientState.fxType) {
+    _ambientState.nextFxType = nextFx;
+    _ambientState.fadingOut = true;
   }
   if (imgUrl && imgUrl !== _ambientState.currentImg) {
     _ambientState.currentImg = imgUrl;
@@ -535,72 +1165,347 @@ function ySetAmbient(imgUrl, accentHex, isPlaying) {
 function _resizeAmbientCanvas() {
   var c = _ambientState.canvas;
   if (!c) return;
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  c.width = Math.floor(window.innerWidth * dpr);
-  c.height = Math.floor(window.innerHeight * dpr);
+  var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  _ambientState.w = window.innerWidth;
+  _ambientState.h = window.innerHeight;
+  c.width = Math.floor(_ambientState.w * dpr);
+  c.height = Math.floor(_ambientState.h * dpr);
   if (_ambientState.ctx) {
     _ambientState.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   if (_ambientState.reducedMotion) {
-    _drawAmbientFrame(true);
+    _drawAmbientFrame(true, 1);
   }
 }
 
-function _initParticles() {
-  var list = [];
-  var count = 34;
-  for (var i = 0; i < count; i++) {
-    list.push({
-      x: Math.random(),
-      y: Math.random(),
-      r: 0.7 + Math.random() * 1.8,
-      vx: (Math.random() - 0.5) * 0.00018,
-      vy: -0.00008 - Math.random() * 0.00022,
-      alpha: 0.14 + Math.random() * 0.36,
-      phase: Math.random() * Math.PI * 2
-    });
-  }
-  _ambientState.particles = list;
-}
-
-function _drawAmbientFrame(freeze) {
-  var ctx = _ambientState.ctx;
-  var c = _ambientState.canvas;
-  if (!ctx || !c) return;
-  var w = window.innerWidth;
-  var h = window.innerHeight;
-  ctx.clearRect(0, 0, w, h);
-
-  var now = Date.now() * 0.0007;
-  var speedMul = _ambientState.playing ? 1.45 : 0.85;
-  var alphaMul = _ambientState.playing ? 1.15 : 0.75;
-  var rgb = _ambientState.accentRgb;
-
-  for (var i = 0; i < _ambientState.particles.length; i++) {
-    var p = _ambientState.particles[i];
-    if (!freeze) {
-      p.x += p.vx * speedMul;
-      p.y += p.vy * speedMul;
-      if (p.y < -0.05) p.y = 1.05;
-      if (p.x < -0.05) p.x = 1.05;
-      if (p.x > 1.05) p.x = -0.05;
+function _buildAmbientFx(type) {
+  _ambientState.fxType = type || "night";
+  _ambientState.p = [];
+  _ambientState.extra = [];
+  _ambientState.rings = [];
+  var w = _ambientState.w || window.innerWidth;
+  var h = _ambientState.h || window.innerHeight;
+  var area = Math.min(1.4, (w * h) / (1280 * 800));
+  var i, n;
+  if (type === "rain") {
+    n = Math.round(140 * area);
+    for (i = 0; i < n; i++) {
+      _ambientState.p.push({ x: _yRnd(0, w), y: _yRnd(-h, h), len: _yRnd(12, 32), sp: _yRnd(0.7, 1.45), a: _yRnd(0.05, 0.22), wd: _yRnd(0.5, 1.15), z: Math.random() });
     }
-    var twinkle = freeze ? 1 : (0.65 + 0.35 * Math.sin(now + p.phase));
-    var a = Math.min(0.65, p.alpha * twinkle * alphaMul);
-    ctx.beginPath();
-    ctx.arc(p.x * w, p.y * h, p.r, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(" + rgb + ", " + a.toFixed(3) + ")";
-    ctx.fill();
+    for (i = 0; i < 18; i++) {
+      _ambientState.extra.push({ x: _yRnd(0, w), y: _yRnd(0, h), r: _yRnd(1.5, 4.2), vy: 0, hold: _yRnd(0, 600) });
+    }
+  } else if (type === "fire") {
+    // 余烬动态生成
+  } else if (type === "water") {
+    for (i = 0; i < 64; i++) {
+      _ambientState.p.push({ x: _yRnd(0, w), y: _yRnd(h * 0.55, h), ph: _yRnd(0, 6.28), f: _yRnd(0.6, 1.8), r: _yRnd(0.6, 1.6) });
+    }
+  } else if (type === "wind") {
+    for (i = 0; i < 6; i++) {
+      _ambientState.extra.push({ x: _yRnd(-w * 0.2, w), y: _yRnd(h * 0.3, h * 0.95), r: _yRnd(h * 0.25, h * 0.48), vx: _yRnd(0.08, 0.22), a: _yRnd(0.03, 0.065) });
+    }
+    for (i = 0; i < Math.round(52 * area); i++) {
+      _ambientState.p.push({ x: _yRnd(0, w), y: _yRnd(0, h), vx: _yRnd(0.18, 0.62), ph: _yRnd(0, 6.28), r: _yRnd(0.6, 1.7), a: _yRnd(0.14, 0.4) });
+    }
+  } else if (type === "asmr") {
+    for (i = 0; i < Math.round(50 * area); i++) {
+      _ambientState.p.push({ x: _yRnd(0, w), y: _yRnd(0, h), vx: _yRnd(-0.08, 0.08), vy: _yRnd(-0.12, -0.02), r: _yRnd(0.5, 1.5), a: _yRnd(0.1, 0.36), ph: _yRnd(0, 6.28) });
+    }
+  } else if (type === "bed") {
+    for (i = 0; i < 5; i++) {
+      _ambientState.extra.push({ x: _yRnd(0, w), y: _yRnd(h * 0.2, h), r: _yRnd(h * 0.3, h * 0.55), vx: _yRnd(-0.1, 0.1), a: _yRnd(0.03, 0.055) });
+    }
+  } else {
+    for (i = 0; i < Math.round(95 * area); i++) {
+      _ambientState.p.push({ x: _yRnd(0, w), y: _yRnd(0, h * 0.65), r: _yRnd(0.4, 1.25), ph: _yRnd(0, 6.28), f: _yRnd(0.4, 1.3) });
+    }
+    for (i = 0; i < 16; i++) {
+      _ambientState.extra.push({ x: _yRnd(0, w), y: _yRnd(h * 0.45, h * 0.95), vx: _yRnd(-0.26, 0.26), vy: _yRnd(-0.18, 0.18), ph: _yRnd(0, 6.28), f: _yRnd(0.5, 1.15) });
+    }
   }
 }
 
-function _tickAmbient() {
-  if (_ambientState.reducedMotion) {
-    _ambientState.rafId = null;
+function _readAmbientLevel(dt) {
+  var st = _ambientState;
+  var target = 0;
+  if (st.playing) {
+    if (st.analyser && st.ampBuf) {
+      st.analyser.getByteTimeDomainData(st.ampBuf);
+      var sum = 0;
+      for (var i = 0; i < st.ampBuf.length; i++) {
+        var v = (st.ampBuf[i] - 128) / 128;
+        sum += v * v;
+      }
+      var rms = Math.sqrt(sum / st.ampBuf.length);
+      st.peak = Math.max(rms, st.peak * 0.9985, 0.015);
+      target = Math.pow(Math.min(1, rms / st.peak), 1.6);
+    } else {
+      target = 0.42 + 0.24 * Math.sin(st.t * 0.0011) + 0.08 * Math.sin(st.t * 0.0047);
+    }
+  }
+  var k = target > st.level ? 0.3 : 0.07;
+  st.level += (target - st.level) * Math.min(1, k * dt);
+  st.avg += (st.level - st.avg) * 0.02 * dt;
+  st.inten += ((st.playing ? 1 : 0.4) - st.inten) * 0.014 * dt;
+}
+
+function _ambientRingCenter(w, h) {
+  var el = document.querySelector(".breath-btn, .orb, #miniPlayBtn");
+  if (el) {
+    var r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+  }
+  return { x: w * 0.5, y: h * 0.42 };
+}
+
+function _drawAmbientFrame(freeze, dt) {
+  var st = _ambientState;
+  var g = st.ctx;
+  if (!g || !st.canvas) return;
+  var w = st.w || window.innerWidth;
+  var h = st.h || window.innerHeight;
+  var step = freeze ? 0 : (dt || 1);
+  var L = st.level;
+  var I = st.inten * st.fade;
+  var t = st.t;
+  var rgb = st.accentRgb;
+  var i, q;
+
+  g.clearRect(0, 0, w, h);
+
+  if (st.fxType === "rain") {
+    var speed = 0.55 + L * 0.85 + (st.playing ? 0.25 : 0);
+    var active = Math.floor(st.p.length * (0.32 + 0.68 * st.inten));
+    g.lineCap = "round";
+    for (i = 0; i < active; i++) {
+      q = st.p[i];
+      if (!freeze) {
+        var vy = q.sp * (6 + q.z * 8) * speed * step;
+        q.y += vy;
+        q.x -= vy * 0.12;
+        if (q.y > h + 40) { q.y = _yRnd(-80, -10); q.x = _yRnd(0, w * 1.1); }
+      }
+      g.strokeStyle = "rgba(214,222,255," + (q.a * (0.55 + 0.7 * L) * I).toFixed(3) + ")";
+      g.lineWidth = q.wd * (0.6 + q.z * 0.8);
+      g.beginPath();
+      g.moveTo(q.x, q.y);
+      g.lineTo(q.x + q.len * 0.12, q.y - q.len * (0.7 + q.z * 0.6));
+      g.stroke();
+    }
+    for (i = 0; i < st.extra.length; i++) {
+      q = st.extra[i];
+      if (!freeze) {
+        if (q.hold > 0) q.hold -= step * (1 + L * 2);
+        else { q.vy = Math.min(3, q.vy + 0.04 * step); q.y += q.vy * step; }
+        if (q.y > h + 10) { q.y = _yRnd(-10, h * 0.4); q.x = _yRnd(0, w); q.vy = 0; q.hold = _yRnd(200, 900); }
+      }
+      var ga = (0.2 + 0.18 * L) * I;
+      var gr = g.createRadialGradient(q.x - q.r * 0.3, q.y - q.r * 0.3, 0, q.x, q.y, q.r * 1.6);
+      gr.addColorStop(0, "rgba(255,255,255," + (ga * 1.15).toFixed(3) + ")");
+      gr.addColorStop(0.5, "rgba(" + rgb + "," + (ga * 0.48).toFixed(3) + ")");
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = gr;
+      g.beginPath();
+      g.arc(q.x, q.y, q.r * 1.6, 0, 6.283);
+      g.fill();
+    }
+  } else if (st.fxType === "fire") {
+    var flick = 0.5 + 0.5 * Math.sin(t * 0.009) * Math.sin(t * 0.0037);
+    var glowA = (0.09 + 0.2 * L + 0.04 * flick) * I;
+    var fg = g.createRadialGradient(w * 0.5, h * 1.08, 0, w * 0.5, h * 1.08, h * 0.92);
+    fg.addColorStop(0, "rgba(255,160,90," + glowA.toFixed(3) + ")");
+    fg.addColorStop(1, "rgba(255,120,60,0)");
+    g.fillStyle = fg;
+    g.fillRect(0, 0, w, h);
+    if (!freeze) {
+      var spawn = (0.14 + 1.3 * L) * I * step;
+      while (spawn > 0) {
+        if (Math.random() < spawn) {
+          st.p.push({ x: _yRnd(w * 0.1, w * 0.9), y: h + 6, vx: _yRnd(-0.3, 0.3), vy: _yRnd(-1.5, -0.5), life: 1, dec: _yRnd(0.002, 0.006), r: _yRnd(0.8, 2.1), ph: _yRnd(0, 6.28) });
+        }
+        spawn -= 1;
+      }
+    }
+    for (i = st.p.length - 1; i >= 0; i--) {
+      q = st.p[i];
+      if (!freeze) {
+        q.x += (q.vx + Math.sin(t * 0.002 + q.ph) * 0.32) * step;
+        q.y += q.vy * step * (0.8 + L * 0.6);
+        q.life -= q.dec * step;
+        if (q.life <= 0 || q.y < -10) { st.p.splice(i, 1); continue; }
+      }
+      var ea = q.life * (0.55 + 0.45 * Math.sin(t * 0.02 + q.ph)) * I;
+      g.fillStyle = "rgba(255,170,100," + (ea * 0.18).toFixed(3) + ")";
+      g.beginPath();
+      g.arc(q.x, q.y, q.r * 4, 0, 6.283);
+      g.fill();
+      g.fillStyle = "rgba(255,215,160," + (ea * 0.88).toFixed(3) + ")";
+      g.beginPath();
+      g.arc(q.x, q.y, q.r, 0, 6.283);
+      g.fill();
+    }
+  } else if (st.fxType === "water") {
+    for (var layer = 0; layer < 6; layer++) {
+      var y0 = h * (0.62 + layer * 0.06);
+      var amp = (2 + layer * 1.5) * (0.5 + L * 1.3);
+      var sp = 0.0006 + layer * 0.00012;
+      g.strokeStyle = "rgba(" + rgb + "," + ((0.045 + 0.055 * L) * I * (1 - layer * 0.08)).toFixed(3) + ")";
+      g.lineWidth = 1;
+      g.beginPath();
+      for (var x = -20; x <= w + 20; x += 18) {
+        var y = y0 + Math.sin(x * (0.006 - layer * 0.0004) + t * sp + layer) * amp + Math.sin(x * 0.017 + t * sp * 1.7) * amp * 0.35;
+        if (x === -20) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    for (i = 0; i < st.p.length; i++) {
+      q = st.p[i];
+      var s = Math.sin(t * 0.002 * q.f + q.ph);
+      if (s < 0.32) continue;
+      var sa = (s - 0.32) * (0.38 + 0.75 * L) * I;
+      g.fillStyle = "rgba(235,240,255," + sa.toFixed(3) + ")";
+      g.fillRect(q.x + Math.sin(t * 0.0005 + q.ph) * 8, q.y, q.r * 3, q.r * 0.7);
+    }
+  } else if (st.fxType === "wind") {
+    for (i = 0; i < st.extra.length; i++) {
+      q = st.extra[i];
+      if (!freeze) {
+        q.x += q.vx * (0.6 + L * 1.5) * step;
+        if (q.x - q.r > w) q.x = -q.r;
+      }
+      var mg = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r);
+      mg.addColorStop(0, "rgba(220,226,240," + (q.a * (0.6 + 0.6 * L) * I).toFixed(3) + ")");
+      mg.addColorStop(1, "rgba(220,226,240,0)");
+      g.fillStyle = mg;
+      g.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2);
+    }
+    for (i = 0; i < st.p.length; i++) {
+      q = st.p[i];
+      if (!freeze) {
+        q.x += q.vx * (0.5 + L * 2.0) * step;
+        q.y += Math.sin(t * 0.0012 + q.ph) * 0.24 * step;
+        if (q.x > w + 10) { q.x = -10; q.y = _yRnd(0, h); }
+      }
+      g.fillStyle = "rgba(240,236,220," + (q.a * (0.5 + 0.6 * L) * I).toFixed(3) + ")";
+      g.beginPath();
+      g.arc(q.x, q.y, q.r, 0, 6.283);
+      g.fill();
+    }
+  } else if (st.fxType === "asmr") {
+    for (i = 0; i < st.p.length; i++) {
+      q = st.p[i];
+      if (!freeze) {
+        q.x += q.vx * step;
+        q.y += q.vy * step * (0.6 + L);
+        if (q.y < -10) { q.y = h + 10; q.x = _yRnd(0, w); }
+      }
+      g.fillStyle = "rgba(" + rgb + "," + (q.a * (0.5 + 0.5 * Math.sin(t * 0.002 + q.ph)) * I).toFixed(3) + ")";
+      g.beginPath();
+      g.arc(q.x, q.y, q.r, 0, 6.283);
+      g.fill();
+    }
+    if (!freeze) {
+      var onset = st.playing && (L - st.avg > 0.12) && (t - st.lastRing > 220);
+      var idle = t - st.lastRing > (st.playing ? 1900 : 4200);
+      if (onset || idle) {
+        st.lastRing = t;
+        var oc = _ambientRingCenter(w, h);
+        st.rings.push({ x: oc.x, y: oc.y, r: 36, a: onset ? 0.25 + L * 0.28 : 0.12 });
+      }
+      for (i = st.rings.length - 1; i >= 0; i--) {
+        q = st.rings[i];
+        q.r += (0.85 + L * 1.5) * step;
+        q.a *= Math.pow(0.988, step);
+        if (q.a < 0.008) { st.rings.splice(i, 1); continue; }
+        g.strokeStyle = "rgba(" + rgb + "," + (q.a * st.fade).toFixed(3) + ")";
+        g.lineWidth = 1;
+        g.beginPath();
+        g.arc(q.x, q.y, q.r, 0, 6.283);
+        g.stroke();
+      }
+    }
+  } else if (st.fxType === "bed") {
+    var br = 0.5 + 0.5 * Math.sin(t * 0.00063);
+    for (i = 0; i < st.extra.length; i++) {
+      q = st.extra[i];
+      if (!freeze) {
+        q.x += q.vx * step;
+        if (q.x < -q.r) q.x = w + q.r;
+        if (q.x > w + q.r) q.x = -q.r;
+      }
+      var bg2 = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r * (0.9 + 0.14 * br));
+      bg2.addColorStop(0, "rgba(" + rgb + "," + (q.a * (0.7 + 0.75 * L + 0.35 * br) * I).toFixed(3) + ")");
+      bg2.addColorStop(1, "rgba(" + rgb + ",0)");
+      g.fillStyle = bg2;
+      g.fillRect(q.x - q.r * 1.2, q.y - q.r * 1.2, q.r * 2.4, q.r * 2.4);
+    }
+  } else {
+    // night: 星光与萤火
+    for (i = 0; i < st.p.length; i++) {
+      q = st.p[i];
+      var tw = freeze ? 0.7 : (0.5 + 0.5 * Math.sin(t * 0.0015 * q.f + q.ph));
+      g.fillStyle = "rgba(240,236,255," + ((0.14 + 0.5 * tw) * I).toFixed(3) + ")";
+      g.beginPath();
+      g.arc(q.x, q.y, q.r, 0, 6.283);
+      g.fill();
+    }
+    for (i = 0; i < st.extra.length; i++) {
+      q = st.extra[i];
+      if (!freeze) {
+        q.vx += _yRnd(-0.018, 0.018) * step;
+        q.vy += _yRnd(-0.018, 0.018) * step;
+        q.vx = Math.max(-0.36, Math.min(0.36, q.vx));
+        q.vy = Math.max(-0.28, Math.min(0.28, q.vy));
+        q.x += q.vx * step;
+        q.y += q.vy * step;
+        if (q.x < -20) q.x = w + 20;
+        if (q.x > w + 20) q.x = -20;
+        if (q.y < h * 0.35) q.vy += 0.02;
+        if (q.y > h) q.vy -= 0.02;
+      }
+      var blink = freeze ? 0.6 : Math.max(0, Math.sin(t * 0.0018 * q.f + q.ph));
+      var fa = blink * (0.32 + 0.62 * L) * I;
+      if (fa < 0.01) continue;
+      var ff = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 14);
+      ff.addColorStop(0, "rgba(233,220,166," + (fa * 0.85).toFixed(3) + ")");
+      ff.addColorStop(1, "rgba(210,200,130,0)");
+      g.fillStyle = ff;
+      g.beginPath();
+      g.arc(q.x, q.y, 14, 0, 6.283);
+      g.fill();
+    }
+  }
+}
+
+function _tickAmbient(now) {
+  var st = _ambientState;
+  if (st.reducedMotion) {
+    st.rafId = null;
     return;
   }
-  _drawAmbientFrame(false);
-  _ambientState.rafId = requestAnimationFrame(_tickAmbient);
+  var ts = typeof now === "number" ? now : performance.now();
+  var dt = st.last ? Math.min(3, (ts - st.last) / 16.67) : 1;
+  st.last = ts;
+  st.t = ts;
+
+  if (st.fadingOut) {
+    st.fade -= 0.025 * dt;
+    if (st.fade <= 0) {
+      st.fade = 0;
+      st.fadingOut = false;
+      _buildAmbientFx(st.nextFxType);
+    }
+  } else if (st.fade < 1) {
+    st.fade = Math.min(1, st.fade + 0.015 * dt);
+  }
+
+  _readAmbientLevel(dt);
+  _drawAmbientFrame(false, dt);
+  document.documentElement.style.setProperty("--y-lvl", (st.playing ? st.level : 0).toFixed(3));
+  st.rafId = requestAnimationFrame(_tickAmbient);
 }
 
 function _yHtmlEsc(s) {

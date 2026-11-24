@@ -4,62 +4,60 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · AI 配声</title>
-<link rel="stylesheet" href="theme.css?v=2">
+<link rel="stylesheet" href="theme.css?v=12">
 <style>
   .wrap-agent {
     position: relative;
     z-index: 1;
-    max-width: 860px;
+    max-width: 920px;
     margin: 0 auto;
-    padding: 0 22px 104px;
-    transition: opacity 0.55s ease;
+    padding: 0 clamp(18px, 4vw, 32px) 132px;
+    transition: opacity 0.8s var(--y-ease);
   }
   .wrap-agent.in-chat {
     padding-bottom: 220px;
   }
 
-  /* 极简无框一行页头：把空间留给核心操作区 */
-  .agent-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 2px 2px 12px;
-    min-height: 44px;
+  @media (min-width: 720px) {
+    .wrap-agent {
+      padding-bottom: 72px;
+    }
+    .wrap-agent.in-chat {
+      padding-bottom: 148px;
+    }
+    .designer-box {
+      margin-top: 28px;
+    }
   }
-  .agent-head-left {
+
+  /* 页头只留标题与状态：状态并到标题右侧，不单独占一行 */
+  .ph-right {
     display: flex;
     align-items: baseline;
-    gap: 9px;
-    flex-wrap: wrap;
-    min-width: 0;
-  }
-  .agent-head h1 {
-    margin: 0;
-    font-size: 19px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    color: #fff;
-  }
-  .agent-sub {
-    font-size: 12px;
-    color: var(--y-text-sub);
+    gap: 14px;
   }
   .agent-mem-tag {
-    font-size: 11px;
-    color: #cbeedf;
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: rgba(var(--y-warm-rgb), 0.82);
+  }
+  .agent-mem-tag:empty {
+    display: none;
   }
   .new-chat-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(218, 200, 255, 0.22);
-    color: #dfd1ff;
-    border-radius: 999px;
-    padding: 5px 12px;
-    font-size: 11.5px;
+    display: none;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0 0 3px;
+    color: var(--y-text-muted);
+    font-size: 13.5px;
+    letter-spacing: 0.1em;
     cursor: pointer;
     font-family: inherit;
-    display: none;
-    flex: 0 0 auto;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    transition: color 0.5s ease, border-color 0.5s ease;
   }
   .new-chat-btn.show {
     display: inline-flex;
@@ -67,118 +65,177 @@
     gap: 4px;
   }
   .new-chat-btn:hover {
-    background: rgba(var(--y-accent-rgb), 0.2);
-    border-color: rgba(218, 200, 255, 0.45);
+    color: var(--y-text);
+    background: none;
+    border-bottom-color: rgba(var(--y-warm-rgb), 0.6);
   }
 
-  /* 阶段一：首屏绝对主角 —— 提示词设计台 */
+  /* 阶段一：夜色对话入口 —— 不装卡片，输入框自己浮在场景上 */
   .designer-box.hide {
     display: none;
   }
+  /* 文字压在照片最亮的地方会发灰：垫一层没有边缘的墨，不是卡片 */
+  .designer-box {
+    position: relative;
+  }
+  .designer-box::before {
+    content: "";
+    position: absolute;
+    left: -26px;
+    right: -26px;
+    top: -46px;
+    bottom: -34px;
+    background: radial-gradient(64% 74% at 34% 48%,
+      rgba(7, 5, 13, 0.78) 0%,
+      rgba(7, 5, 13, 0.52) 48%,
+      rgba(7, 5, 13, 0) 82%);
+    pointer-events: none;
+    z-index: -1;
+  }
   .designer-card {
-    padding: 16px;
-    border-color: rgba(var(--y-accent-rgb), 0.30);
-    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.36), 0 0 40px rgba(var(--y-accent-rgb), 0.10);
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
   }
   .designer-head {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 10px;
   }
   .designer-title {
-    font-size: 14.5px;
-    font-weight: 600;
-    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    color: var(--y-text-sub);
   }
   .designer-tools {
     display: flex;
-    gap: 6px;
+    gap: 14px;
   }
   .tiny-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(218, 200, 255, 0.18);
-    color: var(--y-text-sub);
-    border-radius: 12px;
-    padding: 4px 10px;
-    font-size: 11px;
+    background: none;
+    border: none;
+    color: rgba(226, 216, 244, 0.5);
+    border-radius: 0;
+    padding: 0;
+    font-size: 14px;
+    letter-spacing: 0.1em;
     cursor: pointer;
     font-family: inherit;
+    transition: color 0.45s ease;
   }
   .tiny-btn:hover {
-    color: #fff;
-    border-color: rgba(218, 200, 255, 0.45);
+    color: var(--y-text-sub);
+    background: none;
   }
 
   #promptDraft {
-    min-height: 92px;
-    font-size: 15px;
-    padding: 13px 14px;
+    min-height: 0;
+    height: 38px;
+    font-size: 19px;
     line-height: 1.6;
+    padding: 0 0 8px;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+  }
+  #promptDraft::placeholder {
+    color: rgba(236, 228, 248, 0.56);
+  }
+  #promptDraft:focus {
+    background: transparent;
+    box-shadow: none;
+    border-bottom-color: rgba(var(--y-warm-rgb), 0.65);
   }
 
   .builder-rows {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 11px;
+    margin-top: 24px;
   }
   .builder-row {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: baseline;
+    gap: 14px;
   }
   .builder-dim {
-    width: 32px;
-    flex: 0 0 32px;
-    font-size: 11px;
-    color: var(--y-text-muted);
+    width: 36px;
+    flex: 0 0 36px;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--y-text-sub);
   }
   .builder-chips {
     flex: 1;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 6px 18px;
   }
   .dim-chip {
-    background: rgba(255, 255, 255, 0.045);
-    border: 1px solid rgba(218, 200, 255, 0.15);
-    border-radius: 16px;
-    padding: 5px 11px;
-    font-size: 12px;
-    color: #d6c9ef;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0 0 2px;
+    font-size: 13.5px;
+    letter-spacing: 0.04em;
+    color: rgba(236, 228, 248, 0.8);
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    border-bottom: 1px solid transparent;
+    transition: color 0.45s ease, border-color 0.45s ease;
   }
   .dim-chip:hover {
-    border-color: rgba(var(--y-accent-rgb), 0.55);
-    color: #fff;
+    background: none;
+    color: var(--y-text);
   }
   .dim-chip.on {
-    background: rgba(var(--y-accent-rgb), 0.30);
-    border-color: rgba(var(--y-accent-rgb), 0.78);
-    color: #fff;
+    background: none;
+    color: var(--y-warm);
+    border-bottom-color: rgba(var(--y-warm-rgb), 0.55);
   }
 
   .designer-actions {
     display: flex;
-    gap: 10px;
-    margin-top: 14px;
+    align-items: center;
+    gap: 24px;
+    margin-top: 28px;
     flex-wrap: wrap;
   }
   .designer-actions .y-btn-primary {
-    flex: 1.5;
-    min-width: 170px;
+    flex: 0 0 auto;
+    min-width: 172px;
+    padding: 12px 26px;
   }
   .designer-actions .y-btn-ghost {
-    flex: 0.9;
-    min-width: 118px;
+    flex: 0 0 auto;
+    min-width: 0;
+    background: none;
+    padding: 0 0 3px;
+    color: var(--y-text-muted);
+    font-size: 13.5px;
+    letter-spacing: 0.08em;
+    border-radius: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
   }
+  .designer-actions .y-btn-ghost:hover {
+    background: none;
+    color: var(--y-text);
+    border-bottom-color: rgba(var(--y-warm-rgb), 0.6);
+  }
+
   .designer-err {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: #ff9eb5;
     min-height: 16px;
   }
@@ -190,7 +247,7 @@
   .chat-stream {
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: 14px;
   }
 
   .msg-user-wrap {
@@ -199,13 +256,14 @@
   }
   .msg-user {
     max-width: 84%;
-    padding: 9px 14px;
-    border-radius: 17px 17px 5px 17px;
-    background: linear-gradient(135deg, rgba(var(--y-accent-rgb), 0.55), rgba(88, 60, 158, 0.72));
-    border: 1px solid rgba(235, 224, 255, 0.28);
-    color: #fff;
-    font-size: 13.5px;
-    line-height: 1.5;
+    padding: 11px 16px;
+    border-radius: 18px 18px 6px 18px;
+    background: linear-gradient(135deg, rgba(var(--y-warm-rgb), 0.24), rgba(32, 22, 46, 0.78));
+    border: none;
+    box-shadow: 0 10px 26px rgba(4, 2, 12, 0.3);
+    color: #fbf7ff;
+    font-size: 14.5px;
+    line-height: 1.6;
   }
 
   /* 简洁思考状态气泡 */
@@ -214,42 +272,43 @@
     align-items: center;
     gap: 8px;
     align-self: flex-start;
-    padding: 10px 14px;
-    border-radius: 16px 16px 16px 5px;
-    background: rgba(21, 15, 36, 0.72);
-    border: 1px solid rgba(var(--y-accent-rgb), 0.34);
-    font-size: 12.5px;
-    color: #e4d6ff;
+    padding: 10px 15px;
+    border-radius: 18px 18px 18px 6px;
+    background: rgba(14, 10, 24, 0.74);
+    border: none;
+    box-shadow: 0 10px 26px rgba(4, 2, 12, 0.34);
+    font-size: 13.5px;
+    color: var(--y-text-sub);
   }
 
   /* 阶段二：聚焦核心问题的 AI 追问卡片 */
   .msg-ask-box {
-    padding: 15px;
-    border-radius: 18px 18px 18px 6px;
-    background: rgba(21, 15, 36, 0.76);
-    border: 1px solid rgba(var(--y-accent-rgb), 0.38);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    padding: 20px;
+    border-radius: 22px;
+    background: rgba(14, 10, 24, 0.74);
+    border: none;
+    box-shadow: 0 18px 44px rgba(4, 2, 12, 0.42);
   }
   .collected-strip {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 9px;
+    gap: 6px;
+    margin-bottom: 10px;
   }
   .col-pill {
-    font-size: 10.5px;
-    padding: 2px 8px;
+    font-size: 12px;
+    padding: 3px 9px;
     border-radius: 999px;
-    border: 1px solid rgba(142, 224, 197, 0.42);
-    background: rgba(142, 224, 197, 0.11);
+    border: none;
+    background: rgba(142, 224, 197, 0.14);
     color: #cef7e8;
   }
   .ask-question {
     font-size: 15.5px;
-    font-weight: 600;
+    font-weight: 500;
     color: #fff;
-    line-height: 1.48;
-    margin-bottom: 12px;
+    line-height: 1.5;
+    margin-bottom: 13px;
   }
   .qa-options {
     display: grid;
@@ -263,20 +322,18 @@
   }
   .qa-opt-btn {
     text-align: left;
-    padding: 11px 13px;
-    border-radius: 13px;
-    background: rgba(var(--y-accent-rgb), 0.14);
-    border: 1px solid rgba(var(--y-accent-rgb), 0.36);
-    color: #f4eeff;
-    font-size: 13px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.055);
+    border: none;
+    color: var(--y-text);
+    font-size: 14px;
     font-family: inherit;
     cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    transition: background 0.45s ease;
   }
   .qa-opt-btn:hover:not(:disabled) {
-    background: rgba(var(--y-accent-rgb), 0.30);
-    border-color: rgba(226, 212, 255, 0.65);
-    transform: translateY(-1px);
+    background: rgba(var(--y-warm-rgb), 0.16);
   }
   .qa-opt-btn:disabled {
     opacity: 0.45;
@@ -284,9 +341,8 @@
   }
   .qa-opt-btn.picked {
     opacity: 1;
-    background: rgba(142, 224, 197, 0.20);
-    border-color: rgba(142, 224, 197, 0.65);
-    color: #e4fff5;
+    background: rgba(var(--y-warm-rgb), 0.22);
+    color: #fff7eb;
   }
   .qa-skip-row {
     margin-top: 9px;
@@ -297,7 +353,7 @@
     background: transparent;
     border: none;
     color: #c8b6ee;
-    font-size: 11.5px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
     padding: 3px 4px;
@@ -317,23 +373,22 @@
     gap: 9px;
   }
   .ver-card {
-    border-radius: 18px;
+    border-radius: 22px;
     overflow: hidden;
-    background: rgba(18, 13, 32, 0.80);
-    border: 1px solid rgba(218, 200, 255, 0.20);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
-    transition: border-color 0.35s ease, box-shadow 0.35s ease;
+    background: var(--y-glass);
+    border: none;
+    box-shadow: 0 22px 54px rgba(4, 2, 12, 0.46);
+    transition: box-shadow 0.8s ease;
   }
   .ver-card.is-playing-card {
-    border-color: rgba(var(--y-accent-rgb), 0.76);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42), 0 0 32px rgba(var(--y-accent-rgb), 0.24);
+    box-shadow: 0 22px 54px rgba(4, 2, 12, 0.54), 0 0 42px rgba(var(--y-warm-rgb), 0.2);
   }
   .ver-hero {
     position: relative;
-    padding: 14px 15px;
+    padding: 20px 18px;
     display: flex;
     align-items: center;
-    gap: 13px;
+    gap: 14px;
     background-size: cover;
     background-position: center;
   }
@@ -341,7 +396,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(14, 10, 26, 0.84), rgba(14, 10, 26, 0.68));
+    background: linear-gradient(135deg, rgba(10, 7, 18, 0.86), rgba(10, 7, 18, 0.68));
   }
   .ver-hero > * {
     position: relative;
@@ -360,27 +415,29 @@
     position: absolute;
     inset: -4px;
     border-radius: 50%;
-    border: 1.5px solid rgba(var(--y-accent-rgb), 0.48);
-    opacity: 0.2;
+    border: 1px solid rgba(var(--y-warm-rgb), 0.45);
+    opacity: 0.22;
     pointer-events: none;
   }
   .ver-card.is-playing-card .ver-orb-ring {
-    opacity: 0.9;
-    animation: yBreath 3.8s ease-in-out infinite;
+    opacity: 0.88;
+    animation: yBreath 4.6s ease-in-out infinite;
   }
   .ver-play-btn {
     width: 46px;
     height: 46px;
     border-radius: 50%;
-    border: 1px solid rgba(242, 234, 255, 0.45);
-    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28), rgba(var(--y-accent-rgb), 0.68));
-    color: #fff;
+    border: 1px solid rgba(255, 244, 228, 0.36);
+    background:
+      radial-gradient(circle at 38% 32%, rgba(255, 246, 232, 0.26), rgba(255, 255, 255, 0.04) 60%),
+      rgba(20, 14, 30, 0.45);
+    color: #fff8ee;
     font-size: 15px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 6px 20px rgba(var(--y-accent-rgb), 0.36);
+    box-shadow: 0 6px 22px rgba(var(--y-warm-rgb), 0.24);
   }
   .ver-head-meta {
     flex: 1;
@@ -393,35 +450,36 @@
     flex-wrap: wrap;
   }
   .ver-num {
-    font-size: 10.5px;
-    font-weight: 700;
-    color: #1f1136;
-    background: #e2d0ff;
-    border-radius: 7px;
-    padding: 1px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d120a;
+    background: var(--y-warm);
+    border-radius: 999px;
+    padding: 1px 7px;
   }
   .ver-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-family: var(--y-serif);
+    font-size: 17px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
     color: #fff;
   }
   .ver-mode-badge {
     margin-left: auto;
-    font-size: 10.5px;
-    padding: 2px 8px;
+    font-size: 12px;
+    padding: 3px 9px;
     border-radius: 999px;
-    border: 1px solid rgba(218, 200, 255, 0.22);
-    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
     color: #d6c9ef;
   }
   .ver-mode-badge.ai {
-    border-color: rgba(142, 224, 197, 0.45);
-    background: rgba(142, 224, 197, 0.14);
+    background: rgba(142, 224, 197, 0.16);
     color: #cef7e8;
   }
   .ver-final-sub {
     margin-top: 4px;
-    font-size: 11.5px;
+    font-size: 13px;
     color: #ccefe2;
     white-space: nowrap;
     overflow: hidden;
@@ -435,7 +493,7 @@
     gap: 7px;
   }
   .ver-contains-head {
-    font-size: 12px;
+    font-size: 13px;
     color: #dfd1ff;
     padding: 2px 2px 4px;
     font-weight: 500;
@@ -443,14 +501,20 @@
   .ver-track-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 10px;
-    border-radius: 11px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(218, 200, 255, 0.09);
+    gap: 9px;
+    padding: 9px 11px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+  }
+  .vt-thumb {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 10px;
   }
   .vt-layer {
-    font-size: 10px;
+    font-size: 12px;
     padding: 1px 6px;
     border-radius: 999px;
     border: 1px solid currentColor;
@@ -462,7 +526,7 @@
     min-width: 0;
   }
   .vt-name {
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: #fff;
     font-weight: 500;
     white-space: nowrap;
@@ -470,7 +534,7 @@
     text-overflow: ellipsis;
   }
   .vt-desc {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--y-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -483,7 +547,7 @@
     flex: 0 0 auto;
   }
   .vt-pos {
-    font-size: 10.5px;
+    font-size: 12px;
     color: #d6c2ff;
     white-space: nowrap;
   }
@@ -497,10 +561,10 @@
   .vt-bar-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #bfa2f8, #8ee0c5);
+    background: linear-gradient(90deg, rgba(var(--y-warm-rgb), 0.72), var(--y-warm));
   }
   .vt-pct {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--y-text-sub);
     min-width: 30px;
     text-align: right;
@@ -508,7 +572,7 @@
   }
   .ver-reply-note {
     padding: 0 14px 10px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--y-text-sub);
     line-height: 1.5;
   }
@@ -520,28 +584,25 @@
     padding: 2px 14px 12px;
   }
   .ver-act-btn {
-    border: 1px solid rgba(218, 200, 255, 0.22);
-    background: rgba(255, 255, 255, 0.045);
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
     color: #efe5ff;
     border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 11.5px;
+    padding: 7px 14px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease;
   }
   .ver-act-btn:hover {
-    background: rgba(var(--y-accent-rgb), 0.2);
-    border-color: rgba(var(--y-accent-rgb), 0.58);
+    background: rgba(var(--y-accent-rgb), 0.24);
   }
   .ver-act-btn.on {
-    background: rgba(142, 224, 197, 0.18);
-    border-color: rgba(142, 224, 197, 0.62);
+    background: rgba(142, 224, 197, 0.20);
     color: #d9fff1;
   }
   .ver-act-btn.primary {
-    background: rgba(var(--y-accent-rgb), 0.26);
-    border-color: rgba(var(--y-accent-rgb), 0.62);
+    background: rgba(var(--y-accent-rgb), 0.28);
   }
 
   .followup-strip {
@@ -550,7 +611,7 @@
     gap: 7px;
   }
   .followup-strip .y-chip {
-    font-size: 11.5px;
+    font-size: 13px;
     padding: 5px 12px;
   }
 
@@ -560,14 +621,19 @@
     left: 12px;
     right: 12px;
     bottom: calc(86px + env(safe-area-inset-bottom));
-    max-width: 860px;
+    max-width: 920px;
     margin: 0 auto;
     z-index: 38;
     display: flex;
     flex-direction: column;
     gap: 7px;
     pointer-events: none;
-    transition: opacity 0.55s ease;
+    transition: opacity 0.8s var(--y-ease);
+  }
+  @media (min-width: 720px) {
+    .agent-dock-fixed {
+      bottom: 18px;
+    }
   }
   .agent-dock-fixed > * {
     pointer-events: auto;
@@ -576,13 +642,13 @@
     display: none;
     align-items: center;
     gap: 9px;
-    padding: 7px 11px;
-    border-radius: 15px;
-    background: rgba(16, 12, 28, 0.88);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(218, 200, 255, 0.2);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.44);
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(12, 9, 20, 0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: none;
+    box-shadow: 0 14px 38px rgba(4, 2, 12, 0.48);
   }
   .mini-bar.show {
     display: flex;
@@ -592,17 +658,17 @@
     height: 30px;
     flex: 0 0 30px;
     border-radius: 50%;
-    border: 1px solid rgba(226, 212, 255, 0.36);
-    background: rgba(var(--y-accent-rgb), 0.28);
+    border: 1px solid rgba(var(--y-warm-rgb), 0.42);
+    background: rgba(var(--y-warm-rgb), 0.16);
     color: #fff;
-    font-size: 11px;
+    font-size: 12.5px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .mini-title {
-    font-size: 12px;
+    font-size: 13px;
     color: #fff;
     font-weight: 500;
     white-space: nowrap;
@@ -618,7 +684,7 @@
     min-width: 60px;
   }
   .mini-vol-pct {
-    font-size: 10.5px;
+    font-size: 12px;
     color: var(--y-text-muted);
     min-width: 28px;
     text-align: right;
@@ -632,18 +698,21 @@
   }
   .mini-tools .hero-tool-btn {
     padding: 4px 9px;
-    font-size: 11px;
+    font-size: 12.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .chat-dock-box {
     display: none;
     padding: 6px;
-    border-radius: 22px;
+    border-radius: 999px;
     background: rgba(16, 12, 28, 0.90);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(var(--y-accent-rgb), 0.42);
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+    border: none;
+    box-shadow: 0 14px 38px rgba(4, 2, 12, 0.48);
   }
   .chat-dock-box.show {
     display: block;
@@ -655,7 +724,7 @@
     padding: 2px 4px 2px 10px;
   }
   .chat-dock-status {
-    font-size: 11px;
+    font-size: 12.5px;
     color: #d6c2ff;
     padding: 2px 12px 3px;
     min-height: 16px;
@@ -680,40 +749,41 @@
 <div class="wrap-agent" id="wrapAgent">
   <div class="top">
     <a class="brand" href="home.html">
-      <div class="moon">☾</div>
+      <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
       <div class="name">夜息</div>
     </a>
-    <a class="pill-link" id="earBadgeLink" href="ear_test.html">✦ 敏感点测试</a>
+    <a class="pill-link" id="earBadgeLink" href="ear_test.html">敏感点测试</a>
   </div>
 
-  <!-- 极简一行页头 -->
-  <header class="agent-head">
-    <div class="agent-head-left">
-      <h1>✦ AI 配声</h1>
-      <span class="agent-sub">写提示词 · AI 问 1 题就配好</span>
-      <span class="agent-mem-tag" id="profileHintTag"></span>
+  <header class="page-hero">
+    <div class="ph-row">
+      <h1>AI 配声</h1>
+      <div class="ph-right">
+        <p class="agent-mem-tag" id="profileHintTag"></p>
+        <button type="button" class="new-chat-btn" id="newChatBtn">重来</button>
+      </div>
     </div>
-    <button type="button" class="new-chat-btn" id="newChatBtn">↺ 重来</button>
+    <p class="ph-sub">说一句现在的状态，配一段今晚的声音。</p>
   </header>
 
   <!-- 阶段一：首屏主操作区（提示词设计台） -->
   <section class="designer-box" id="promptDesigner">
     <div class="glass designer-card">
       <div class="designer-head">
-        <div class="designer-title">✎ 写下想要的夜色</div>
+        <div class="designer-title">写下想要的夜色</div>
         <div class="designer-tools">
           <button type="button" class="tiny-btn" id="randomDraftBtn">随机</button>
           <button type="button" class="tiny-btn" id="clearDraftBtn">清空</button>
         </div>
       </div>
 
-      <textarea class="y-textarea" id="promptDraft" placeholder="例：睡不着，想要窗外暖一点的雨，别打雷"></textarea>
+      <textarea class="y-textarea" id="promptDraft" rows="1" placeholder="例：睡不着，想要窗外暖一点的雨，别打雷"></textarea>
 
       <div class="builder-rows" id="promptBuilderGrid"></div>
 
       <div class="designer-actions">
-        <button type="button" class="y-btn-primary" id="startQaBtn">✦ 开始 AI 问答配声</button>
-        <button type="button" class="y-btn-ghost" id="skipQaBtn">⚡ 直接生成</button>
+        <button type="button" class="y-btn-primary" id="startQaBtn">开始问答配声</button>
+        <button type="button" class="y-btn-ghost" id="skipQaBtn">直接生成</button>
       </div>
       <div class="designer-err" id="designerStatus"></div>
     </div>
@@ -733,16 +803,16 @@
       <span class="mini-vol-pct" id="masterVolPct">85%</span>
     </div>
     <div class="mini-tools">
-      <button type="button" class="hero-tool-btn" id="timerBtn" title="点击切换睡眠定时">⏱ 定时</button>
-      <button type="button" class="hero-tool-btn" id="lightsOutBtn" title="熄灭界面只留夜色与声音">☾ 熄灯</button>
+      <button type="button" class="hero-tool-btn" id="timerBtn" title="点击切换睡眠定时"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="timerLabel">定时</span></button>
+      <button type="button" class="hero-tool-btn" id="lightsOutBtn" title="熄灭界面只留夜色与声音"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>熄灯</span></button>
     </div>
   </div>
 
   <div class="chat-dock-box" id="chatDockBox">
     <div class="ai-capsule">
-      <span class="ai-capsule-ico">✦</span>
+      <span class="ai-capsule-ico"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>
       <input id="say" type="text" placeholder="可直接点选项，或自己打字回答…" autocomplete="off">
-      <button type="button" class="ai-go" id="genBtn">✦ 回答</button>
+      <button type="button" class="ai-go" id="genBtn">回答</button>
     </div>
     <div class="chat-dock-status" id="status"></div>
   </div>
@@ -750,26 +820,23 @@
 
 <!-- 熄灯纯享遮罩 -->
 <div class="lights-out-overlay" id="lightsOutOverlay" title="轻触任意处唤醒界面">
-  <div class="lights-out-moon">☾</div>
+  <div class="lights-out-moon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
   <div class="lights-out-title" id="lightsOutTitle">夜息 AI 配声</div>
   <div class="lights-out-timer" id="lightsOutTimer">轻触任意处唤醒</div>
   <div class="lights-out-hint">晚安 · 声音将继续陪你</div>
 </div>
 
-<div class="tabbar">
-  <a href="home.html"><span class="ti">☾</span>今晚</a>
-  <a href="agent.html" class="on"><span class="ti">✦</span>AI 配声</a>
-  <a href="index.html"><span class="ti">☰</span>DIY</a>
-  <a href="community.html"><span class="ti">♡</span>广场</a>
-</div>
+<div class="tabbar"></div>
 
-<script src="auth_ui.js"></script>
-<script src="yexi_catalog.js"></script>
-<script src="yexi_mixer.js"></script>
+<script src="auth_ui.js?v=12"></script>
+<script src="yexi_shell.js?v=12"></script>
+<script src="yexi_catalog.js?v=12"></script>
+<script src="yexi_mixer.js?v=12"></script>
 <script>
 var API = YEXI_API;
 initAuthBar("agent.html");
-initAmbientStage("img/moon-water.jpg", "#8e74e8");
+initYexiTabbar("agent.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
 
 var PROMPT_DIMS = [
   { label: "画面", chips: ["夜雨", "远海浪", "夏夜虫鸣", "山涧溪流"] },
@@ -915,6 +982,11 @@ function toggleDraftChip(chipText) {
   syncBuilderChipsFromDraft();
 }
 
+function autoGrowDraft() {
+  promptDraft.style.height = "auto";
+  promptDraft.style.height = promptDraft.scrollHeight + "px";
+}
+
 function syncBuilderChipsFromDraft() {
   var val = promptDraft.value;
   var chips = document.getElementById("promptBuilderGrid").querySelectorAll(".dim-chip");
@@ -922,6 +994,7 @@ function syncBuilderChipsFromDraft() {
     var txt = chips[i].getAttribute("data-chip");
     chips[i].classList.toggle("on", val.indexOf(txt) !== -1);
   }
+  autoGrowDraft();
 }
 
 promptDraft.addEventListener("input", syncBuilderChipsFromDraft);
@@ -998,10 +1071,10 @@ function updatePlaybackUI() {
     var lead = findLeadTrack(ver.tracks);
     if (lead) {
       var meta = ySoundMeta(lead.path);
-      ySetAmbient(meta.img, meta.accent, isPlaying);
+      ySetAmbient("img/night-lake-stars.jpg", meta.accent, isPlaying);
     }
   } else {
-    ySetAmbient("img/moon-water.jpg", "#8e74e8", false);
+    ySetAmbient("img/night-lake-stars.jpg", "#e9b783", false);
   }
 
   var cards = chatStream.querySelectorAll(".ver-card");
@@ -1015,10 +1088,10 @@ function updatePlaybackUI() {
 
   if (versions.length > 0) {
     sayInput.placeholder = "哪里不合适？继续说就能改（如：太吵、加夜风、不要雷）";
-    genBtn.textContent = "✦ 调整";
+    genBtn.textContent = "调整";
   } else {
     sayInput.placeholder = "可直接点选项，或自己打字回答…";
-    genBtn.textContent = "✦ 回答";
+    genBtn.textContent = "回答";
   }
 }
 
@@ -1182,6 +1255,36 @@ function appendAskCard(d) {
   box.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
+// 越界问题：显示温暖引导 + 三个可点场景例子，不写进聊天记忆
+function appendBlockedCard(d) {
+  clearOldFollowups();
+  var box = document.createElement("div");
+  box.className = "msg-ask-box";
+
+  var opts = d.suggestions || [];
+  var optsHtml = "";
+  for (var i = 0; i < opts.length; i++) {
+    optsHtml += '<button type="button" class="qa-opt-btn" data-opt="' + yEscape(opts[i]) + '">' + yEscape(opts[i]) + '</button>';
+  }
+  var reply = d.reply || "我是夜息，只帮你挑配助眠和 ASMR 声音哦。";
+  box.innerHTML =
+    '<div class="ask-question">' + yEscape(reply) + '</div>' +
+    '<div class="qa-options">' + optsHtml + '</div>';
+
+  var btns = box.querySelectorAll(".qa-opt-btn");
+  for (var j = 0; j < btns.length; j++) {
+    (function(btn) {
+      btn.onclick = function() {
+        lockPreviousAskBoxes("");
+        sendTurn(btn.getAttribute("data-opt"), false);
+      };
+    })(btns[j]);
+  }
+
+  chatStream.appendChild(box);
+  box.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
 function appendAiTurnCard(ver) {
   var verIdx = versions.length - 1;
   lockPreviousAskBoxes("");
@@ -1206,9 +1309,10 @@ function appendAiTurnCard(ver) {
     soundNames.push(m.name);
     tracksHtml +=
       '<div class="ver-track-row">' +
+        '<div class="vt-thumb y-thumb" style="background-image:url(' + (m.img || "img/moon-water.jpg") + ')"></div>' +
         '<span class="vt-layer" style="color:' + layerInfo.color + '">' + layerInfo.badge + '</span>' +
         '<div class="vt-meta">' +
-          '<div class="vt-name">' + m.icon + ' ' + yEscape(m.name) + '</div>' +
+          '<div class="vt-name">' + yEscape(m.name) + '</div>' +
           (descTxt ? '<div class="vt-desc">' + yEscape(descTxt) + '</div>' : '') +
         '</div>' +
         '<div class="vt-right">' +
@@ -1221,7 +1325,7 @@ function appendAiTurnCard(ver) {
 
   var containsLine = "包含 " + soundNames.length + " 种自然声：" + soundNames.join(" + ");
   var modeBadgeHtml = ver.aiPowered ?
-    '<span class="ver-mode-badge ai">✦ AI 定制</span>' :
+    '<span class="ver-mode-badge ai">AI 定制</span>' :
     '<span class="ver-mode-badge">快速匹配</span>';
 
   var card = document.createElement("div");
@@ -1239,7 +1343,7 @@ function appendAiTurnCard(ver) {
           '<span class="ver-title">' + yEscape(ver.title) + '</span>' +
           modeBadgeHtml +
         '</div>' +
-        (ver.finalPrompt ? '<div class="ver-final-sub" title="' + yEscape(ver.finalPrompt) + '">✦ ' + yEscape(ver.finalPrompt) + '</div>' : '') +
+        (ver.finalPrompt ? '<div class="ver-final-sub" title="' + yEscape(ver.finalPrompt) + '">' + yEscape(ver.finalPrompt) + '</div>' : '') +
       '</div>' +
     '</div>' +
     '<div class="ver-tracks">' +
@@ -1248,9 +1352,9 @@ function appendAiTurnCard(ver) {
     '</div>' +
     (ver.reply ? '<div class="ver-reply-note">' + yEscape(ver.reply) + '</div>' : '') +
     '<div class="ver-actions">' +
-      '<button type="button" class="ver-act-btn" data-act="keep">♥ 就这个</button>' +
-      '<button type="button" class="ver-act-btn primary" data-act="diy">☰ 去 DIY 微调</button>' +
-      '<button type="button" class="ver-act-btn" data-act="player">☾ 全屏助眠</button>' +
+      '<button type="button" class="ver-act-btn" data-act="keep">收藏配方</button>' +
+      '<button type="button" class="ver-act-btn primary" data-act="diy">去 DIY 微调</button>' +
+      '<button type="button" class="ver-act-btn" data-act="player">全屏助眠</button>' +
     '</div>';
 
   card.querySelector(".ver-play-btn").onclick = function() { playVersion(verIdx); };
@@ -1336,6 +1440,13 @@ function sendTurn(rawSay, forceCompose) {
     if (r.status === 404) {
       return fallbackLegacyTurn(say, currentTracksPayload);
     }
+    // 先确认响应真的是 JSON，否则把原文片段显示出来，避免笼统的解析报错
+    var ctype = r.headers.get("content-type") || "";
+    if (ctype.indexOf("json") === -1) {
+      return r.text().then(function(txt) {
+        throw new Error("服务返回的不是 JSON（" + ctype + "）：" + String(txt || "").replace(/\s+/g, " ").slice(0, 120));
+      });
+    }
     return r.json();
   })
   .then(function(d) {
@@ -1346,7 +1457,16 @@ function sendTurn(rawSay, forceCompose) {
     genBtn.disabled = false;
 
     if (!d || d.error) {
+      if (d && d.action === "blocked") {
+        appendBlockedCard(d);
+        return;
+      }
       setStatus((d && d.error) || "编排失败，请再试一次", true);
+      return;
+    }
+
+    if (d.action === "blocked") {
+      appendBlockedCard(d);
       return;
     }
 
@@ -1406,7 +1526,15 @@ function fallbackLegacyTurn(say, currentTracks) {
   if (!currentTracks || currentTracks.length === 0) {
     var combined = initialPrompt && initialPrompt !== say ? (initialPrompt + "，" + say) : say;
     return yPost("/api/generate", { say: combined, seconds: 30 })
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        var ctype = r.headers.get("content-type") || "";
+        if (ctype.indexOf("json") === -1) {
+          return r.text().then(function(txt) {
+            throw new Error("老接口返回的不是 JSON（" + ctype + "）：" + String(txt || "").replace(/\s+/g, " ").slice(0, 120));
+          });
+        }
+        return r.json();
+      })
       .then(function(d) {
         if (d.error) return d;
         var enriched = enrichTracks(d.items || []);
@@ -1459,7 +1587,7 @@ function saveFeedbackGood(verIdx, btn) {
   var ver = versions[verIdx];
   if (!ver) return;
   btn.classList.add("on");
-  btn.textContent = "♥ 已记住";
+  btn.textContent = "已收藏";
   yPost("/api/feedback", {
     feedback: "满意",
     items: ver.tracks,
@@ -1473,7 +1601,7 @@ function saveFeedbackGood(verIdx, btn) {
   })
   .catch(function() {
     btn.classList.remove("on");
-    btn.textContent = "♥ 就这个";
+    btn.textContent = "收藏配方";
     setStatus("本地服务未连接，未能保存", true);
   });
 }
@@ -1496,12 +1624,19 @@ function openFullPlayer(ver) {
     });
 }
 
+// 敏感点测试是登录用户专属：游客点这个链接先引导登录
+document.getElementById("earBadgeLink").addEventListener("click", function(e) {
+  if (yNeedLogin("做敏感点测试", "ear_test.html")) {
+    e.preventDefault();
+  }
+});
+
 // ===== 耳朵档案与记忆 =====
 function applyEarProfileUI(prof, goodCount) {
   var link = document.getElementById("earBadgeLink");
   var tag = document.getElementById("profileHintTag");
   if (prof && prof.archetype_name && link) {
-    link.textContent = "✦ " + prof.archetype_name;
+    link.textContent = prof.archetype_name;
   }
   if (tag) {
     var parts = [];
@@ -1541,13 +1676,19 @@ function clearSleepTimer() {
   syncEngine();
 }
 
+var timerLabelEl = document.getElementById("timerLabel");
+
+function setTimerLabel(txt) {
+  if (timerLabelEl) timerLabelEl.textContent = txt;
+}
+
 timerBtn.onclick = function() {
   timerStepIdx = (timerStepIdx + 1) % TIMER_STEPS.length;
   var mins = TIMER_STEPS[timerStepIdx];
   clearSleepTimer();
 
   if (mins <= 0) {
-    timerBtn.textContent = "⏱ 定时";
+    setTimerLabel("定时");
     timerBtn.classList.remove("on");
     document.getElementById("lightsOutTimer").textContent = "轻触任意处唤醒";
     setStatus("已关闭睡眠定时", false);
@@ -1568,14 +1709,14 @@ timerBtn.onclick = function() {
     var m = Math.floor(left / 60);
     var s = Math.floor(left % 60);
     var label = m + ":" + (s < 10 ? "0" : "") + s;
-    timerBtn.textContent = "⏱ " + label;
+    setTimerLabel(label);
     document.getElementById("lightsOutTimer").textContent = "将在 " + label + " 后渐弱熄声";
 
     if (left <= 0) {
       clearSleepTimer();
       pauseAll();
       timerStepIdx = 0;
-      timerBtn.textContent = "⏱ 定时";
+      setTimerLabel("定时");
       timerBtn.classList.remove("on");
       document.getElementById("lightsOutTimer").textContent = "晚安，已轻轻停下";
     }
@@ -1613,7 +1754,7 @@ newChatBtn.onclick = function() {
   pauseAll();
   clearSleepTimer();
   timerStepIdx = 0;
-  timerBtn.textContent = "⏱ 定时";
+  setTimerLabel("定时");
   timerBtn.classList.remove("on");
   versions = [];
   chatHistory = [];
