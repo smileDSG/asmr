@@ -4,6 +4,7 @@ stability_key.txt
 *.key
 .env
 .env.*
+.deploy_key/
 data/*.db
 data/*.db-wal
 data/*.db-shm
