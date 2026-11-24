@@ -345,7 +345,7 @@ var BUILTIN_RECIPES = {
 };
 
 var POLICY_LABELS = {
-  open: "开放共创",
+  open: "完全公开",
   star_to_fork: "借走解锁",
   listen_only: "仅限聆听"
 };
@@ -519,7 +519,7 @@ function renderMineTab(container) {
     for (var i = 0; i < myPosts.length; i++) {
       var p = myPosts[i];
       var lead = ySoundMeta(p.lead_path || (p.items && p.items[0] ? p.items[0].path : ""));
-      var policy = p.remix_policy || "open";
+      var policy = p.remix_policy || "star_to_fork";
       var starCnt = (p.counts && p.counts.borrow) || 0;
       var forkCnt = p.fork_count || 0;
       var remixHtml = (p.remix_of && p.remix_of.title)
@@ -550,7 +550,7 @@ function renderMineTab(container) {
           '</div>' +
           '<div class="policy-bar">' +
             '<span class="policy-lbl">配方许可：</span>' +
-            '<button type="button" class="policy-opt' + (policy === "open" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="open">开放共创</button>' +
+            '<button type="button" class="policy-opt' + (policy === "open" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="open">完全公开</button>' +
             '<button type="button" class="policy-opt' + (policy === "star_to_fork" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="star_to_fork">借走解锁</button>' +
             '<button type="button" class="policy-opt' + (policy === "listen_only" ? " on" : "") + '" data-pid="' + yEscape(p.id) + '" data-pol="listen_only">仅限聆听</button>' +
           '</div>' +
@@ -783,7 +783,7 @@ function renderBorrowedTab(container) {
     var lead = isBuiltin
       ? { img: r.img, accent: r.accent }
       : ySoundMeta(r.lead_path || (r.items && r.items[0] ? r.items[0].path : ""));
-    var policy = r.remix_policy || "open";
+    var policy = r.remix_policy || "star_to_fork";
     var canRemix = isBuiltin || (r.unlocked && policy !== "listen_only");
     var paramHtml = (!isBuiltin && r.items_locked)
       ? '<div class="locked-tip">作者设为「' + yEscape(POLICY_LABELS[policy] || "仅限聆听") + '」· 可直接整段循环播放</div>'
@@ -796,7 +796,7 @@ function renderBorrowedTab(container) {
             '<div class="item-title-row">' +
               '<span class="item-title">' + yEscape(r.title) + '</span>' +
               '<span class="badge-pill soft">by ' + yEscape(r.author || "夜息") + '</span>' +
-              (!isBuiltin ? '<span class="badge-pill">' + yEscape(POLICY_LABELS[policy] || "开放共创") + '</span>' : '') +
+              (!isBuiltin ? '<span class="badge-pill">' + yEscape(POLICY_LABELS[policy] || "完全公开") + '</span>' : '') +
             '</div>' +
             (r.story ? '<div class="item-story">' + yEscape(r.story) + '</div>' : '') +
             paramHtml +

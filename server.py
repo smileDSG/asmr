@@ -664,12 +664,13 @@ def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts
     pid = post["id"]
     is_mine = bool(viewer_user and post.get("user_id") and viewer_user["id"] == post.get("user_id"))
     starred_by_me = (pid, "borrow") in voter_votes
-    policy = post.get("remix_policy") or "open"
+    policy = post.get("remix_policy") or "star_to_fork"
     if policy not in auth_db.VALID_REMIX_POLICIES:
-        policy = "open"
+        policy = "star_to_fork"
     unlocked = bool(force_unlock or is_mine or policy == "open" or (policy == "star_to_fork" and starred_by_me))
     items_raw = post.get("items") or []
     lead_path = os.path.basename(items_raw[0].get("path", "")) if items_raw else ""
+    lead_meta = sound_catalog.BY_FILENAME.get(lead_path) if lead_path else None
     raw_counts = vote_counts.get(pid) or {}
     counts = {k: max(0, int(raw_counts.get(k, 0) or 0)) for k in auth_db.ALLOWED_VOTE_TAGS}
 
@@ -683,7 +684,8 @@ def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts
         "remix_policy": policy,
         "parent_post_id": post.get("parent_post_id") or "",
         "root_post_id": post.get("root_post_id") or "",
-        "diff_summary": post.get("diff_summary") or [],
+        # 「改了什么」里带着每层的名字和新旧比例，没解锁就不给
+        "diff_summary": (post.get("diff_summary") or []) if unlocked else [],
         "version": int(post.get("version") or 1),
         "created_at": post.get("created_at") or 0,
         "fork_count": int(fork_counts.get(pid, 0)),
@@ -692,7 +694,10 @@ def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts
         "starred_by_me": starred_by_me,
         "unlocked": unlocked,
         "track_count": len(items_raw),
-        "lead_path": lead_path,
+        # 配比没解锁时，连"打底的是哪段素材"也不给，只给封面图和主色（够渲染卡片）
+        "lead_path": lead_path if unlocked else "",
+        "cover_img": (lead_meta or {}).get("img") or "",
+        "cover_accent": (lead_meta or {}).get("accent") or "",
         "items": items_raw if unlocked else [],
         "items_locked": not unlocked,
     }
@@ -1505,7 +1510,8 @@ class Handler(BaseHTTPRequestHandler):
             voter_key = _voter_key(self, user)
             voter_votes = auth_db.get_voter_votes(voter_key)
 
-            remix_policy = str(data.get("remix_policy") or "open").strip()
+            # 配方默认不外传：没带策略就按「借走解锁」处理，不会是「随便给」
+            remix_policy = str(data.get("remix_policy") or "star_to_fork").strip()
             if remix_policy not in auth_db.VALID_REMIX_POLICIES:
                 self.send_json({"error": "无效的配方许可"}, 400)
                 return

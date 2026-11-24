@@ -1554,13 +1554,13 @@
       <label class="y-field-label" for="pubAuthor">署名昵称（选填）</label>
       <input type="text" class="y-input" id="pubAuthor" maxlength="20" placeholder="深夜旅人">
     </div>
-    <div class="y-field-label">配方许可（类似开源协议）</div>
+    <div class="y-field-label">配方许可（决定别人能不能拿走你的配比）</div>
     <div class="dur-pills" id="pubPolicyPills">
-      <button type="button" class="dur-pill" data-policy="open">开放共创</button>
-      <button type="button" class="dur-pill on" data-policy="star_to_fork">借走解锁 · 推荐</button>
+      <button type="button" class="dur-pill on" data-policy="star_to_fork">借走解锁 · 默认</button>
       <button type="button" class="dur-pill" data-policy="listen_only">仅限聆听</button>
+      <button type="button" class="dur-pill" data-policy="open">完全公开</button>
     </div>
-    <div class="policy-hint" id="pubPolicyHint">听众可先免费试听，点一下「借我一晚」后即可查看参数并带署名微调</div>
+    <div class="policy-hint" id="pubPolicyHint">配方默认不外传：听众先免费试听，点一下「借我一晚」才看得到每层素材和比例，改编要带你署名</div>
     <div class="pub-preview-pills" id="pubTrackPills"></div>
     <div class="status" id="pubStatus"></div>
     <div class="pub-success" id="pubSuccessRow">
@@ -2961,9 +2961,9 @@ document.getElementById("remixClearBtn").onclick = function() {
 var publishModal = document.getElementById("publishModal");
 var publishPolicy = "star_to_fork";
 var PUB_POLICY_HINTS = {
-  open: "所有人都可以直接看到配比参数，并带你的署名进行 Remix 微调",
-  star_to_fork: "听众可先免费试听，点一下「借我一晚」后即可查看参数并带署名微调",
-  listen_only: "只开放播放与收藏，隐藏详细参数并关闭 Remix 二次改编"
+  open: "配比完全公开：谁都能看到每层素材和比例，也能直接复制进工坊。只有你真想送出去时才选",
+  star_to_fork: "配方默认不外传：听众先免费试听，点「借我一晚」才看得到每层和比例，改编要带你署名",
+  listen_only: "只开放播放和收藏：配比完全隐藏，别人也改不了"
 };
 
 function setPubPolicy(pol) {

@@ -82,7 +82,7 @@ def init_db():
             story             TEXT NOT NULL DEFAULT '',
             grp               TEXT NOT NULL DEFAULT '自然',
             items_json        TEXT NOT NULL,
-            remix_policy      TEXT NOT NULL DEFAULT 'open',
+            remix_policy      TEXT NOT NULL DEFAULT 'star_to_fork',
             parent_post_id    TEXT NOT NULL DEFAULT '',
             root_post_id      TEXT NOT NULL DEFAULT '',
             remix_of_json     TEXT NOT NULL DEFAULT '',
@@ -421,7 +421,7 @@ def _row_to_post(row):
         "story": row[4] or "",
         "group": row[5] or "自然",
         "items": items if isinstance(items, list) else [],
-        "remix_policy": row[7] if row[7] in VALID_REMIX_POLICIES else "open",
+        "remix_policy": row[7] if row[7] in VALID_REMIX_POLICIES else "star_to_fork",
         "parent_post_id": row[8] or "",
         "root_post_id": row[9] or "",
         "remix_of": remix_of if isinstance(remix_of, dict) else None,
@@ -445,9 +445,9 @@ def create_community_post(post_dict):
     now = float(post_dict.get("created_at") or time.time())
     updated = float(post_dict.get("updated_at") or now)
     items = post_dict.get("items") or []
-    policy = post_dict.get("remix_policy") or "open"
+    policy = post_dict.get("remix_policy") or "star_to_fork"
     if policy not in VALID_REMIX_POLICIES:
-        policy = "open"
+        policy = "star_to_fork"
     remix_of = post_dict.get("remix_of")
     diff_summary = post_dict.get("diff_summary") or []
     recipe_hash = post_dict.get("recipe_hash") or normalize_recipe_hash(items)
@@ -857,7 +857,7 @@ def migrate_legacy_community(posts_list, votes_dict):
                         str(p.get("story") or ""),
                         str(p.get("group") or "自然"),
                         json.dumps(items, ensure_ascii=False),
-                        p.get("remix_policy") if p.get("remix_policy") in VALID_REMIX_POLICIES else "open",
+                        p.get("remix_policy") if p.get("remix_policy") in VALID_REMIX_POLICIES else "star_to_fork",
                         parent_id,
                         parent_id,
                         json.dumps(remix_of, ensure_ascii=False) if remix_of else "",
