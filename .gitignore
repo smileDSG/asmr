@@ -54,6 +54,34 @@ __pycache__/
 *.zip
 probe_search.html
 
+# ===== 一次性实验脚本与采集中间数据（本地保留，不进仓库）=====
+ai_generate*.py
+asmr_mixer*.py
+collect_*.py
+make_*.py
+analyze_*.py
+reduce_noise_*.py
+text_to_asmr*.py
+agent_loop.py
+agent_main.py
+prompt_builder.py
+elevenlabs_client.py
+stable_audio_client.py
+probe_freesound_hq.py
+fetch_freesound.py
+check_material_names.py
+diagnose_audio.py
+export_rain_candidates.py
+restore_rain.py
+postprocess_generated.py
+verify_hq.py
+test_agent_catalog.py
+test_real_generation.py
+material_detail.html
+*_links.txt
+hq_url.txt
+product_site/home_v2.html
+
 # ===== 第三方/竞品素材：授权不清，不进公开仓库 =====
 夜息参考/
 竞品参考/
