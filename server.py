@@ -33,13 +33,13 @@ SITE_DIR = os.path.join(BASE, "product_site")
 
 
 def serve_static(handler, path):
-    # 只服务 product_site 里的文件；API 路径不在这里处理
-    if path == "/" or path == "":
-        path = "/home.html"
+    # 只服务 product_site 里的文件；API 路径不在这里处理。
     # 拆出查询串（?v=12 这类版本号），缓存策略要看它。
     # 注意：调用方传进来的 path 已经被 urlparse 剥过查询串了，
     # 所以这里要从 handler.path 取原始的完整地址。
     clean_path, _, query = handler.path.partition("?")
+    if clean_path == "/" or clean_path == "":
+        clean_path = "/home.html"
     rel = urllib.parse.unquote(clean_path).lstrip("/")
     full = os.path.normpath(os.path.join(SITE_DIR, rel))
     # 防路径穿越：解析后必须仍在 SITE_DIR 里面
