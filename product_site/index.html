@@ -1511,7 +1511,7 @@
     }
     /* 声场按屏高收缩，把音量条、按钮、下面的面板都往首屏挤 */
     .stage-box {
-      height: clamp(158px, 21dvh, 208px);
+      height: clamp(230px, 30dvh, 280px);
       border-radius: 14px;
     }
     .stage-empty {
@@ -1732,7 +1732,10 @@
         <div class="player-head">
           <div class="breath-wrap" id="breathWrap">
             <div class="breath-ring"></div>
-            <button class="breath-btn" id="playBtn" type="button" aria-label="播放或暂停">▶</button>
+            <button class="breath-btn" id="playBtn" type="button" aria-label="播放或暂停">
+              <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a.9.9 0 0 0 1.4.7l10.4-6.5a.9.9 0 0 0 0-1.4L9.4 4.8A.9.9 0 0 0 8 5.5z"/></svg>
+              <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5.5" width="3.4" height="13" rx="1"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1"/></svg>
+            </button>
           </div>
           <div class="player-info">
             <input type="text" class="mix-title-input" id="mixTitleInput" maxlength="40" placeholder="给这段夜色起个名字…">
@@ -2328,7 +2331,6 @@ function findLeadTrack() {
 }
 
 function updatePlaybackVisuals() {
-  playBtn.textContent = isPlaying ? "❚❚" : "▶";
   breathWrap.classList.toggle("playing", isPlaying);
 
   var lead = findLeadTrack();
@@ -4027,6 +4029,17 @@ if (drawerHandleBtn && mobileDrawerBox) {
           aiPickBox.classList.toggle("open");
         };
       }
+    }
+    // 发布/更多属于作品操作，手机上收进抽屉的「作品」页，
+    // 首屏只留定时入睡和保存两颗按钮，腾出的高度还给声场
+    var worksView = document.getElementById("panelWorks");
+    var pubBtn = document.getElementById("publishBtn");
+    var moreBtn = document.getElementById("moreActionsBtn");
+    var moreDrawer = document.getElementById("moreActionsDrawer");
+    if (worksView && pubBtn && moreBtn && moreDrawer) {
+      worksView.insertBefore(moreBtn, worksView.firstChild);
+      worksView.insertBefore(pubBtn, worksView.firstChild);
+      worksView.appendChild(moreDrawer);
     }
   }
 }

@@ -52,6 +52,23 @@ def write_wav(target, data, sr):
     pcm = (np.clip(data, -1.0, 1.0) * 32767.0).astype("<i2")
     wavfile.write(target, int(sr), pcm)
 
+
+def write_mp3(target, data, sr):
+    """写出 MP3 给手机在线播放：同样 30 秒，WAV 约 5.3MB，MP3 约 0.5MB。
+    用 soundfile（libsndfile 内置 MP3 编码），不需要额外装 ffmpeg/lame。
+    所有浏览器都支持 MP3（Safari 不支持 OGG，所以选 MP3）。
+    返回实际写出的格式名 "mp3" 或失败回退的 "wav"，让调用方设置正确的 Content-Type。
+    """
+    if _sf is not None:
+        try:
+            _sf.write(target, data, int(sr), format="MP3")
+            return "mp3"
+        except Exception:
+            # 万一部署环境的 libsndfile 不支持 MP3 编码，退回 WAV 保证能播
+            pass
+    write_wav(target, data, sr)
+    return "wav"
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 
 # 素材库：从单一真相源 sound_catalog 动态构建按场景分布的候选权重表

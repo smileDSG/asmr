@@ -1,0 +1,13 @@
+{
+  "appId": "com.yexi.nightrest",
+  "appName": "夜息",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "url": "http://47.101.59.166:8000/m.html"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

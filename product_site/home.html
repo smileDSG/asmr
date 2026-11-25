@@ -5,10 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#07050d">
 <title>夜息 · 嘘，慢慢来</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap">
 <link rel="stylesheet" href="theme.css?v=12">
+<!-- 网络字体非阻塞加载：连不上/慢也不挡住首屏，系统宋体先顶上 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap" media="print" onload="this.media='all'">
 <style>
 /* =========================================================
    夜息首页：整屏即场景 + 声音驱动的画面
@@ -1600,8 +1599,9 @@ function renderCards(cat) {
     card.type = "button";
     card.className = "card";
     card.setAttribute("data-path", s.path);
+    // 场景卡图用 data-bg 暂存，滚到眼前才真正加载，省手机流量
     var visual = s.img
-      ? '<div class="card-img" style="background-image:url(' + s.img + ')"></div>'
+      ? '<div class="card-img" data-bg="' + s.img + '"></div>'
       : '<div class="card-art" style="--a:' + s.acc + '"></div>';
     card.innerHTML = visual +
       '<div class="card-shade"></div>' +
@@ -1621,6 +1621,32 @@ function renderCards(cat) {
     setTimeout(function() { card.classList.add("in"); }, 30 + i * 45);
   });
   syncCards();
+  lazyLoadCardImages();
+}
+
+// 场景卡图片懒加载：只加载进入视口附近的，避免手机首屏一次性拉全部图
+function lazyLoadCardImages() {
+  var nodes = document.querySelectorAll(".card-img[data-bg]");
+  function load(el) {
+    var bg = el.getAttribute("data-bg");
+    if (bg) {
+      el.style.backgroundImage = "url(" + bg + ")";
+      el.removeAttribute("data-bg");
+    }
+  }
+  if (!("IntersectionObserver" in window)) {
+    for (var i = 0; i < nodes.length; i++) load(nodes[i]);
+    return;
+  }
+  var io = new IntersectionObserver(function(entries) {
+    for (var k = 0; k < entries.length; k++) {
+      if (entries[k].isIntersecting) {
+        load(entries[k].target);
+        io.unobserve(entries[k].target);
+      }
+    }
+  }, { rootMargin: "300px" });
+  for (var j = 0; j < nodes.length; j++) io.observe(nodes[j]);
 }
 function syncCards() {
   var playing = isPlaying();

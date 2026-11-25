@@ -817,13 +817,17 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def send_audio(self, data, sr):
+        # 在线播放发 MP3：30 秒从 5.3MB 降到约 0.5MB，手机公网加载快一个数量级
+        # 导出商用仍走 write_wav 保留无损，不受这里影响
         import io
         buf = io.BytesIO()
-        executor.write_wav(buf, data, sr)
+        fmt = executor.write_mp3(buf, data, sr)
         body = buf.getvalue()
         self.send_response(200)
-        self.send_header("Content-Type", "audio/wav")
+        self.send_header("Content-Type", "audio/mpeg" if fmt == "mp3" else "audio/wav")
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Accept-Ranges", "none")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

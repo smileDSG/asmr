@@ -1,5 +1,7 @@
 /* 夜息 · 统一深夜沉浸式视觉语言与质感组件 */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap');
+/* 字体外链已移除：Google Fonts 在国内手机上常卡住，且 @import 会阻塞整张样式表。
+   中文衬线改用系统自带字体（Songti SC / 宋体），视觉接近、零等待。
+   如果以后要恢复网络字体，请在 HTML 用 <link media="print" onload="this.media='all'"> 非阻塞加载，别放回这里。 */
 
 :root {
   --y-bg: #07050d;
@@ -478,6 +480,24 @@ input[type="range"].y-slider::-moz-range-thumb {
   box-shadow: 0 6px 24px rgba(var(--y-warm-rgb), 0.24);
   transform: scale(calc(1 + var(--y-lvl, 0) * 0.05));
   transition: border-color 0.6s ease, box-shadow 0.6s ease;
+}
+
+.breath-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  position: relative;
+  z-index: 2;
+}
+/* 用 SVG 图标而不是 "▶" 字符：华为浏览器会把字符渲染成蓝色 emoji，很跳 */
+.breath-btn .i-pause {
+  display: none;
+}
+.breath-wrap.playing .breath-btn .i-play {
+  display: none;
+}
+.breath-wrap.playing .breath-btn .i-pause {
+  display: block;
 }
 
 .breath-btn:hover {
