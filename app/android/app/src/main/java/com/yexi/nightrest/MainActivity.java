@@ -24,7 +24,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         // 应用真正退出时释放，避免一直占用
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
