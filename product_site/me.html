@@ -1265,7 +1265,7 @@ function loadEntitlement() {
   var descEl = document.getElementById("entDesc");
   var btnEl = document.getElementById("entBtn");
 
-  btnEl.onclick = function() { yexiPayWall("day3"); };
+  btnEl.onclick = function() { yexiPayWall("trial3"); };
 
   if (!yToken()) {
     titleEl.textContent = "游客模式 · 每天可生成 2 次";
@@ -1297,6 +1297,15 @@ function loadEntitlement() {
     titleEl.textContent = "权益读取失败";
     descEl.textContent = "刷新页面重试，不影响已有权益。";
   });
+
+  // 即刻收：再查一次支付宝托管的次数，有就显示出来
+  yGet("/api/nowpay/quota").then(function(r) { return r.json(); }).then(function(q) {
+    if (!q.available || !(q.remaining > 0)) return;
+    titleEl.textContent = "已购 " + q.total + " 次 · 剩余 " + q.remaining + " 次";
+    descEl.textContent = "三次体验包已到账，可在 AI 配声里继续使用。";
+    btnEl.style.display = "";
+    btnEl.textContent = "再加次数";
+  }).catch(function() {});
 }
 
 loadHub();
