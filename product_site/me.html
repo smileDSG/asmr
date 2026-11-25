@@ -863,7 +863,8 @@ function renderEarTab(container) {
       { key: "warmth", label: "暖厚包裹" },
       { key: "crisp", label: "清脆颗粒" },
       { key: "space", label: "空间开阔" },
-      { key: "nature", label: "自然生机" }
+      { key: "nature", label: "自然生机" },
+      { key: "immersion", label: "情境触发" }
     ];
     var scores = ep.scores || {};
     var barsHtml = "";
@@ -878,21 +879,21 @@ function renderEarTab(container) {
     html +=
       '<div class="item-title-row" style="margin-bottom:8px">' +
         '<span class="item-title">' + yEscape(ep.archetype_name || "夜息聆听者") + '</span>' +
-        '<span class="badge-pill">耳朵画像</span>' +
+        '<span class="badge-pill">听觉图鉴</span>' +
       '</div>' +
       '<div class="item-story" style="margin-top:0;margin-bottom:14px">' + yEscape(ep.tagline || "已记住你的入睡声音偏爱") + '</div>' +
       barsHtml +
       (ep.tracks && ep.tracks.length ? '<div class="param-row" style="margin-bottom:14px">' + formatParamPills(ep.tracks) + '</div>' : '') +
       '<div class="card-acts">' +
-        '<a class="y-btn-primary" href="ear_test.html">重新做 30 秒耳朵盲测</a>' +
+        '<a class="y-btn-primary" href="ear_test.html?retest=1">重新测试听觉图鉴</a>' +
         '<a class="y-btn-ghost" href="agent.html">去 AI 配声试试</a>' +
       '</div>';
   } else {
     html +=
-      '<div class="item-title" style="margin-bottom:6px">还没有耳朵盲测档案</div>' +
-      '<div class="item-story" style="margin-top:0;margin-bottom:14px">花 30 秒听几组盲测对比，AI 配声和广场推荐就会记住你喜欢暖厚还是清脆、怕不怕突响。</div>' +
+      '<div class="item-title" style="margin-bottom:6px">还没有听觉图鉴档案</div>' +
+      '<div class="item-story" style="margin-top:0;margin-bottom:14px">听 5 组盲测对比，AI 配声和广场推荐就会记住你偏爱纯自然还是无人声轻情境、暖厚还是清脆。</div>' +
       '<div class="card-acts">' +
-        '<a class="y-btn-primary" href="ear_test.html">做一次 30 秒耳朵盲测</a>' +
+        '<a class="y-btn-primary" href="ear_test.html">开启听觉图鉴（5 组盲测）</a>' +
       '</div>';
   }
   html += '</div>';

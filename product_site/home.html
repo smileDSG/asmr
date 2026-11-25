@@ -878,7 +878,7 @@ body.lights-out .tabbar { opacity: 0 !important; pointer-events: none; transitio
     <a href="community.html">广场</a>
     <a href="me.html">我的</a>
   </nav>
-  <button class="v2-ghost" id="testBtn">敏感点测试</button>
+  <button class="v2-ghost" id="testBtn">听觉图鉴</button>
 </header>
 
 <main>
@@ -1022,7 +1022,7 @@ document.getElementById("heroTitle").innerHTML = COPY.t.split("，").map(functio
 document.getElementById("heroSub").textContent = COPY.s;
 
 document.getElementById("testBtn").onclick = function() {
-  if (yNeedLogin("做敏感点测试", "ear_test.html")) return;
+  if (yNeedLogin("开启听觉图鉴", "ear_test.html")) return;
   location.href = "ear_test.html";
 };
 (function() {

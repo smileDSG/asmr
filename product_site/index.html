@@ -444,6 +444,73 @@
     cursor: not-allowed;
   }
 
+  /* 入睡渐退曲线开关（前段情境触发 · 后段自动淡出只留自然底幕） */
+  .sleep-curve-box {
+    margin: 12px 0 14px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .sleep-curve-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sleep-curve-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-family: inherit;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.065);
+    color: var(--y-text-sub);
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  .sleep-curve-toggle:hover {
+    background: rgba(var(--y-warm-rgb), 0.16);
+    color: #fff;
+  }
+  .sleep-curve-toggle.on {
+    background: rgba(var(--y-warm-rgb), 0.22);
+    color: #fff7eb;
+  }
+  .sleep-curve-durs {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .sleep-dur-chip {
+    border: none;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 11.5px;
+    font-family: inherit;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--y-text-muted);
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  .sleep-dur-chip.on {
+    background: rgba(var(--y-warm-rgb), 0.2);
+    color: var(--y-warm);
+  }
+  .sleep-curve-hint {
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--y-text-muted);
+    line-height: 1.45;
+  }
+  .sleep-curve-hint.active {
+    color: var(--y-warm);
+  }
+
   .toast {
     font-size: 13px;
     color: #e5d2ff;
@@ -534,11 +601,12 @@
     margin-bottom: 12px;
   }
   .layer-pill {
-    display: inline-flex;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 10px;
+    gap: 3px;
+    padding: 8px 8px;
     border-radius: 12px;
     border: none;
     background: rgba(255, 255, 255, 0.045);
@@ -548,6 +616,24 @@
     cursor: pointer;
     font-family: inherit;
     transition: background 0.45s ease, color 0.45s ease;
+    min-width: 0;
+  }
+  .layer-pill-head {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .layer-pill-sub {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--y-text-muted);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .layer-pill:hover {
     background: rgba(255, 255, 255, 0.08);
@@ -557,6 +643,9 @@
     background: rgba(var(--y-warm-rgb), 0.18);
     color: #fff7eb;
     font-weight: 500;
+  }
+  .layer-pill.on .layer-pill-sub {
+    color: rgba(255, 240, 220, 0.78);
   }
   .layer-dot {
     width: 7px;
@@ -1423,6 +1512,18 @@
           <span class="vol-pct" id="masterVolPct">85%</span>
         </div>
 
+        <div class="sleep-curve-box" id="sleepCurveBox">
+          <div class="sleep-curve-row">
+            <button type="button" class="sleep-curve-toggle" id="sleepCurveToggle" aria-pressed="false">☾ 入睡渐退 · 关</button>
+            <div class="sleep-curve-durs" id="sleepCurveDurs">
+              <button type="button" class="sleep-dur-chip on" data-min="15">15分钟</button>
+              <button type="button" class="sleep-dur-chip" data-min="30">30分钟</button>
+              <button type="button" class="sleep-dur-chip" data-min="1">1分钟体验</button>
+            </div>
+          </div>
+          <div class="sleep-curve-hint" id="sleepCurveHint">前段保留采耳/翻书等轻情境，后段自动淡出纹理与点缀，仅留自然底幕伴眠</div>
+        </div>
+
         <div class="studio-primary-actions">
           <button class="btn-soft" id="keepBtn" type="button">定时入睡</button>
           <button class="btn-soft" id="saveWorkBtn" type="button">保存</button>
@@ -1453,24 +1554,33 @@
         <div class="panel-view on" id="panelSounds">
           <div class="layer-tabs" id="layerTabs">
             <button type="button" class="layer-pill on" data-layer="bed">
-              <span class="layer-dot" style="background:#9f87f5"></span>
-              <span>底幕</span>
-              <span class="layer-count" id="layerCnt_bed"></span>
+              <span class="layer-pill-head">
+                <span class="layer-dot" style="background:#9f87f5"></span>
+                <span>底幕</span>
+                <span class="layer-count" id="layerCnt_bed"></span>
+              </span>
+              <span class="layer-pill-sub">自然环境打底</span>
             </button>
             <button type="button" class="layer-pill" data-layer="texture">
-              <span class="layer-dot" style="background:#5ec4a8"></span>
-              <span>纹理</span>
-              <span class="layer-count" id="layerCnt_texture"></span>
+              <span class="layer-pill-head">
+                <span class="layer-dot" style="background:#5ec4a8"></span>
+                <span>纹理</span>
+                <span class="layer-count" id="layerCnt_texture"></span>
+              </span>
+              <span class="layer-pill-sub">采耳 · 梳发 · 翻书</span>
             </button>
             <button type="button" class="layer-pill" data-layer="accent">
-              <span class="layer-dot" style="background:#eab464"></span>
-              <span>点缀</span>
-              <span class="layer-count" id="layerCnt_accent"></span>
+              <span class="layer-pill-head">
+                <span class="layer-dot" style="background:#eab464"></span>
+                <span>点缀</span>
+                <span class="layer-count" id="layerCnt_accent"></span>
+              </span>
+              <span class="layer-pill-sub">羽毛 · 轻敲 · 虫鸣</span>
             </button>
           </div>
 
           <div class="layer-guide">
-            <span class="layer-guide-text" id="layerGuideText">铺出夜色的基底 · 可自由多选叠加</span>
+            <span class="layer-guide-text" id="layerGuideText">底幕 · 一直垫在背景里的自然白噪音（雨声、海浪、溪流、炉火），负责托住整体氛围</span>
           </div>
 
           <div class="ai-picks" id="aiPicks">
@@ -1604,8 +1714,8 @@
 
 <script src="auth_ui.js"></script>
 <script src="yexi_shell.js"></script>
-<script src="yexi_catalog.js?v=41"></script>
-<script src="yexi_mixer.js"></script>
+<script src="yexi_catalog.js?v=44"></script>
+<script src="yexi_mixer.js?v=13"></script>
 <script>
 var API = YEXI_API;
 initAuthBar("index.html");
@@ -1755,16 +1865,156 @@ if (YexiMixer && YexiMixer.isSupported()) {
   });
 }
 
+// ===== 入睡渐退曲线：前段保留纹理/点缀情境，后段平滑淡出仅留自然底幕 =====
+var sleepCurveEnabled = false;
+var sleepCurveMin = 15;
+var sleepCurveStartedAt = 0;
+var sleepCurveFadeFactor = 1.0;
+var sleepCurveTimer = null;
+
+function effectiveTracksForMixer() {
+  if (!sleepCurveEnabled || sleepCurveFadeFactor >= 0.999) {
+    return tracks;
+  }
+  var out = [];
+  for (var i = 0; i < tracks.length; i++) {
+    var tr = tracks[i];
+    var layer = ySoundMeta(tr.path).layer || "texture";
+    if (layer === "bed") {
+      out.push(tr);
+    } else if (sleepCurveFadeFactor > 0.02) {
+      out.push({
+        path: tr.path,
+        weight: Math.max(0.01, tr.weight * sleepCurveFadeFactor),
+        pan: tr.pan,
+        mode: tr.mode,
+        density: tr.density
+      });
+    }
+  }
+  return out;
+}
+
+function updateSleepCurveUI() {
+  var btn = document.getElementById("sleepCurveToggle");
+  var hint = document.getElementById("sleepCurveHint");
+  if (!btn || !hint) return;
+  btn.classList.toggle("on", sleepCurveEnabled);
+  btn.setAttribute("aria-pressed", sleepCurveEnabled ? "true" : "false");
+  btn.textContent = sleepCurveEnabled ? "☾ 入睡渐退 · 开" : "☾ 入睡渐退 · 关";
+
+  if (!sleepCurveEnabled) {
+    hint.className = "sleep-curve-hint";
+    hint.textContent = "前段保留采耳/翻书等轻情境，后段自动淡出纹理与点缀，仅留自然底幕伴眠";
+    return;
+  }
+  var hasBed = false;
+  var hasNonBed = false;
+  for (var i = 0; i < tracks.length; i++) {
+    var ly = ySoundMeta(tracks[i].path).layer || "texture";
+    if (ly === "bed") hasBed = true;
+    else hasNonBed = true;
+  }
+  hint.className = "sleep-curve-hint active";
+  if (!hasBed || !hasNonBed) {
+    hint.textContent = "已开启（" + sleepCurveMin + " 分钟）· 建议同时选 1 个底幕 + 1 个纹理/点缀，体验前段情境后段纯底幕";
+    return;
+  }
+  if (!isPlaying) {
+    hint.textContent = "已开启（" + sleepCurveMin + " 分钟）· 点击播放后开始计时，后半程平滑淡出纹理与点缀";
+    return;
+  }
+  var totalSec = sleepCurveMin * 60;
+  var elapsed = Math.max(0, (Date.now() - sleepCurveStartedAt) / 1000);
+  var left = Math.max(0, totalSec - elapsed);
+  if (left <= 0) {
+    hint.textContent = "已进入纯底幕伴眠 · 纹理与点缀已轻柔淡出，仅留自然底幕";
+    return;
+  }
+  var m = Math.floor(left / 60);
+  var s = Math.floor(left % 60);
+  var pct = Math.round(sleepCurveFadeFactor * 100);
+  hint.textContent = "进行中 · " + m + ":" + (s < 10 ? "0" : "") + s + " 后仅留自然底幕（当前情境音量 " + pct + "%）";
+}
+
+function tickSleepCurve() {
+  if (!sleepCurveEnabled || !isPlaying) {
+    if (sleepCurveFadeFactor !== 1.0) {
+      sleepCurveFadeFactor = 1.0;
+      syncEngine();
+    }
+    updateSleepCurveUI();
+    return;
+  }
+  var totalSec = sleepCurveMin * 60;
+  var elapsed = Math.max(0, (Date.now() - sleepCurveStartedAt) / 1000);
+  var half = totalSec * 0.5;
+  var nextFactor = 1.0;
+  if (elapsed >= totalSec) {
+    nextFactor = 0.0;
+  } else if (elapsed > half) {
+    nextFactor = Math.max(0.0, 1.0 - (elapsed - half) / Math.max(1, totalSec - half));
+  }
+  if (Math.abs(nextFactor - sleepCurveFadeFactor) >= 0.01 || (nextFactor === 0 && sleepCurveFadeFactor !== 0)) {
+    sleepCurveFadeFactor = nextFactor;
+    syncEngine();
+  }
+  updateSleepCurveUI();
+}
+
+function startSleepCurveTicker() {
+  if (sleepCurveTimer) {
+    clearInterval(sleepCurveTimer);
+    sleepCurveTimer = null;
+  }
+  if (!sleepCurveEnabled) {
+    sleepCurveFadeFactor = 1.0;
+    syncEngine();
+    updateSleepCurveUI();
+    return;
+  }
+  sleepCurveStartedAt = Date.now();
+  sleepCurveFadeFactor = 1.0;
+  syncEngine();
+  updateSleepCurveUI();
+  sleepCurveTimer = setInterval(tickSleepCurve, 1000);
+}
+
+(function initSleepCurveControls() {
+  var toggleBtn = document.getElementById("sleepCurveToggle");
+  if (toggleBtn) {
+    toggleBtn.onclick = function() {
+      sleepCurveEnabled = !sleepCurveEnabled;
+      startSleepCurveTicker();
+    };
+  }
+  var durBtns = document.querySelectorAll("#sleepCurveDurs .sleep-dur-chip");
+  for (var i = 0; i < durBtns.length; i++) {
+    durBtns[i].onclick = function() {
+      for (var j = 0; j < durBtns.length; j++) durBtns[j].classList.remove("on");
+      this.classList.add("on");
+      sleepCurveMin = parseInt(this.getAttribute("data-min"), 10) || 15;
+      if (sleepCurveEnabled) {
+        startSleepCurveTicker();
+      } else {
+        updateSleepCurveUI();
+      }
+    };
+  }
+})();
+
 // ===== 播放状态同步 =====
 function syncEngine() {
   if (usingFallback && fallbackAudio) {
     fallbackAudio.volume = masterVolume;
+    updateSleepCurveUI();
     return;
   }
   if (mixer) {
     mixer.setMasterVolume(masterVolume);
-    mixer.syncTracks(tracks);
+    mixer.syncTracks(effectiveTracksForMixer());
   }
+  updateSleepCurveUI();
 }
 
 function setPlaying(next) {
@@ -1772,9 +2022,16 @@ function setPlaying(next) {
     isPlaying = false;
     if (mixer) mixer.setPlaying(false);
     updatePlaybackVisuals();
+    updateSleepCurveUI();
     return;
   }
   isPlaying = !!next;
+  if (isPlaying && sleepCurveEnabled) {
+    startSleepCurveTicker();
+  } else if (!isPlaying && sleepCurveEnabled) {
+    sleepCurveFadeFactor = 1.0;
+    updateSleepCurveUI();
+  }
   if (usingFallback && fallbackAudio) {
     if (isPlaying) {
       fallbackAudio.volume = masterVolume;
@@ -1786,7 +2043,7 @@ function setPlaying(next) {
       fallbackAudio.pause();
     }
   } else if (mixer) {
-    mixer.syncTracks(tracks);
+    mixer.syncTracks(effectiveTracksForMixer());
     mixer.setMasterVolume(masterVolume);
     mixer.setPlaying(isPlaying);
     if (isPlaying && mixer.ctx && mixer.ctx.state === "suspended") {

@@ -211,16 +211,18 @@ def _extract_collected_slots(full_text, user_context=None):
 
     texture = ""
     tex_parts = []
-    if any(k in positive for k in ("暖", "毯子", "包裹", "低鸣", "沉稳", "壁炉")):
+    if any(k in positive for k in ("暖", "毯子", "包裹", "低鸣", "沉稳", "壁炉", "厚重", "深沉")):
         tex_parts.append("暖厚包裹")
-    if any(k in positive for k in ("柔", "绵密", "怕吵", "不吵", "轻一点", "不刺耳", "轻缓", "疏落")):
+    if any(k in positive for k in ("柔", "绵密", "怕吵", "不吵", "轻一点", "不刺耳", "轻缓", "疏落", "缓流", "平稳", "安静", "沙沙")):
         tex_parts.append("轻柔绵密")
-    if any(k in positive for k in ("树叶", "雨叶", "枝叶", "颗粒", "细碎", "噼啪")):
+    if any(k in positive for k in ("树叶", "雨叶", "枝叶", "颗粒", "细碎", "噼啪", "帐篷", "露营", "大雨")):
         tex_parts.append("自然颗粒")
-    if any(k in positive for k in ("清透", "清爽", "清亮", "干净", "真实", "母带")):
+    if any(k in positive for k in ("清透", "清爽", "清亮", "干净", "真实", "母带", "山涧", "沙滩")):
         tex_parts.append("清透自然")
-    if any(k in positive for k in ("酥麻", "轻拂", "扫麦", "采耳", "翻书", "写字")):
+    if any(k in positive for k in ("酥麻", "轻拂", "扫麦", "采耳", "翻书", "写字", "梳发", "梳头", "毛刷", "纯近场", "稀疏偶发")):
         tex_parts.append("近场触发")
+    if any(k in positive for k in ("配雨声", "配夜风", "夜莺", "虫鸣", "配柔和", "配温暖")) and not tex_parts:
+        tex_parts.append("层次混搭")
     if tex_parts:
         texture = " · ".join(tex_parts[:2])
 
@@ -229,7 +231,7 @@ def _extract_collected_slots(full_text, user_context=None):
         rhythm_parts.append("左右空间感")
     if any(k in positive for k in ("偶", "点缀", "时起时歇", "稀疏")):
         rhythm_parts.append("偶发留白")
-    if any(k in full_text for k in ("稳", "别突然", "不要炸", "别炸", "平稳", "持续", "单层", "纯净")):
+    if any(k in full_text for k in ("平稳", "稳一点", "求稳", "别突然", "不要炸", "别炸", "持续", "单层", "纯净")):
         rhythm_parts.append("平稳持续")
     if any(k in positive for k in ("夜风", "微风", "风", "虫", "鸟", "夜莺", "低鸣")) and scene not in ("林间微风", "夏夜林院"):
         rhythm_parts.append("多层陪伴")
@@ -475,6 +477,8 @@ def _extract_avoid_flags(say, user_context=None):
                 avoid_set.add("雷_档案")
             if isinstance(scores.get("crisp"), (int, float)) and scores.get("crisp", 50) <= 35:
                 avoid_set.add("颗粒_档案")
+            if isinstance(scores.get("immersion"), (int, float)) and scores.get("immersion", 50) <= 40:
+                avoid_set.add("ASMR_档案")
 
         for fb in (user_context.get("bad_feedbacks") or []):
             fb_s = str(fb)
@@ -852,29 +856,38 @@ def _pan_for_clause(text, keywords, default_pan):
     return default_pan
 
 
-def _build_ask_turn(collected, merged_text, user_context=None):
+def _build_ask_turn(collected, merged_text, user_context=None, history=None):
     avoid_flags = _extract_avoid_flags(merged_text, user_context)
     scene_txt = collected.get("scene") or ""
     tex_txt = collected.get("texture") or ""
     rhythm_txt = collected.get("spatial_rhythm") or ""
     avoid_txt = collected.get("avoid") or ""
 
+    asked_Assist = " ".join(
+        str(h.get("content") or "")
+        for h in (history or [])
+        if isinstance(h, dict) and h.get("role") == "assistant"
+    )
+    already_asked_tex = any(k in asked_Assist for k in ("什么质感", "哪种海浪", "哪种氛围", "哪种燃感", "配点自然底", "哪种感觉"))
+    already_asked_rhythm = "陪伴或点缀" in asked_Assist
+
     if not scene_txt:
+        is_racing = any(k in merged_text for k in ("焦虑", "胡思乱想", "停不下来", "压力", "心烦", "思绪", "想太多", "烦躁", "加班"))
         return _sanitize_agent_design({
             "action": "ask",
             "title": "待选夜色",
-            "reply": "先定一个主画面。",
-            "question": "今晚想听哪种夜色？",
-            "options": ["窗外夜雨", "壁炉炉火", "远处海浪", "轻柔采耳ASMR"],
+            "reply": "思绪有点满时，轻情境比纯白噪音更容易帮脑子放空。你更想听哪一类？" if is_racing else "先定一个主画面，纯自然或无人声轻情境都可以。",
+            "question": "今晚更偏爱纯自然，还是加一点无人声轻情境？",
+            "options": ["窗外夜雨", "雨夜书房翻书", "轻柔采耳梳发", "远处海浪"],
             "collected": collected,
             "reasoning": [
-                "已了解你的基本状态",
-                "缺少主画面，先问 1 题锁定底幕方向",
+                "已了解你的当前睡前状态",
+                "同步提供纯自然白噪音与无人声轻情境选项，确认主方向",
             ],
             "tracks": [],
         }, merged_text, force_compose=False, collected_fallback=collected)
 
-    if not tex_txt:
+    if not tex_txt and not already_asked_tex:
         if "海" in scene_txt or "浪" in scene_txt:
             q = "偏爱哪种海浪听感？"
             opts = ["远海柔和推浪", "深沉厚重黑海", "长段平稳湖浪", "清透沙滩浪"]
@@ -907,7 +920,7 @@ def _build_ask_turn(collected, merged_text, user_context=None):
             "tracks": [],
         }, merged_text, force_compose=False, collected_fallback=collected)
 
-    if not rhythm_txt and not avoid_txt:
+    if not rhythm_txt and not avoid_txt and not already_asked_rhythm:
         q = "还要加点陪伴或点缀吗？"
         if any(f in avoid_flags for f in ("雷", "雷_档案", "雷_记忆")):
             opts = ["纯净单层就够了", "右侧加点林间夜风", "偶尔一点羽毛轻拂", "左侧偶尔几声虫鸣"]
@@ -1001,7 +1014,7 @@ def design_soundscape_rules(
 
     collected = _extract_collected_slots(merged_text, user_context)
     if not current_tracks and not skip_qa:
-        ask_turn = _build_ask_turn(collected, merged_text, user_context)
+        ask_turn = _build_ask_turn(collected, merged_text, user_context, history=history)
         if ask_turn is not None:
             return ask_turn
 
@@ -1028,8 +1041,17 @@ def design_soundscape_rules(
     elif any(k in full_say for k in ("清透", "清爽", "凉")):
         warmth = "cool"
 
-    if any(k in full_say for k in ("稳", "别突然", "不要炸", "别炸", "平稳", "别太吵", "不要太吵")) or "雷" in avoid_flags or "雷_档案" in avoid_flags:
+    if any(k in full_say for k in ("稳", "别突然", "不要炸", "别炸", "平稳", "别太吵", "不要太吵", "浅睡", "易醒", "打呼", "车流", "隔音", "遮蔽")) or "雷" in avoid_flags or "雷_档案" in avoid_flags:
         dynamics = "steady"
+
+    is_masking_sleep = any(k in full_say for k in ("浅睡", "易醒", "打呼", "呼噜", "车流", "隔音", "遮蔽", "外面吵", "窗外吵", "太吵"))
+    is_racing_mind = any(k in full_say for k in ("焦虑", "胡思乱想", "停不下来", "压力", "心烦", "思绪", "想太多", "烦躁", "加班"))
+    wants_pure_only = any(k in full_say for k in ("纯自然", "纯白噪音", "单轨", "单层", "只要雨", "只要海", "不要ASMR", "不要asmr"))
+    ear_immersion = 50
+    if isinstance(user_context, dict) and isinstance(user_context.get("ear_profile"), dict):
+        sc = user_context["ear_profile"].get("scores") or {}
+        if isinstance(sc.get("immersion"), (int, float)):
+            ear_immersion = sc["immersion"]
 
     # 1. 选主底幕（覆盖自然场景 18 段 + 纯 ASMR 起手场景）
     bed_path = None
@@ -1122,7 +1144,8 @@ def design_soundscape_rules(
         bed_path = _pick_non_avoided(["母带_城市夜雨_CC0.mp3", "柔和雨.hq.mp3"], avoid_tracks)
         scene = "rain"
 
-    lead_mode = TRACK_CATALOG[bed_path]["mode"] if scene == "asmr" and TRACK_CATALOG[bed_path]["duration_sec"] < 20 else "loop"
+    # 主声轨默认走无缝循环，避免单轨 ASMR 走偶发模式出现十几秒死寂像没声音
+    lead_mode = "intermittent" if (scene == "asmr" and any(k in full_say for k in ("偶发", "偶尔", "稀疏"))) else "loop"
     tracks.append(_build_track(bed_path, 0.70 if scene != "asmr" else 0.60, 0.0, lead_mode))
     reasoning.append(f"综合需求与标签匹配，选定「{TRACK_CATALOG[bed_path]['name']}」作为主声轨")
 
@@ -1154,10 +1177,31 @@ def design_soundscape_rules(
         if len(tracks) < 3 and "溪" not in positive and scene != "asmr":
             add_if_valid("雨中低鸣.hq.mp3", 0.28, 0.0, "loop", 0.4)
 
+    # 2.5 助眠心理学策略：浅睡遮蔽 vs 高认知唤醒轻情境转移杂念
+    has_asmr_track = any(TRACK_CATALOG[t["path"]]["scene"] == "asmr" for t in tracks)
+    if is_masking_sleep and scene != "asmr":
+        # 浅睡/遮蔽外界杂音：去除雷声与未点名的近耳触发，保证宽频平稳不断档
+        tracks = [t for t in tracks if TRACK_CATALOG[t["path"]]["layer"] == "bed" or t["path"] == "雨中低鸣.hq.mp3"]
+        if not tracks:
+            tracks = [_build_track("母带_城市夜雨_CC0.mp3", 0.72, 0.0, "loop")]
+        reasoning.append("浅睡遮蔽策略：保留平稳宽频自然底幕，避开近耳突响防惊醒")
+    elif not has_asmr_track and not wants_pure_only and "ASMR_档案" not in avoid_flags:
+        if is_racing_mind or (ear_immersion >= 65 and len(tracks) < 3 and not any(k in positive for k in ("海", "浪", "溪", "火"))):
+            if mood == "focus":
+                cand_asmr = _pick_non_avoided(["ASMR_翻书单人_360781.hq.mp3", "ASMR_铅笔写字柔_336381.hq.mp3"], avoid_tracks)
+                add_if_valid(cand_asmr, 0.34, -0.24, "intermittent", 0.42)
+            else:
+                cand_asmr = _pick_non_avoided(["ASMR_轻柔梳头_825798.hq.mp3", "ASMR_羽毛轻拂_708086.hq.mp3", "ASMR_采耳_690078.hq.mp3"], avoid_tracks)
+                add_if_valid(cand_asmr, 0.34, -0.22, "intermittent", 0.38)
+            if is_racing_mind:
+                reasoning.append("睡前放空策略：自然底幕叠入无人声轻情境触发，温和拉走杂念")
+            else:
+                reasoning.append("结合你的听觉图鉴情境偏好，轻柔叠入无人声近耳伴随")
+
     if isinstance(user_context, dict) and isinstance(user_context.get("ear_profile"), dict):
         arch = user_context["ear_profile"].get("archetype_name")
         if arch:
-            reasoning.append(f"已结合你的「{arch}」耳朵档案偏好过滤敏感声音")
+            reasoning.append(f"已结合你的「{arch}」听觉图鉴偏好过滤敏感声音")
     if avoid_tracks:
         reasoning.append("已自动避开你历史否决过的音轨")
 

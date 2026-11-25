@@ -100,10 +100,21 @@
       activeBuckets.push(0);
     }
 
+    // 若音频开头明显静音/极轻（例如麦套轻扫前5秒、深夜翻书前4秒），记录首个有效发声秒数，首轮循环直接跳过静音段
+    var firstActiveSec = 0;
+    if (bucketList.length > 2 && activeBuckets.length > 0 && activeBuckets[0] > 0) {
+      var startRms = bucketList[0].rms;
+      if (startRms < Math.max(0.0025, bMed * 0.45)) {
+        var maxSkip = Math.max(0, (len / sr) - 4.0);
+        firstActiveSec = Math.min(activeBuckets[0], maxSkip);
+      }
+    }
+
     return {
       buffer: buffer,
       calGain: calGain,
-      activeBuckets: activeBuckets
+      activeBuckets: activeBuckets,
+      firstActiveSec: firstActiveSec
     };
   }
 
@@ -242,21 +253,33 @@
     var url = self.apiBase + "/api/asset?name=" + encodeURIComponent(path);
     self.onLoadState(path, "loading");
 
-    var p = fetch(url)
-      .then(function(res) {
-        if (!res.ok) {
-          throw new Error("素材加载失败 (" + res.status + ")");
-        }
-        return res.arrayBuffer();
-      })
-      .then(function(arr) {
-        return new Promise(function(resolve, reject) {
-          var ret = ctx.decodeAudioData(arr, resolve, reject);
-          if (ret && typeof ret.then === "function") {
-            ret.then(resolve, reject);
+    var attemptFetchAndDecode = function(retriesLeft) {
+      return fetch(url)
+        .then(function(res) {
+          if (!res.ok) {
+            throw new Error("素材加载失败 (" + res.status + ")");
           }
+          return res.arrayBuffer();
+        })
+        .then(function(arr) {
+          return new Promise(function(resolve, reject) {
+            var ret = ctx.decodeAudioData(arr, resolve, reject);
+            if (ret && typeof ret.then === "function") {
+              ret.then(resolve, reject);
+            }
+          });
+        })
+        .catch(function(err) {
+          if (retriesLeft > 0) {
+            return new Promise(function(r) { setTimeout(r, 220); }).then(function() {
+              return attemptFetchAndDecode(retriesLeft - 1);
+            });
+          }
+          throw err;
         });
-      })
+    };
+
+    var p = attemptFetchAndDecode(1)
       .then(function(decoded) {
         var entry = analyzeAudioBuffer(decoded);
         self.buffers[path] = entry;
@@ -401,13 +424,18 @@
       return;
     }
 
-    var xfade = Math.min(2.0, Math.max(0.35, dur * 0.12));
-    var step = Math.max(0.2, dur - xfade);
+    var offset = (isFirst && entry.firstActiveSec > 0 && entry.firstActiveSec < dur - 2.5)
+      ? entry.firstActiveSec
+      : 0;
+    var playDur = Math.max(0.25, dur - offset);
+    var xfade = Math.min(2.0, Math.max(0.25, playDur * 0.12));
+    if (xfade > playDur * 0.4) xfade = playDur * 0.4;
+    var step = Math.max(0.2, playDur - xfade);
 
     if (isFirst) {
       subGain.gain.setValueAtTime(1, startTime);
     } else {
-      subGain.gain.value = 0;
+      subGain.gain.setValueAtTime(0, startTime);
       subGain.gain.setValueCurveAtTime(SIN_IN, startTime, xfade);
     }
     subGain.gain.setValueCurveAtTime(COS_OUT, startTime + step, xfade);
@@ -419,8 +447,8 @@
       if (idx !== -1) ch.playingSources.splice(idx, 1);
     };
 
-    src.start(startTime, 0, dur + 0.03);
-    src.stop(startTime + dur + 0.06);
+    src.start(startTime, offset, playDur + 0.03);
+    src.stop(startTime + playDur + 0.06);
     ch.nextStartTime = startTime + step;
   };
 
@@ -443,13 +471,13 @@
     }
   };
 
-  YexiMixer.prototype._triggerIntermittentBurst = function(ch, entry) {
+  YexiMixer.prototype._triggerIntermittentBurst = function(ch, entry, isFirstBurst) {
     var self = this;
     if (ch.disposed || !self.isPlaying) return;
     var ctx = self.ctx;
     var buffer = entry.buffer;
     var dur = buffer.duration;
-    var now = ctx.currentTime + 0.04;
+    var now = ctx.currentTime + 0.03;
 
     var burstDur = Math.min(Math.max(2.0, dur), 6.0 + Math.random() * 4.0);
     var buckets = entry.activeBuckets && entry.activeBuckets.length ? entry.activeBuckets : [0];
@@ -463,10 +491,10 @@
     }
 
     var subGain = ctx.createGain();
-    var fi = Math.min(2.0, burstDur * 0.32);
-    var fo = Math.min(2.5, burstDur * 0.36);
+    var fi = isFirstBurst ? Math.min(0.45, burstDur * 0.2) : Math.min(1.6, burstDur * 0.30);
+    var fo = Math.min(2.2, burstDur * 0.34);
 
-    subGain.gain.value = 0;
+    subGain.gain.setValueAtTime(0, now);
     subGain.gain.setValueCurveAtTime(HANN_IN, now, fi);
     subGain.gain.setValueCurveAtTime(HANN_OUT, now + burstDur - fo, fo);
 
@@ -490,10 +518,14 @@
     }, Math.max(400, Math.round((burstDur - fo * 0.45) * 1000)));
 
     var range = gapRangeForDensity(ch.density);
+    // 若当前只有这一条偶发轨（无底幕托底），缩短休眠空窗，防止出现十几秒死寂像没声音
+    if (self.currentTracks.length <= 1) {
+      range = { min: 1.2, max: 2.8 };
+    }
     var gapSec = range.min + Math.random() * (range.max - range.min);
     ch.nextWaitMaxMs = Math.round((burstDur + range.max) * 1000);
     ch.intermittentTimer = setTimeout(function() {
-      self._triggerIntermittentBurst(ch, entry);
+      self._triggerIntermittentBurst(ch, entry, false);
     }, Math.round((burstDur + gapSec) * 1000));
   };
 
@@ -501,9 +533,9 @@
     var self = this;
     if (ch.disposed || !self.isPlaying) return;
     ch.started = true;
-    var firstDelayMs = Math.round((0.4 + Math.random() * 0.8) * 1000);
+    var firstDelayMs = 80;
     ch.intermittentTimer = setTimeout(function() {
-      self._triggerIntermittentBurst(ch, entry);
+      self._triggerIntermittentBurst(ch, entry, true);
     }, firstDelayMs);
   };
 
@@ -512,7 +544,7 @@
     if (ch.disposed || !self.isPlaying || ch.started) return;
     self.loadBuffer(ch.path).then(function(entry) {
       if (ch.disposed || !self.isPlaying) return;
-      self._applyChannelGain(ch, entry.calGain, 0.45);
+      self._applyChannelGain(ch, entry.calGain, 0.08);
       if (!ch.started) {
         if (ch.mode === "intermittent") {
           self._startIntermittent(ch, entry);
@@ -528,6 +560,10 @@
     var norm = this._computeNorm(this.currentTracks);
     var target = clamp((ch.weight / norm) * (calGain || 1.0), 0, 20.0);
     var now = this.ctx.currentTime;
+    try {
+      ch.trackGain.gain.cancelScheduledValues(now);
+      ch.trackGain.gain.setValueAtTime(ch.trackGain.gain.value, now);
+    } catch (e) {}
     ch.trackGain.gain.setTargetAtTime(target, now, timeConstant || 0.06);
   };
 
@@ -610,18 +646,37 @@
     var ctx = self._ensureContext();
     var now = ctx.currentTime;
 
-    if (self.isPlaying) {
-      self.masterGain.gain.setTargetAtTime(self.masterVolume, now, 0.12);
+    var startAll = function() {
+      if (!self.isPlaying || !self.ctx) return;
+      var t = self.ctx.currentTime;
+      try {
+        self.masterGain.gain.cancelScheduledValues(t);
+        self.masterGain.gain.setValueAtTime(self.masterGain.gain.value, t);
+      } catch (e) {}
+      self.masterGain.gain.setTargetAtTime(self.masterVolume, t, 0.08);
       for (var p in self.channels) {
         if (Object.prototype.hasOwnProperty.call(self.channels, p)) {
           self._startChannelIfReady(self.channels[p]);
         }
       }
+    };
+
+    if (self.isPlaying) {
+      startAll();
+      if (ctx.state === "suspended" && typeof ctx.resume === "function") {
+        ctx.resume().then(function() {
+          if (self.isPlaying) startAll();
+        }).catch(function() {});
+      }
     } else {
-      self.masterGain.gain.setTargetAtTime(0, now, 0.10);
+      try {
+        self.masterGain.gain.cancelScheduledValues(now);
+        self.masterGain.gain.setValueAtTime(self.masterGain.gain.value, now);
+      } catch (e) {}
+      self.masterGain.gain.setTargetAtTime(0, now, 0.08);
       for (var q in self.channels) {
         if (Object.prototype.hasOwnProperty.call(self.channels, q)) {
-          self._fadeOutAndStopSources(self.channels[q], 0.32);
+          self._fadeOutAndStopSources(self.channels[q], 0.25);
         }
       }
     }
@@ -630,7 +685,12 @@
   YexiMixer.prototype.setMasterVolume = function(val) {
     this.masterVolume = clamp(parseFloat(val) || 0, 0, 1);
     if (this.ctx && this.masterGain && this.isPlaying) {
-      this.masterGain.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.05);
+      var now = this.ctx.currentTime;
+      try {
+        this.masterGain.gain.cancelScheduledValues(now);
+        this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+      } catch (e) {}
+      this.masterGain.gain.setTargetAtTime(this.masterVolume, now, 0.05);
     }
   };
 

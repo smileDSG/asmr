@@ -5,21 +5,21 @@ var YEXI_LAYERS = {
   bed: {
     key: "bed",
     name: "底幕铺底",
-    sub: "铺出夜色的基底 · 可自由多选叠加",
+    sub: "底幕 · 一直垫在背景里的自然白噪音（雨声、海浪、溪流、炉火），负责托住整体氛围",
     badge: "底幕",
     color: "#9f87f5"
   },
   texture: {
     key: "texture",
     name: "中景纹理",
-    sub: "可叠加 · 铺出枝叶、夜风与暖度层次",
+    sub: "纹理 · 离耳朵更近的持续伴声（采耳、梳发、翻书、写字、林风），增加画面感和贴耳感",
     badge: "纹理",
     color: "#5ec4a8"
   },
   accent: {
     key: "accent",
     name: "点缀事件",
-    sub: "可设偶发 · 偶尔出现一两声，留出呼吸感",
+    sub: "点缀 · 偶尔响一下的轻巧触发音（羽毛、轻敲、搓手、虫鸣、远雷），留出呼吸感",
     badge: "点缀",
     color: "#eab464"
   }
@@ -1813,7 +1813,8 @@ function yRenderEarReportPng(profile, doneCb) {
     { key: "warmth", label: "暖厚包裹" },
     { key: "crisp", label: "清脆颗粒" },
     { key: "space", label: "空间开阔" },
-    { key: "nature", label: "自然生机" }
+    { key: "nature", label: "自然生机" },
+    { key: "immersion", label: "情境触发" }
   ];
 
   var paint = function(bgImg) {
@@ -1856,7 +1857,7 @@ function yRenderEarReportPng(profile, doneCb) {
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.76)";
     ctx.font = '500 20px "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText("☾ 夜息 · 30秒耳朵人格报告", 52, 64);
+    ctx.fillText("☾ 夜息 · 听觉图鉴报告", 52, 64);
 
     // 居中月亮圆徽
     var moonGrad = ctx.createRadialGradient(344, 166, 10, 360, 184, 62);
@@ -1882,9 +1883,9 @@ function yRenderEarReportPng(profile, doneCb) {
     _yDrawWrappedText(ctx, tagline, 360, 348, W - 120, 32, 2);
     ctx.textAlign = "left";
 
-    // 四维偏好数值卡
-    var cardY = 428;
-    var cardH = 314;
+    // 五维偏好数值卡
+    var cardY = 416;
+    var cardH = 330;
     _yRoundRect(ctx, 48, cardY, W - 96, cardH, 24);
     ctx.fillStyle = "rgba(255, 255, 255, 0.045)";
     ctx.fill();
@@ -1894,12 +1895,12 @@ function yRenderEarReportPng(profile, doneCb) {
 
     ctx.fillStyle = "#a99dc5";
     ctx.font = '500 18px "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText("四维听感倾向", 76, cardY + 38);
+    ctx.fillText("五维听感倾向", 76, cardY + 36);
 
     for (var i = 0; i < DIMS.length; i++) {
       var dm = DIMS[i];
       var val = Math.max(0, Math.min(100, parseInt(scores[dm.key], 10) || 50));
-      var rowY = cardY + 80 + i * 58;
+      var rowY = cardY + 76 + i * 50;
 
       ctx.fillStyle = "#efe5ff";
       ctx.font = '500 20px "PingFang SC", "Microsoft YaHei", sans-serif';

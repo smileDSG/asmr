@@ -772,7 +772,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/memory":
             self.send_json(get_user_memory(current_user(self)))
         elif path == "/api/ear_profile":
-            if not require_login(self, "做敏感点测试"):
+            if not require_login(self, "开启听觉图鉴"):
                 return
             prof = _recipe_store(current_user(self)).read("ear_profile.json")
             valid = prof if isinstance(prof, dict) and prof.get("archetype_id") else None
@@ -1679,7 +1679,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
         elif path == "/api/ear_profile":
-            if not require_login(self, "保存敏感点测试结果"):
+            if not require_login(self, "保存听觉图鉴结果"):
                 return
             data = read_body(self)
             arch_id = str(data.get("archetype_id") or "").strip()
@@ -1693,7 +1693,7 @@ class Handler(BaseHTTPRequestHandler):
 
             raw_scores = data.get("scores") if isinstance(data.get("scores"), dict) else {}
             clean_scores = {}
-            for sk in ("warmth", "crisp", "space", "nature"):
+            for sk in ("warmth", "crisp", "space", "nature", "immersion"):
                 try:
                     sv = int(round(float(raw_scores.get(sk, 50))))
                 except (TypeError, ValueError):

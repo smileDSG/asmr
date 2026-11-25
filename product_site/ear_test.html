@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>夜息 · 30 秒耳朵盲测</title>
+<title>夜息 · 听觉图鉴</title>
 <link rel="stylesheet" href="theme.css?v=12">
 <style>
   .wrap-test {
@@ -429,14 +429,14 @@
   <div id="quizView">
     <header class="page-hero">
       <div class="ph-row">
-        <h1>30 秒听觉盲测</h1>
+        <h1>听觉图鉴</h1>
       </div>
-      <p class="ph-sub">听两段，选更舒服的那段。</p>
+      <p class="ph-sub">听两段，选更舒服的那段，5 组盲测描绘你的声音偏好。</p>
     </header>
 
     <div class="progress-wrap">
       <div class="progress-meta">
-        <span id="stepLabel">第 1 / 4 组</span>
+        <span id="stepLabel">第 1 / 5 组</span>
         <span id="roundDimLabel">雨幕质感</span>
       </div>
       <div class="progress-track">
@@ -463,7 +463,7 @@
       <div class="result-bg" id="resultBg"></div>
       <div class="result-body">
         <div class="result-orb" id="resultIcon">🌧</div>
-        <div class="result-kicker">☾ 你的夜息耳朵人格</div>
+        <div class="result-kicker">☾ 你的夜息听觉图鉴</div>
         <h1 class="result-title" id="resultTitle">屋檐避雨型</h1>
         <div class="result-tagline" id="resultTagline"></div>
 
@@ -498,12 +498,12 @@
 <script src="auth_ui.js"></script>
 <script src="yexi_shell.js"></script>
 <script src="yexi_catalog.js"></script>
-<script src="yexi_mixer.js"></script>
+<script src="yexi_mixer.js?v=13"></script>
 <script>
 var API = YEXI_API;
 var EAR_PROFILE_KEY = "yezi_ear_profile_v1";
 
-// 敏感点测试是登录用户专属：游客直接引导登录，登录后回本页继续测
+// 听觉图鉴是登录用户专属：游客直接引导登录，登录后回本页继续测
 if (yIsGuest()) {
   location.replace("auth.html?from=ear_test.html&reason=ear_test");
 }
@@ -512,9 +512,7 @@ initAuthBar("ear_test.html");
 initYexiTabbar("ear_test.html");
 initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
 
-// 盲听配对原则：同组素材、质感相近但可分辨。
-// 跨声源对比（雨 vs 海）测的是"喜欢哪种声音"，测不出耳朵的质感偏好；
-// 同一类里比细微差别，四个维度（暖/脆/空间/自然）的分数才有意义。
+// 盲听配对原则：前 4 组同源对比质感（暖/脆/空间/自然），第 5 组测试「纯自然白噪音 vs 无人声近耳情境」偏好。
 var ROUNDS = [
   {
     dim: "雨幕质感",
@@ -582,6 +580,23 @@ var ROUNDS = [
       badge: "方案 B · 清亮通透",
       title: "山涧溪流",
       desc: "清亮舒缓的山间流水，透着一点清凉感"
+    }
+  },
+  {
+    dim: "情境陪伴",
+    title: "睡前思绪停不下来时，哪种陪伴更放松？",
+    sub: "A 纯自然无人白噪音 · B 无人声近耳情境（梳发 / 采耳 / 翻书）",
+    a: {
+      path: "林风_树林波浪风_637989.hq.mp3",
+      badge: "方案 A · 纯自然无人",
+      title: "松林风涛",
+      desc: "完全无人的林间风声，零社交感、专注遮蔽外界杂音"
+    },
+    b: {
+      path: "ASMR_毛刷梳发_765369.hq.mp3",
+      badge: "方案 B · 无人声轻情境",
+      title: "毛刷轻柔梳发",
+      desc: "近耳轻柔梳发的细腻触发感，像被温柔照顾、帮你放空杂念"
     }
   }
 ];
@@ -672,6 +687,36 @@ var ARCHETYPES = {
       { path: "母带_城市夜雨_CC0.mp3", weight: 0.62, pan: 0, mode: "loop", density: 0.4 },
       { path: "雨中低鸣.hq.mp3", weight: 0.38, pan: 0, mode: "loop", density: 0.4 }
     ]
+  },
+  midnight_spa: {
+    id: "midnight_spa",
+    name: "午夜疗愈馆型",
+    icon: "🪶",
+    tagline: "无人声的温柔近耳触感最能清空焦虑，像在静谧夜色里被轻轻照顾。",
+    prompt: "脑子停不下来，想要柔和夜雨垫底，加一点轻柔采耳和羽毛轻拂",
+    intent: { scene: "asmr", mood: "relax", warmth: "warm", dynamics: "steady" },
+    img: "img/asmr-earpick.jpg",
+    accent: "#c792ea",
+    tracks: [
+      { path: "柔和雨.hq.mp3", weight: 0.48, pan: 0, mode: "loop", density: 0.4 },
+      { path: "ASMR_采耳_690078.hq.mp3", weight: 0.50, pan: -0.22, mode: "intermittent", density: 0.48 },
+      { path: "ASMR_羽毛轻拂_708086.hq.mp3", weight: 0.36, pan: 0.28, mode: "intermittent", density: 0.35 }
+    ]
+  },
+  rainy_study: {
+    id: "rainy_study",
+    name: "雨夜书房型",
+    icon: "📖",
+    tagline: "一点无人声的生活情境最能安放思绪，窗外细雨配翻书与轻写自带松弛感。",
+    prompt: "想要雨夜书房的氛围，窗外有柔和雨声，伴着翻书和轻柔铅笔写字",
+    intent: { scene: "asmr", mood: "focus", warmth: "neutral", dynamics: "steady" },
+    img: "img/notebook-desk.jpg?v=2",
+    accent: "#76b39d",
+    tracks: [
+      { path: "柔和雨.hq.mp3", weight: 0.50, pan: 0, mode: "loop", density: 0.4 },
+      { path: "ASMR_翻书多人_575764.hq.mp3", weight: 0.52, pan: -0.24, mode: "loop", density: 0.4 },
+      { path: "ASMR_铅笔写字柔_336381.hq.mp3", weight: 0.34, pan: 0.30, mode: "intermittent", density: 0.42 }
+    ]
   }
 };
 
@@ -680,6 +725,7 @@ var answers = [];
 var previewAudio = new Audio();
 previewAudio.loop = true;
 var playingSide = "";
+var previewReqId = 0;
 var currentProfile = null;
 var reportMixer = null;
 var reportPlaying = false;
@@ -688,9 +734,28 @@ if (typeof YexiMixer !== "undefined" && YexiMixer.isSupported()) {
   reportMixer = new YexiMixer({ apiBase: API });
 }
 
+function preloadRoundAudio(stepIdx) {
+  if (!reportMixer) return;
+  var targets = [];
+  if (ROUNDS[stepIdx]) {
+    targets.push({ path: ROUNDS[stepIdx].a.path }, { path: ROUNDS[stepIdx].b.path });
+  }
+  if (ROUNDS[stepIdx + 1]) {
+    targets.push({ path: ROUNDS[stepIdx + 1].a.path }, { path: ROUNDS[stepIdx + 1].b.path });
+  }
+  if (targets.length) {
+    reportMixer.preloadTracks(targets).catch(function() {});
+  }
+}
+
 function stopAbPreview() {
+  previewReqId += 1;
   previewAudio.pause();
   previewAudio.removeAttribute("src");
+  if (reportMixer && !reportPlaying) {
+    reportMixer.setPlaying(false);
+    reportMixer.syncTracks([]);
+  }
   playingSide = "";
   var cards = document.querySelectorAll(".ab-card");
   for (var i = 0; i < cards.length; i++) {
@@ -711,7 +776,7 @@ function stopReportPreview() {
 
 function toggleAbPreview(side, opt) {
   var meta = ySoundMeta(opt.path);
-  if (playingSide === side && !previewAudio.paused) {
+  if (playingSide === side) {
     stopAbPreview();
     ySetAmbient(meta.img, meta.accent, false);
     document.getElementById("previewHint").textContent = "已暂停试听";
@@ -719,19 +784,47 @@ function toggleAbPreview(side, opt) {
   }
   stopAbPreview();
   playingSide = side;
-  previewAudio.src = API + "/api/asset?name=" + encodeURIComponent(opt.path);
-  previewAudio.play().catch(function() {});
+  var reqId = previewReqId;
 
   var card = document.getElementById("abCard_" + side);
   var btn = document.getElementById("abPlay_" + side);
   if (card) card.classList.add("playing");
-  if (btn) btn.textContent = "❚❚ 暂停";
   ySetAmbient(meta.img, meta.accent, true);
+
+  // 走 YexiMixer 播放：自动对齐响度（修复夜营微火/乡村小雨等轻录音音量过小像没声音的问题）+ 预加载秒播
+  if (reportMixer) {
+    reportMixer._ensureContext();
+    var ready = !!reportMixer.buffers[opt.path];
+    if (!ready) {
+      if (btn) btn.textContent = "加载中…";
+      document.getElementById("previewHint").textContent = "正在载入「" + opt.title + "」…";
+    }
+    reportMixer.loadBuffer(opt.path).then(function() {
+      if (reqId !== previewReqId || playingSide !== side) return;
+      reportMixer.syncTracks([{ path: opt.path, weight: 1, pan: 0, mode: "loop", density: 0.4 }]);
+      reportMixer.setMasterVolume(0.95);
+      reportMixer.setPlaying(true);
+      if (btn) btn.textContent = "❚❚ 暂停";
+      document.getElementById("previewHint").textContent = "正在试听「" + opt.title + "」";
+    }).catch(function() {
+      if (reqId !== previewReqId || playingSide !== side) return;
+      if (btn) btn.textContent = "▶ 试听";
+      if (card) card.classList.remove("playing");
+      playingSide = "";
+      document.getElementById("previewHint").textContent = "音频加载失败，请重试";
+    });
+    return;
+  }
+
+  previewAudio.src = API + "/api/asset?name=" + encodeURIComponent(opt.path);
+  previewAudio.play().catch(function() {});
+  if (btn) btn.textContent = "❚❚ 暂停";
   document.getElementById("previewHint").textContent = "正在试听「" + opt.title + "」";
 }
 
 function renderRound() {
   stopAbPreview();
+  preloadRoundAudio(currentStep);
   var r = ROUNDS[currentStep];
   document.getElementById("stepLabel").textContent = "第 " + (currentStep + 1) + " / " + ROUNDS.length + " 组";
   document.getElementById("roundDimLabel").textContent = r.dim;
@@ -788,14 +881,23 @@ function computeProfile(ans) {
   var c1 = ans[1] || "a";
   var c2 = ans[2] || "a";
   var c3 = ans[3] || "a";
+  var c4 = ans[4] || "a";
 
   var warmth = 30 + (c0 === "a" ? 25 : 0) + (c1 === "a" ? 18 : 0) + (c3 === "a" ? 24 : 0);
   var crisp  = 28 + (c0 === "b" ? 28 : 0) + (c2 === "b" ? 14 : 0) + (c3 === "b" ? 24 : 0);
   var space  = 32 + (c1 === "b" ? 36 : 0) + (c2 === "a" ? 24 : 0);
   var nature = 30 + (c0 === "b" ? 20 : 0) + (c2 === "b" ? 30 : 0) + (c3 === "b" ? 16 : 0);
+  var immersion = 24 + (c4 === "b" ? 56 : 6) + (c0 === "b" ? 10 : 0) + (c2 === "b" ? 10 : 0);
 
   var archKey = "eaves_rain";
-  if (c0 === "a" && c1 === "a" && c3 === "a") {
+  if (c4 === "b") {
+    // 偏好无人声轻情境：偏暖柔平稳 -> 午夜疗愈馆型；偏清脆颗粒/生活感 -> 雨夜书房型
+    if ((c0 === "a" && c3 === "a") || c2 === "a") {
+      archKey = "midnight_spa";
+    } else {
+      archKey = "rainy_study";
+    }
+  } else if (c0 === "a" && c1 === "a" && c3 === "a") {
     archKey = "warm_blanket";
   } else if (c0 === "a" && c1 === "a" && c3 === "b") {
     archKey = "eaves_rain";
@@ -825,7 +927,8 @@ function computeProfile(ans) {
       warmth: Math.min(100, warmth),
       crisp: Math.min(100, crisp),
       space: Math.min(100, space),
-      nature: Math.min(100, nature)
+      nature: Math.min(100, nature),
+      immersion: Math.min(100, immersion)
     },
     tracks: arch.tracks
   };
@@ -896,7 +999,8 @@ function showReport(profile, statusMsg) {
     { key: "warmth", label: "暖厚包裹" },
     { key: "crisp", label: "清脆颗粒" },
     { key: "space", label: "空间开阔" },
-    { key: "nature", label: "自然生机" }
+    { key: "nature", label: "自然生机" },
+    { key: "immersion", label: "情境触发" }
   ];
   var scores = currentProfile.scores || {};
   var dimHtml = "";
