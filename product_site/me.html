@@ -112,6 +112,23 @@
 }
 .guest-line a:hover{border-bottom-color:rgba(var(--y-warm-rgb),.9)}
 
+/* 权益卡：一眼看清免费还剩几次、全库什么时候到期 */
+.ent-box{
+  margin-top:16px;padding:13px 15px;border-radius:12px;
+  border:1px solid rgba(var(--y-warm-rgb),.22);
+  background:rgba(var(--y-warm-rgb),.05);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.ent-box .ent-main{flex:1;min-width:0}
+.ent-box .ent-title{font-size:13px;color:var(--y-warm);letter-spacing:.06em}
+.ent-box .ent-desc{font-size:12px;color:var(--y-text-sub);margin-top:4px;line-height:1.6}
+.ent-box .ent-btn{
+  border:1px solid rgba(var(--y-warm-rgb),.5);border-radius:9px;
+  background:transparent;color:var(--y-warm);padding:7px 14px;
+  font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;
+}
+.ent-box .ent-btn:hover{background:rgba(var(--y-warm-rgb),.12)}
+
 /* —— 分组标签 —— */
 .sub-tabs{
   display:flex;align-items:center;gap:22px;flex-wrap:wrap;
@@ -341,6 +358,14 @@
     <p class="profile-caption" id="profileSub">正在同步你的夜息档案…</p>
 
     <p class="guest-line" id="guestBanner" style="display:none">数据只存在这台机器的浏览器里 · <a href="auth.html?from=me.html">登录后跨设备同步</a></p>
+
+    <div class="ent-box" id="entBox">
+      <div class="ent-main">
+        <div class="ent-title" id="entTitle">正在读取权益…</div>
+        <div class="ent-desc" id="entDesc"></div>
+      </div>
+      <button class="ent-btn" id="entBtn" type="button" style="display:none">解锁全库</button>
+    </div>
   </header>
 
   <!-- 编辑资料弹窗 -->
@@ -390,6 +415,7 @@
 <div class="tabbar"></div>
 
 <script src="auth_ui.js"></script>
+<script src="pay_ui.js?v=1"></script>
 <script src="yexi_shell.js"></script>
 <script src="yexi_catalog.js"></script>
 <script>
@@ -1227,7 +1253,54 @@ function loadHub() {
     });
 }
 
+function formatExpire(ts) {
+  var d = new Date(ts * 1000);
+  return d.getFullYear() + "-" +
+    ("0" + (d.getMonth() + 1)).slice(-2) + "-" +
+    ("0" + d.getDate()).slice(-2);
+}
+
+function loadEntitlement() {
+  var titleEl = document.getElementById("entTitle");
+  var descEl = document.getElementById("entDesc");
+  var btnEl = document.getElementById("entBtn");
+
+  btnEl.onclick = function() { yexiPayWall("day3"); };
+
+  if (!yToken()) {
+    titleEl.textContent = "游客模式 · 每天可生成 2 次";
+    descEl.textContent = "登录后跨设备同步，解锁全库可用全部素材。";
+    btnEl.style.display = "";
+    return;
+  }
+
+  yGet("/api/entitlement").then(function(r) { return r.json(); }).then(function(d) {
+    var ent = d.entitlements || {};
+    var full = ent.full && ent.full.active;
+    var commercial = ent.commercial && ent.commercial.active;
+    if (full) {
+      titleEl.textContent = commercial ? "全库永久 · 商用授权已开通" : "全库已解锁";
+      var parts = [];
+      if (full.expire_at) parts.push("有效期至 " + formatExpire(full.expire_at));
+      else parts.push("永久有效");
+      parts.push("全部素材可用 · 生成不限次");
+      descEl.textContent = parts.join(" · ");
+      btnEl.style.display = commercial ? "none" : "";
+      if (!commercial) btnEl.textContent = "续期 / 商用";
+    } else {
+      titleEl.textContent = "免费版 · 每天 2 次生成";
+      descEl.textContent = "当前可用 12 段素材。解锁后全库 41 段随便挑，生成不限次。";
+      btnEl.style.display = "";
+      btnEl.textContent = "解锁全库";
+    }
+  }).catch(function() {
+    titleEl.textContent = "权益读取失败";
+    descEl.textContent = "刷新页面重试，不影响已有权益。";
+  });
+}
+
 loadHub();
+loadEntitlement();
 </script>
 </body>
 </html>
