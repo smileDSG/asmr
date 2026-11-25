@@ -1930,8 +1930,8 @@
   </div>
 
   <div class="foot">
-    所有声音来自真实 CC0 自然录音 · Web Audio 仅调节音量、声像与偶发时机，零音质篡改<br>
-    <span id="memoryInfo">夜息会慢慢记住你的耳朵偏爱</span>
+    真实 CC0 录音 · 零音质篡改<br>
+    <span id="memoryInfo">慢慢记住你的偏爱</span>
   </div>
 </div>
 
@@ -3383,11 +3383,11 @@ function loadMemory() {
       var bad = d.bad_count || 0;
       var el = document.getElementById("memoryInfo");
       if (good === 0 && bad === 0) {
-        el.textContent = "夜息会慢慢记住你的耳朵偏爱 · 每次点「定时入睡」都会积累你的听感档案";
+        el.textContent = "听得越多，越懂你的耳朵";
         return;
       }
       var who = yToken() ? "账号耳朵档案" : "本机耳朵档案";
-      el.textContent = who + " · 夜息已记住你的 " + good + " 次偏爱";
+      el.textContent = who + " · 已记住 " + good + " 次偏爱";
     })
     .catch(function() {});
 }
