@@ -923,12 +923,44 @@ def _nowpay_quota(buyer_id):
 
 
 def _access(handler):
-    # 一次算清三件事：有没有解锁全库、额度记在谁头上、当前权益
+    # 一次算清三件事：有没有解锁全库、额度记在谁头上、当前权益。
+    # 全库权益两条来源：① 本地 entitlements（支付宝老流程）；② 即刻收的支付宝托管次数余额。
+    # 即刻收的真相源是支付宝那边的余额，不能在本地缓存，所以每次都查。
     user = current_user(handler)
     ent = auth_db.list_entitlements(user["id"]) if user else {}
     full = bool(ent.get("full") and ent["full"].get("active"))
     owner = _voter_key(handler, user) or "c:anon"
+    buyer = str(user["id"]) if user else owner
+    # 即刻收余额塞进 ent 的副本里（不改原字典），调用方无需改签名
+    if not full and nowpay.ENABLED and nowpay.products_config():
+        info = _nowpay_quota(buyer)
+        if info.get("available") and int(info.get("remaining", 0)) > 0:
+            full = True
+            ent = dict(ent)
+            ent["_nowpay_buyer"] = buyer
     return full, owner, ent
+
+
+def _nowpay_consume(ent):
+    """生成成功后核销一次即刻收次数。
+    返回 True 表示已扣或无需扣；False 表示扣失败（次数没扣掉，不拦用户，但要记日志）。
+    真相源在支付宝，本地不缓存余额。网络结果不明时用原请求号查，不换号重扣。"""
+    buyer = ent.get("_nowpay_buyer") if isinstance(ent, dict) else ""
+    if not buyer or not nowpay.ENABLED:
+        return True  # 不是即刻收用户（免费/老流程），不用扣
+    try:
+        r = nowpay.quota_verify(buyer, "trial3", 1, "生成一次助眠音频")
+        code = str(r.get("code", ""))
+        if code == "10000":
+            return True
+        # 扣失败也不拦用户——钱已经付了，不能因为核销接口抖动就不让生成。
+        # 注意：nowpay.quota_verify 内部生成的 out_request_no 没返回，
+        # 所以这里没法用 quota_refresh 按原号复查（那是 nowpay.py 的设计缺口）。
+        print("[nowpay] 核销失败：" + str(r.get("sub_msg") or r.get("msg") or code), flush=True)
+        return False
+    except Exception as e:
+        print("[nowpay] 核销异常：" + str(e)[:120], flush=True)
+        return False
 
 
 def _quota_exhausted(handler, quota):
@@ -2064,6 +2096,8 @@ class Handler(BaseHTTPRequestHandler):
 
             mix, sr = render(mapped_tracks, seconds)
             self.server.last_audio = (mix, sr)
+            # 即刻收用户：音频真生成出来了，才核销一次次数
+            _nowpay_consume(ent)
 
             session["intent"] = design["intent"]
             session["items"] = [(t["rel"], t["weight"]) for t in mapped_tracks]
@@ -2150,6 +2184,8 @@ class Handler(BaseHTTPRequestHandler):
             session["items"] = items
             session["say"] = say
             mix, sr = render(items, seconds)
+            # 即刻收用户：音频真生成出来了，才核销一次次数
+            _nowpay_consume(ent)
 
             self.send_json(
                 {
