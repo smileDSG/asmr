@@ -1640,6 +1640,59 @@
     .studio-grid {
       padding-bottom: 150px;
     }
+
+    /* 滚动条在手机上不显示，但照样能滑 */
+    html,
+    html body {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    html::-webkit-scrollbar,
+    html body::-webkit-scrollbar {
+      display: none;
+    }
+    #mobileDrawer .panel-view {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    #mobileDrawer .panel-view::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* 层说明压成一行，别在抽屉里占三行 */
+    #mobileDrawer .layer-guide {
+      margin-bottom: 10px;
+    }
+    #mobileDrawer .layer-guide-text {
+      font-size: 11.5px;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* AI 帮你配默认折起，只留一行标题；点标题展开 */
+    #mobileDrawer #aiPicks {
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+    }
+    #mobileDrawer #aiPicks .ai-picks-title {
+      cursor: pointer;
+    }
+    #mobileDrawer #aiPicks .ai-picks-title::after {
+      content: " ⌄";
+      font-size: 12px;
+      color: var(--y-text-muted);
+    }
+    #mobileDrawer #aiPicks.open .ai-picks-title::after {
+      content: " ⌃";
+    }
+    #mobileDrawer #aiPicks .ai-pick-list {
+      display: none;
+    }
+    #mobileDrawer #aiPicks.open .ai-pick-list {
+      display: flex;
+    }
   }
 </style>
 </head>
@@ -3964,6 +4017,16 @@ if (drawerHandleBtn && mobileDrawerBox) {
     var sleepBox = document.getElementById("sleepCurveBox");
     if (tuneView && sleepBox) {
       tuneView.insertBefore(sleepBox, tuneView.firstChild);
+    }
+    // AI 帮你配默认折起，点标题才展开
+    var aiPickBox = document.getElementById("aiPicks");
+    if (aiPickBox) {
+      var aiTitleEl = aiPickBox.querySelector(".ai-picks-title");
+      if (aiTitleEl) {
+        aiTitleEl.onclick = function() {
+          aiPickBox.classList.toggle("open");
+        };
+      }
     }
   }
 }
