@@ -320,29 +320,88 @@
       grid-template-columns: repeat(2, 1fr);
     }
   }
-  .qa-opt-btn {
-    text-align: left;
-    padding: 12px 14px;
+  .qa-opt-item {
+    display: flex;
+    align-items: stretch;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.055);
+    overflow: hidden;
+    transition: background 0.35s ease, box-shadow 0.35s ease;
+  }
+  .qa-opt-item:hover {
+    background: rgba(var(--y-warm-rgb), 0.14);
+  }
+  .qa-opt-item.previewing {
+    background: rgba(var(--y-warm-rgb), 0.18);
+    box-shadow: 0 0 0 1px rgba(var(--y-warm-rgb), 0.38) inset;
+  }
+  .qa-opt-item.picked-item {
+    background: rgba(var(--y-warm-rgb), 0.22);
+  }
+  .qa-opt-item.locked-item {
+    opacity: 0.45;
+  }
+  .qa-opt-item.locked-item.picked-item {
+    opacity: 1;
+  }
+  .qa-opt-btn {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    padding: 11px 13px;
+    border-radius: 0;
+    background: transparent;
     border: none;
     color: var(--y-text);
     font-size: 14px;
     font-family: inherit;
     cursor: pointer;
-    transition: background 0.45s ease;
-  }
-  .qa-opt-btn:hover:not(:disabled) {
-    background: rgba(var(--y-warm-rgb), 0.16);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    transition: color 0.3s ease;
   }
   .qa-opt-btn:disabled {
-    opacity: 0.45;
     cursor: default;
   }
   .qa-opt-btn.picked {
-    opacity: 1;
-    background: rgba(var(--y-warm-rgb), 0.22);
     color: #fff7eb;
+  }
+  .qa-opt-sub {
+    font-size: 11.5px;
+    color: var(--y-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .qa-opt-item.previewing .qa-opt-sub {
+    color: var(--y-warm);
+  }
+  .qa-opt-preview {
+    flex: 0 0 44px;
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--y-text-sub);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  .qa-opt-preview:hover:not(:disabled) {
+    background: rgba(var(--y-warm-rgb), 0.24);
+    color: #fff7eb;
+  }
+  .qa-opt-preview.playing {
+    background: rgba(var(--y-warm-rgb), 0.28);
+    color: #fff7eb;
+  }
+  .qa-opt-preview:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   .qa-skip-row {
     margin-top: 9px;
@@ -752,7 +811,7 @@
       <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
       <div class="name">夜息</div>
     </a>
-    <a class="pill-link" id="earBadgeLink" href="ear_test.html">敏感点测试</a>
+    <a class="pill-link" id="earBadgeLink" href="ear_test.html">听觉图鉴</a>
   </div>
 
   <header class="page-hero">
@@ -831,7 +890,7 @@
 <script src="auth_ui.js?v=12"></script>
 <script src="yexi_shell.js?v=12"></script>
 <script src="yexi_catalog.js?v=12"></script>
-<script src="yexi_mixer.js?v=12"></script>
+<script src="yexi_mixer.js?v=13"></script>
 <script>
 var API = YEXI_API;
 initAuthBar("agent.html");
@@ -1109,13 +1168,23 @@ function updateMediaSession(ver) {
 }
 
 function pauseAll() {
+  stopOptionPreview();
   isPlaying = false;
   if (mixer) mixer.setPlaying(false);
   if (fallbackAudio) fallbackAudio.pause();
   updatePlaybackUI();
 }
 
+function unlockAudioContexts() {
+  try { if (mixer) mixer._ensureContext(); } catch (e) {}
+  try { if (optPreviewMixer) optPreviewMixer._ensureContext(); } catch (e) {}
+}
+document.addEventListener("pointerdown", unlockAudioContexts, { once: true });
+document.addEventListener("keydown", unlockAudioContexts, { once: true });
+
 function playVersion(idx) {
+  stopOptionPreview();
+  unlockAudioContexts();
   if (idx < 0 || idx >= versions.length) return;
   var ver = versions[idx];
   if (activeVersionIdx === idx && isPlaying) {
@@ -1136,16 +1205,22 @@ function playVersion(idx) {
     mixer.syncTracks(ver.tracks);
     mixer.setMasterVolume(effectiveVol);
     mixer.setPlaying(true);
-    if (mixer.ctx && mixer.ctx.state === "suspended") {
-      mixer.ctx.resume().then(function() {
-        if (mixer.ctx && mixer.ctx.state === "suspended" && isPlaying) {
-          isPlaying = false;
-          mixer.setPlaying(false);
-          updatePlaybackUI();
-          setStatus("已配好 · 点卡片 ▶ 试听", false);
-        }
-      }).catch(function() {});
-    }
+    // 650ms 看门狗：若浏览器自动播放策略拦截导致 AudioContext 仍未运行，绝不假装在播静音，明确提示点 ▶
+    var playCheckVerIdx = idx;
+    setTimeout(function() {
+      if (!isPlaying || activeVersionIdx !== playCheckVerIdx || !mixer || !mixer.ctx) return;
+      if (mixer.ctx.state !== "running") {
+        mixer.ctx.resume().catch(function() {});
+        setTimeout(function() {
+          if (isPlaying && activeVersionIdx === playCheckVerIdx && mixer && mixer.ctx && mixer.ctx.state !== "running") {
+            isPlaying = false;
+            mixer.setPlaying(false);
+            updatePlaybackUI();
+            setStatus("浏览器拦截了自动发声，点卡片上的 ▶ 即可播放", false);
+          }
+        }, 250);
+      }
+    }, 650);
   } else if (fallbackAudio && fallbackAudio.src) {
     usingFallback = true;
     fallbackAudio.volume = effectiveVol;
@@ -1181,15 +1256,210 @@ function createThinkingBubble(inQaPhase) {
   };
 }
 
+// ===== 追问选项即时试听（把抽象声音形容词变成点一下就能听的真实素材） =====
+var optPreviewMixer = (typeof YexiMixer !== "undefined" && YexiMixer.isSupported())
+  ? new YexiMixer({ apiBase: API })
+  : null;
+var optPreviewActiveBtn = null;
+var optPreviewReqId = 0;
+
+function stopOptionPreview() {
+  optPreviewReqId += 1;
+  if (optPreviewMixer) {
+    optPreviewMixer.setPlaying(false);
+    optPreviewMixer.syncTracks([]);
+  }
+  if (optPreviewActiveBtn) {
+    optPreviewActiveBtn.classList.remove("playing");
+    optPreviewActiveBtn.textContent = "▶";
+    var oldItem = optPreviewActiveBtn.closest ? optPreviewActiveBtn.closest(".qa-opt-item") : optPreviewActiveBtn.parentNode;
+    if (oldItem) oldItem.classList.remove("previewing");
+    optPreviewActiveBtn = null;
+  }
+}
+
+function resolveOptionPreviewTracks(optText, questionText) {
+  var raw = String(optText || "").trim();
+  if (!raw) return [];
+  // 纯抽象控制项（不含具体声音）不强行配试听
+  if (/^(纯净单层|纯近场触发就好|稀疏偶发|不用再加|按目前信息)/.test(raw)) {
+    return [];
+  }
+  // 去掉否定词后面的声源，避免“别打雷”试听到雷声
+  var pos = raw
+    .replace(/(别|不要|不|无|没有)(打雷|雷声|雷|炉火|火|鸟鸣|鸟|虫鸣|虫|噼啪|雨)/g, "");
+  var tracks = [];
+  var seen = {};
+  function add(path, w, mode) {
+    if (!path || seen[path] || tracks.length >= 2) return;
+    seen[path] = true;
+    tracks.push({ path: path, weight: w || 0.72, pan: tracks.length === 0 ? 0 : 0.25, mode: mode || "loop", density: 0.45 });
+  }
+
+  // 1. 优先匹配具体声音质感与组合
+  if (/帐篷/.test(pos)) add("帐篷雨_小帐篷大雨_592996.hq.mp3", 0.78);
+  else if (/檐下|乡村|小雨|细雨/.test(pos)) add("乡村小雨.hq.mp3", 0.78);
+  else if (/树叶|枝叶|雨叶/.test(pos)) add("备选_大雨打树叶_CC0.mp3", 0.75);
+  else if (/暖厚|毯子|暖夜雨|暖雨/.test(pos)) {
+    add("母带_城市夜雨_CC0.mp3", 0.68);
+    add("雨中低鸣.hq.mp3", 0.34);
+  } else if (/柔和雨|柔和夜雨|柔雨|绵密柔和/.test(pos)) add("柔和雨.hq.mp3", 0.78);
+  else if (/城市夜雨|窗外夜雨|夜雨|雨声|下雨/.test(pos)) add("母带_城市夜雨_CC0.mp3", 0.78);
+
+  if (/黑海/.test(pos)) add("海浪_黑海.hq.mp3", 0.78);
+  else if (/沙滩/.test(pos)) add("海浪_沙滩柔浪_325197.hq.mp3", 0.78);
+  else if (/湖浪|湖海|柔浪/.test(pos)) add("海浪_湖海柔浪_451532.hq.mp3", 0.78);
+  else if (/海浪|远海|潮汐|海/.test(pos)) add("海浪_远海.hq.mp3", 0.78);
+
+  if (/夜营|微火|余烬/.test(pos)) add("炉火_夜营氛围_766127.hq.mp3", 0.78);
+  else if (/篝火|噼啪/.test(pos)) add("炉火_营地篝火_62487.hq.mp3", 0.78);
+  else if (/壁炉|炉火|炭火|火/.test(pos)) add("炉火_壁炉低燃_836535.hq.mp3", 0.78);
+
+  if (/河水|缓流/.test(pos)) add("溪流_柔和河水_707576.hq.mp3", 0.78);
+  else if (/小溪/.test(pos)) add("溪流_小溪循环_767320.hq.mp3", 0.78);
+  else if (/野外/.test(pos)) add("溪流_野外溪水_180732.hq.mp3", 0.78);
+  else if (/溪|流水/.test(pos)) add("溪流.hq.mp3", 0.78);
+
+  if (/采耳|掏耳/.test(pos)) add("ASMR_采耳_690078.hq.mp3", 0.65);
+  if (/梳发|毛刷/.test(pos)) add("ASMR_毛刷梳发_765369.hq.mp3", 0.62);
+  else if (/梳头/.test(pos)) add("ASMR_轻柔梳头_825798.hq.mp3", 0.62);
+  if (/翻书|书房|翻页/.test(pos)) add("ASMR_翻书多人_575764.hq.mp3", 0.64);
+  if (/写字|铅笔|笔记/.test(pos)) add("ASMR_铅笔写字柔_336381.hq.mp3", 0.62);
+  if (/羽毛/.test(pos)) add("ASMR_羽毛轻拂_708086.hq.mp3", 0.65);
+  if (/麦套|扫麦/.test(pos)) add("ASMR_麦套轻扫抓挠_803595.hq.mp3", 0.65);
+  if (/轻敲|敲击|指尖/.test(pos)) add("ASMR_指尖轻敲刮擦_866230.hq.mp3", 0.62);
+  if (/海绵/.test(pos)) add("ASMR_海绵抓挠_690084.hq.mp3", 0.62);
+  if (/糖纸|揉捏/.test(pos)) add("ASMR_糖纸揉捏_802609.hq.mp3", 0.62);
+  if (/搓手|抓挠|轻抚/.test(pos)) add("ASMR_轻抚抓挠_695629.hq.mp3", 0.62);
+
+  if (/麦田/.test(pos)) add("微风_麦田柔风_447810.hq.mp3", 0.74);
+  else if (/松林|林间空气|林风|森林/.test(pos)) add("林风_Akacie_73708.hq.mp3", 0.74);
+  else if (/夜风|微风|傍晚/.test(pos)) add("夜风.hq.mp3", 0.74);
+  if (/夜莺|鸟鸣|鸟/.test(pos)) add("鸟鸣_夜莺鸣叫_853566.hq.mp3", 0.65);
+  if (/虫鸣|虫/.test(pos)) add("虫鸣.hq.mp3", 0.68);
+  if (/闷雷|远雷|雷/.test(pos)) add("远雷.hq.mp3", 0.68);
+
+  // 2. 兜底匹配目录里的精确声音名
+  if (tracks.length === 0 && typeof YEXI_SOUNDS !== "undefined") {
+    for (var i = 0; i < YEXI_SOUNDS.length; i++) {
+      if (YEXI_SOUNDS[i].name && pos.indexOf(YEXI_SOUNDS[i].name) !== -1) {
+        add(YEXI_SOUNDS[i].path, 0.72);
+      }
+    }
+  }
+  // 3. 若问题本身在问雨声/纯净平稳，给柔和雨做直观参考
+  if (tracks.length === 0 && /纯净平稳/.test(pos)) {
+    add("柔和雨.hq.mp3", 0.72);
+  }
+  return tracks;
+}
+
+function toggleOptionPreview(btn, tracks) {
+  if (!optPreviewMixer || !tracks || tracks.length === 0) return;
+  if (optPreviewActiveBtn === btn) {
+    stopOptionPreview();
+    return;
+  }
+  // 暂停主卡片播放，避免两路声景叠在一起吵
+  if (isPlaying) {
+    isPlaying = false;
+    if (mixer) mixer.setPlaying(false);
+    if (fallbackAudio) fallbackAudio.pause();
+    updatePlaybackUI();
+  }
+  stopOptionPreview();
+
+  optPreviewActiveBtn = btn;
+  var reqId = optPreviewReqId;
+  var itemEl = btn.closest ? btn.closest(".qa-opt-item") : btn.parentNode;
+  if (itemEl) itemEl.classList.add("previewing");
+  btn.classList.add("playing");
+
+  optPreviewMixer._ensureContext();
+  var allCached = true;
+  for (var i = 0; i < tracks.length; i++) {
+    if (!optPreviewMixer.buffers[tracks[i].path]) { allCached = false; break; }
+  }
+  btn.textContent = allCached ? "❚❚" : "…";
+
+  optPreviewMixer.preloadTracks(tracks).then(function() {
+    if (reqId !== optPreviewReqId || optPreviewActiveBtn !== btn) return;
+    optPreviewMixer.syncTracks(tracks);
+    optPreviewMixer.setMasterVolume(0.92);
+    optPreviewMixer.setPlaying(true);
+    btn.textContent = "❚❚";
+  }).catch(function() {
+    if (reqId !== optPreviewReqId) return;
+    stopOptionPreview();
+  });
+}
+
+function buildOptionItemsHtml(opts, questionText) {
+  var html = "";
+  var previewList = [];
+  for (var i = 0; i < opts.length; i++) {
+    var txt = opts[i];
+    var pTracks = optPreviewMixer ? resolveOptionPreviewTracks(txt, questionText) : [];
+    previewList.push(pTracks);
+    var subNames = [];
+    for (var j = 0; j < pTracks.length; j++) {
+      var m = ySoundMeta(pTracks[j].path);
+      if (m && m.name) subNames.push(m.name);
+    }
+    var subHtml = subNames.length ? '<span class="qa-opt-sub">试听 · ' + yEscape(subNames.join(" + ")) + '</span>' : '';
+    var prevBtnHtml = pTracks.length
+      ? '<button type="button" class="qa-opt-preview" data-idx="' + i + '" title="先听一下这段声音" aria-label="试听声音">▶</button>'
+      : '';
+    html +=
+      '<div class="qa-opt-item">' +
+        '<button type="button" class="qa-opt-btn" data-opt="' + yEscape(txt) + '">' +
+          '<span>' + yEscape(txt) + '</span>' +
+          subHtml +
+        '</button>' +
+        prevBtnHtml +
+      '</div>';
+  }
+  return { html: html, previewList: previewList };
+}
+
+function bindOptionPreviewButtons(box, previewList) {
+  if (!optPreviewMixer) return;
+  var preloadAll = [];
+  var pBtns = box.querySelectorAll(".qa-opt-preview");
+  for (var i = 0; i < pBtns.length; i++) {
+    (function(btn) {
+      var idx = parseInt(btn.getAttribute("data-idx"), 10);
+      var trs = previewList[idx] || [];
+      for (var k = 0; k < trs.length; k++) preloadAll.push(trs[k]);
+      btn.onclick = function(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        toggleOptionPreview(btn, trs);
+      };
+    })(pBtns[i]);
+  }
+  // 后台预加载当前追问卡片里的声音，点击 ▶ 秒响
+  if (preloadAll.length > 0) {
+    optPreviewMixer.preloadTracks(preloadAll).catch(function() {});
+  }
+}
+
 function lockPreviousAskBoxes(pickedOption) {
+  stopOptionPreview();
   var boxes = chatStream.querySelectorAll(".msg-ask-box");
   for (var i = 0; i < boxes.length; i++) {
     var btns = boxes[i].querySelectorAll(".qa-opt-btn");
     for (var j = 0; j < btns.length; j++) {
+      var itemEl = btns[j].closest ? btns[j].closest(".qa-opt-item") : btns[j].parentNode;
       if (pickedOption && btns[j].getAttribute("data-opt") === pickedOption && i === boxes.length - 1) {
         btns[j].classList.add("picked");
+        if (itemEl) itemEl.classList.add("picked-item");
       }
+      if (itemEl) itemEl.classList.add("locked-item");
       btns[j].disabled = true;
+    }
+    var pBtns = boxes[i].querySelectorAll(".qa-opt-preview");
+    for (var p = 0; p < pBtns.length; p++) {
+      pBtns[p].disabled = true;
     }
     var skips = boxes[i].querySelectorAll(".qa-skip-btn");
     for (var k = 0; k < skips.length; k++) {
@@ -1225,15 +1495,12 @@ function appendAskCard(d) {
 
   var confirmedHtml = renderConfirmedPillsHtml(d.collected);
   var opts = d.options || [];
-  var optsHtml = "";
-  for (var i = 0; i < opts.length; i++) {
-    optsHtml += '<button type="button" class="qa-opt-btn" data-opt="' + yEscape(opts[i]) + '">' + yEscape(opts[i]) + '</button>';
-  }
+  var built = buildOptionItemsHtml(opts, d.question || "");
 
   box.innerHTML =
     (confirmedHtml ? '<div class="collected-strip">' + confirmedHtml + '</div>' : '') +
     '<div class="ask-question">' + yEscape(d.question) + '</div>' +
-    '<div class="qa-options">' + optsHtml + '</div>' +
+    '<div class="qa-options">' + built.html + '</div>' +
     '<div class="qa-skip-row"><button type="button" class="qa-skip-btn">直接生成 ›</button></div>';
 
   var optBtns = box.querySelectorAll(".qa-opt-btn");
@@ -1246,6 +1513,8 @@ function appendAskCard(d) {
       };
     })(optBtns[j]);
   }
+  bindOptionPreviewButtons(box, built.previewList);
+
   box.querySelector(".qa-skip-btn").onclick = function() {
     lockPreviousAskBoxes("");
     sendTurn("按目前信息直接帮我配", true);
@@ -1262,14 +1531,11 @@ function appendBlockedCard(d) {
   box.className = "msg-ask-box";
 
   var opts = d.suggestions || [];
-  var optsHtml = "";
-  for (var i = 0; i < opts.length; i++) {
-    optsHtml += '<button type="button" class="qa-opt-btn" data-opt="' + yEscape(opts[i]) + '">' + yEscape(opts[i]) + '</button>';
-  }
   var reply = d.reply || "我是夜息，只帮你挑配助眠和 ASMR 声音哦。";
+  var built = buildOptionItemsHtml(opts, reply);
   box.innerHTML =
     '<div class="ask-question">' + yEscape(reply) + '</div>' +
-    '<div class="qa-options">' + optsHtml + '</div>';
+    '<div class="qa-options">' + built.html + '</div>';
 
   var btns = box.querySelectorAll(".qa-opt-btn");
   for (var j = 0; j < btns.length; j++) {
@@ -1280,6 +1546,7 @@ function appendBlockedCard(d) {
       };
     })(btns[j]);
   }
+  bindOptionPreviewButtons(box, built.previewList);
 
   chatStream.appendChild(box);
   box.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -1413,6 +1680,7 @@ function sendTurn(rawSay, forceCompose) {
   }
 
   isSending = true;
+  unlockAudioContexts();
   inConversation = true;
   startQaBtn.disabled = true;
   skipQaBtn.disabled = true;
@@ -1624,9 +1892,9 @@ function openFullPlayer(ver) {
     });
 }
 
-// 敏感点测试是登录用户专属：游客点这个链接先引导登录
+// 听觉图鉴是登录用户专属：游客点这个链接先引导登录
 document.getElementById("earBadgeLink").addEventListener("click", function(e) {
-  if (yNeedLogin("做敏感点测试", "ear_test.html")) {
+  if (yNeedLogin("开启听觉图鉴", "ear_test.html")) {
     e.preventDefault();
   }
 });

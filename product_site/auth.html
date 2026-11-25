@@ -179,14 +179,14 @@ document.getElementById("backLink").href = from;
 // 从门闸点「先不登录」= 选游客，写个标记，别再弹门闸
 document.getElementById("backLink").onclick = function() {
   try { localStorage.setItem("yezi_guest", "1"); } catch (e) {}
-  // 从敏感点测试来的，别退回测试页（那里会再弹登录，成死循环）
+  // 从听觉图鉴来的，别退回测试页（那里会再弹登录，成死循环）
   if (new URLSearchParams(location.search).get("reason") === "ear_test") {
     document.getElementById("backLink").href = "home.html";
   }
 };
-// 从敏感点测试跳来登录的，把话说清楚
+// 从听觉图鉴跳来登录的，把话说清楚
 if (new URLSearchParams(location.search).get("reason") === "ear_test") {
-  document.getElementById("sub").textContent = "登录后就能测出你的耳朵敏感点，结果会存进账号";
+  document.getElementById("sub").textContent = "登录后就能生成你的专属听觉图鉴，结果会存进账号";
 }
 
 function showMsg(text) {
@@ -251,8 +251,8 @@ submitBtn.onclick = function() {
           submitBtn.disabled = false;
           return;
         }
-        // 新用户注册后直接去做敏感点测试，先认识自己的耳朵
-        showMsg("注册好了，花 30 秒测测你的耳朵…");
+        // 新用户注册后直接进入听觉图鉴，先认识自己的耳朵
+        showMsg("注册好了，听 5 组盲测生成你的听觉图鉴…");
         doLogin(username, password, "ear_test.html");
       }).catch(function(e) {
         showMsg("连接后端失败：" + e.message);
