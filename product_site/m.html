@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <title>夜息</title>
+<!-- PWA：让 iPad Safari「添加到主屏幕」后以独立全屏 App 打开 -->
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="夜息">
+<link rel="apple-touch-icon" href="/pwa-icon-192.png">
 <link rel="preload" as="image" href="img/night-lake-stars.jpg">
 <style>
 /* 去掉 Google 字体 @import：国内手机常卡住，且会阻塞整段样式。用系统宋体兜底。 */

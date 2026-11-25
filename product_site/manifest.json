@@ -1,0 +1,25 @@
+{
+  "name": "夜息 · 助眠声音",
+  "short_name": "夜息",
+  "description": "说一句大白话，给你一段真的能放松入睡的声音",
+  "start_url": "/m.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07050d",
+  "theme_color": "#07050d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
