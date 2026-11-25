@@ -1726,13 +1726,26 @@ class Handler(BaseHTTPRequestHandler):
                         400,
                     )
                     return
+                # 支付宝二维码图片服务器有防盗链，浏览器直接引用会显示"内容被屏蔽"。
+                # 服务端把它抓成本地文件再给前端，绕开这个限制。
+                qr_local = ""
+                qr_url = r.get("purchase_qr_code", "")
+                if qr_url:
+                    try:
+                        import urllib.request
+                        qr_path = os.path.join(SITE_DIR, "_pay_qr.png")
+                        urllib.request.urlretrieve(qr_url, qr_path)
+                        qr_local = "/_pay_qr.png?v=" + str(int(time.time()))
+                    except Exception as e:
+                        print("[nowpay] 二维码本地化失败：" + str(e), flush=True)
                 self.send_json(
                     {
                         "ok": True,
                         "pay_url": r.get("purchase_url", ""),
-                        "qr_code": r.get("purchase_qr_code", ""),
+                        "qr_code": qr_local or qr_url,
                         "mode": "nowpay",
                         "product": product_id,
+                        "expire_time": r.get("expire_time", ""),
                     }
                 )
                 return

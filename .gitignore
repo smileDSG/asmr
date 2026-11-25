@@ -115,3 +115,6 @@ Thumbs.db
 
 # 说明：下面这些是项目成品，保留上传
 # 核心 py、product_site/、product_assets/、scene_assets/、各 .md 文档、requirements.txt
+
+# 即刻收动态付款二维码（每次下单覆盖）
+product_site/_pay_qr.png
