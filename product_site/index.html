@@ -1465,6 +1465,11 @@
     line-height: 1.5;
   }
 
+  /* 抽屉把手默认不显示，手机端在下面的媒体查询里打开 */
+  .drawer-handle {
+    display: none;
+  }
+
   /* ===== 手机：声场别占掉整屏，字和控件都放松一档 ===== */
   @media (max-width: 619px) {
     .card {
@@ -1561,6 +1566,79 @@
       -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
       overflow: hidden;
+    }
+
+    /* ===== 选声音面板改成底部抽屉 =====
+       素材库从纵向流里拿出来，声场留在首屏。
+       点把手升出、选完下拉收起，不用上下来回滚。
+       依据：Material Design 的标准底部抽屉正是用于"主内容要滚动时，
+       让补充内容保持可见"；音乐类 App 也把播放区固定、选曲放进抽屉。 */
+    #mobileDrawer {
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      bottom: 76px;
+      z-index: 45;
+      max-height: 55dvh;
+      overflow: hidden;
+      padding: 0 16px 14px;
+      border-radius: 18px 18px 14px 14px;
+      background: rgba(16, 11, 26, 0.97);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.62);
+      transform: translateY(calc(100% - 56px));
+      transition: transform 0.38s var(--y-ease);
+    }
+    #mobileDrawer.open {
+      transform: translateY(0);
+    }
+    .drawer-handle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      height: 56px;
+      padding: 0 2px;
+      background: none;
+      border: none;
+      color: var(--y-text-sub);
+      font-family: inherit;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+    .dh-grip {
+      width: 30px;
+      height: 3px;
+      flex: 0 0 30px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.28);
+    }
+    .dh-label {
+      flex: 1;
+      text-align: left;
+    }
+    .dh-arrow {
+      font-size: 18px;
+      line-height: 1;
+      color: var(--y-warm);
+      transition: transform 0.3s ease;
+    }
+    #mobileDrawer.open .dh-arrow {
+      transform: rotate(180deg);
+    }
+    #mobileDrawer .panel-tabs {
+      padding-top: 4px;
+    }
+    #mobileDrawer .panel-view {
+      max-height: calc(55dvh - 150px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    /* 抽屉浮在页面上，主区域底部留点空免得最后一块被压住 */
+    .studio-grid {
+      padding-bottom: 150px;
     }
   }
 </style>
@@ -1663,7 +1741,13 @@
 
     <!-- 右栏：分步式创作面板（选声音 / 调参数 / 作品） -->
     <div class="studio-col">
-      <div class="card">
+      <div class="card" id="mobileDrawer">
+        <!-- 手机端专用把手：点一下从底部升出素材面板 -->
+        <button class="drawer-handle" id="drawerHandle" type="button" aria-expanded="false" aria-controls="mobileDrawer">
+          <span class="dh-grip"></span>
+          <span class="dh-label">选声音 · 调参数 · 作品</span>
+          <span class="dh-arrow">⌃</span>
+        </button>
         <div class="panel-tabs" role="tablist">
           <button class="panel-tab on" id="panelTabSounds" type="button" role="tab" aria-selected="true">选声音</button>
           <button class="panel-tab" id="panelTabTune" type="button" role="tab" aria-selected="false">调参数 <span class="tab-badge" id="trackCountBadge">0</span></button>
@@ -3865,6 +3949,24 @@ function applyMixFromHash() {
 window.addEventListener("hashchange", function() {
   applyMixFromHash();
 });
+
+// ===== 手机端素材抽屉：点把手升降，不用在声场和素材库之间来回滚 =====
+var drawerHandleBtn = document.getElementById("drawerHandle");
+var mobileDrawerBox = document.getElementById("mobileDrawer");
+if (drawerHandleBtn && mobileDrawerBox) {
+  drawerHandleBtn.onclick = function() {
+    var opened = mobileDrawerBox.classList.toggle("open");
+    drawerHandleBtn.setAttribute("aria-expanded", opened ? "true" : "false");
+  };
+  // 入睡渐退不常用，手机上收进抽屉的「调参数」页，首屏少一块
+  if (window.innerWidth <= 619) {
+    var tuneView = document.getElementById("panelTune");
+    var sleepBox = document.getElementById("sleepCurveBox");
+    if (tuneView && sleepBox) {
+      tuneView.insertBefore(sleepBox, tuneView.firstChild);
+    }
+  }
+}
 
 // 初始化（旧 ?say=... 链接自动跳去 AI 配声页）
 if (new URLSearchParams(location.search).get("say")) {

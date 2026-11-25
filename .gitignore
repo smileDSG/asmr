@@ -90,6 +90,9 @@ moodist.zip
 img/night-lake.webp
 product_site/img/night-lake.webp
 
+# ===== 本地预览小工具 / 一次性调试页（不进仓库）=====
+product_site/_*.html
+
 # ===== 编辑器/系统/工具内部文件 =====
 .DS_Store
 Thumbs.db
