@@ -24,12 +24,47 @@ import auth_db
 import rate_limit
 import input_guard
 import pay
+import nowpay
 
 # 部署平台通过 PORT 环境变量注入端口，本机开发默认 8000
 PORT = int(os.environ.get("PORT", "8000"))
 BASE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(BASE, "agent_output")
 SITE_DIR = os.path.join(BASE, "product_site")
+
+
+def _hotlink_blocked(handler):
+    """防盗链：只拦「明确来自外站」的图片/音频请求，不确定的一律放行。
+    原则（依据 MDN + 本项目 Referrer-Policy）：
+      - 没有 Referer：放行（可能是用户直接打开、或浏览器隐私设置主动省略）
+      - 本机/本地开发：放行
+      - Referer 的 host 和请求 host 一致（同源）：放行
+      - 明确是别的网站：拦截（这就是白嫖带宽的盗链）
+    注意：curl 可以伪造 Referer，所以这层只防浏览器里的普通盗链，
+    防不住蓄意下载——CC0 音频本来也允许下载，目标只是别让别人网页白嫖带宽。
+    """
+    ref = (handler.headers.get("Referer") or "").strip()
+    if not ref:
+        return False
+    try:
+        ref_host = urllib.parse.urlparse(ref).hostname or ""
+    except Exception:
+        return False  # 解析不了就放行，宁可漏拦也不误伤
+    if not ref_host:
+        return False
+
+    # 本机/本地开发白名单
+    if ref_host in ("localhost", "127.0.0.1", "::1"):
+        return False
+
+    # 和请求目标 host 一致 = 同源，放行
+    req_host = (handler.headers.get("Host") or "").split(":")[0].strip().lower()
+    if ref_host.lower() == req_host:
+        return False
+
+    # 到这里仍是外站 Referer，但可能是我们自己的公网域名/IP（从 GitHub 部署手册看是 IP 访问）
+    # 若 ref_host 就是请求 host 的另一种写法，也放行——上面已覆盖大多数情况
+    return True
 
 
 def serve_static(handler, path):
@@ -49,12 +84,20 @@ def serve_static(handler, path):
     if not os.path.isfile(full):
         handler.send_json({"error": "not found"}, 404)
         return
+    # 防盗链：只拦图片/音频这类"值得偷"的静态资源，HTML/CSS/JS 不拦
+    # （页面本身要能被正常链接、被搜索引擎/微信抓取预览）
+    if full.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp3", ".wav", ".ogg")):
+        if _hotlink_blocked(handler):
+            handler.send_json({"error": "forbidden"}, 403)
+            return
     # 图片自动转 WebP（内容协商）：浏览器说支持 image/webp 且磁盘上有同名 .webp，
     # 就发 WebP，体积比 JPG 省 40% 左右；不支持的浏览器照拿原 JPG，不用改一行前端代码。
     # 转换脚本见 make_webp.py，改过原图后重跑一次即可。
     accept_encoding = handler.headers.get("Accept-Encoding", "")
     accept_type = handler.headers.get("Accept", "")
-    want_webp = "image/webp" in accept_type and full.lower().endswith((".jpg", ".jpeg", ".png"))
+    want_webp = "image/webp" in accept_type and full.lower().endswith(
+        (".jpg", ".jpeg", ".png")
+    )
     webp_path = os.path.splitext(full)[0] + ".webp"
     if want_webp and os.path.isfile(webp_path):
         full = webp_path
@@ -62,8 +105,13 @@ def serve_static(handler, path):
     with open(full, "rb") as f:
         body = f.read()
     ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
-    is_text = ctype.startswith("text/") or "javascript" in ctype or "json" in ctype \
-        or "svg" in ctype or "xml" in ctype
+    is_text = (
+        ctype.startswith("text/")
+        or "javascript" in ctype
+        or "json" in ctype
+        or "svg" in ctype
+        or "xml" in ctype
+    )
     if is_text and "charset=" not in ctype:
         ctype += "; charset=utf-8"
 
@@ -838,6 +886,42 @@ def _voter_key(handler, user):
 FREE_DAILY_GENERATE = 2
 
 
+def _nowpay_products_info():
+    """给前端看即刻收商品是否可用。不联网，只读配置。"""
+    products = nowpay.products_config()
+    if not products:
+        return {"enabled": False, "products": []}
+    out = []
+    for name, info in products.items():
+        out.append(
+            {
+                "id": name,
+                "product_id": (info or {}).get("out_product_id", ""),
+                "sku_id": (info or {}).get("sku_id", ""),
+            }
+        )
+    return {"enabled": True, "products": out}
+
+
+def _nowpay_quota(buyer_id):
+    """查即刻收的次数余额。没配商品或没启用就返回不可用，不报错给用户。"""
+    if not nowpay.ENABLED:
+        return {"available": False, "remaining": 0}
+    try:
+        r = nowpay.quota_query(buyer_id, "trial3")
+    except Exception as e:
+        print("[nowpay] 查余额失败：" + str(e), flush=True)
+        return {"available": False, "remaining": 0, "error": str(e)}
+    if str(r.get("code", "")) != "10000":
+        return {"available": False, "remaining": 0}
+    return {
+        "available": True,
+        "total": int(r.get("total", 0) or 0),
+        "used": int(r.get("used", 0) or 0),
+        "remaining": int(r.get("remaining", 0) or 0),
+    }
+
+
 def _access(handler):
     # 一次算清三件事：有没有解锁全库、额度记在谁头上、当前权益
     user = current_user(handler)
@@ -987,6 +1071,38 @@ CORS_ALLOWED_ORIGINS = {
 
 
 class Handler(BaseHTTPRequestHandler):
+    def send_response(self, code, message=None):
+        """覆盖基类：所有响应统一带安全头，一处改完全局生效。
+        注意：send_response 之后、end_headers 之前是加头的正确时机。"""
+        super().send_response(code, message)
+        # 阻止浏览器猜测文件类型（把 JSON 当 JS 执行这类攻击）
+        self.send_header("X-Content-Type-Options", "nosniff")
+        # 只允许同源 iframe（m.html 手机入口就是 iframe 套真实页面）；外部站点嵌套仍被拦
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        # 跳转时不把完整 URL 带给外部站点
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        # 限制资源加载来源。项目页面全靠内联 script/style，所以允许 unsafe-inline；
+        # 外链资源为 0，其余一律只允许本站，这是当前形态能设的最严策略。
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "script-src-attr 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "media-src 'self' blob:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'",
+        )
+        # HSTS 只在 HTTPS 下加——HTTP 上加了会被忽略，备案/证书到位后自动生效
+        if self.headers.get("X-Forwarded-Proto", "").lower() == "https":
+            self.send_header(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+
     def send_cors_headers(self):
         """按白名单回 CORS 头。不在白名单就不回——浏览器会自动拦跨域请求。"""
         origin = (self.headers.get("Origin") or "").strip()
@@ -1020,14 +1136,21 @@ class Handler(BaseHTTPRequestHandler):
             return True
         ok, cat, left = rate_limit.check(path, self)
         if not ok:
-            self.send_json({
-                "error": "操作太频繁了，稍等一会儿再试",
-                "need_slow_down": True,
-            }, 429)
+            self.send_json(
+                {
+                    "error": "操作太频繁了，稍等一会儿再试",
+                    "need_slow_down": True,
+                },
+                429,
+            )
             return False
         return True
 
     def send_audio(self, data, sr):
+        # 防盗链：实时生成的音频也不给外站白嫖带宽（检查逻辑见 _hotlink_blocked）
+        if _hotlink_blocked(self):
+            self.send_json({"error": "forbidden"}, 403)
+            return
         # 在线播放发 MP3：30 秒从 5.3MB 降到约 0.5MB，手机公网加载快一个数量级
         # 导出商用仍走 write_wav 保留无损，不受这里影响
         import io
@@ -1061,8 +1184,25 @@ class Handler(BaseHTTPRequestHandler):
                     "products": pay.public_products(),
                     "mode": pay.PAY_MODE,
                     "configured": pay.configured(),
+                    "nowpay": _nowpay_products_info(),
                 }
             )
+        elif path == "/api/nowpay/return":
+            # 即刻收购买页跳回：这里只做展示，真实权益由前端查 quota 确认
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            self.send_response(302)
+            self.send_header(
+                "Location",
+                "/pay_return.html?nowpay=1"
+                + ("&product=" + urllib.parse.quote(qs.get("product", [""])[0])),
+            )
+            self.end_headers()
+        elif path == "/api/nowpay/quota":
+            # 查即刻收次数余额；未登录按游客标识查（即刻收用 external_buyer_id 认人）
+            user = current_user(self)
+            key = str(user["id"]) if user else (_voter_key(self, user) or "c:anon")
+            info = _nowpay_quota(key)
+            self.send_json(info)
         elif path == "/api/entitlement":
             user = current_user(self)
             if not user:
@@ -1263,12 +1403,47 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/comments":
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             pid = str(qs.get("post_id", [""])[0]).strip()
-            comments = auth_db.list_comments(pid)
+            try:
+                cmt_size = int(qs.get("limit", ["20"])[0])
+            except (TypeError, ValueError):
+                cmt_size = 20
+            cmt_size = max(1, min(cmt_size, 50))
+            cmt_cursor = str(qs.get("cursor", [""])[0]).strip()
+            cmt_before_ts = cmt_before_id = None
+            if cmt_cursor:
+                cmt_parts = cmt_cursor.split("|", 1)
+                if len(cmt_parts) == 2:
+                    try:
+                        cmt_before_ts = float(cmt_parts[0])
+                        cmt_before_id = cmt_parts[1]
+                    except (TypeError, ValueError):
+                        cmt_before_ts = cmt_before_id = None
+            # 多取一条判断还有没有更早的留言；返回的是时间正序，多出来的那条在最前面
+            cmt_rows = auth_db.list_comments(
+                pid, cmt_size + 1, cmt_before_ts, cmt_before_id
+            )
+            cmt_has_more = len(cmt_rows) > cmt_size
+            comments = cmt_rows[1:] if cmt_has_more else cmt_rows
             me = current_user(self)
             me_id = me["id"] if me else None
             for c in comments:
                 c["is_mine"] = bool(me_id and c.get("user_id") == me_id)
-            self.send_json({"ok": True, "comments": comments})
+            cmt_next = None
+            if cmt_has_more and comments:
+                oldest = comments[0]
+                cmt_next = "%s|%s" % (
+                    repr(float(oldest.get("created_at") or 0)),
+                    oldest.get("id") or "",
+                )
+            self.send_json(
+                {
+                    "ok": True,
+                    "comments": comments,
+                    "has_more": cmt_has_more,
+                    "next_cursor": cmt_next,
+                    "total": auth_db.count_comments(pid),
+                }
+            )
         elif path == "/api/creator":
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             author = str(qs.get("author", [""])[0]).strip()[:24]
@@ -1410,6 +1585,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_audio(mix, sr)
         elif path == "/api/asset":
             # 供前端多轨实时混音器直接拉取 CC0 原声素材（只允许库内白名单文件）
+            if _hotlink_blocked(self):
+                self.send_json({"error": "forbidden"}, 403)
+                return
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             name = qs.get("name", [""])[0]
             if not name or "/" in name or "\\" in name or ".." in name:
@@ -1478,6 +1656,9 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif path == "/api/play_audio":
             # 稳定播放文件：按名字取，支持 Range 请求（拖动/循环更稳）
+            if _hotlink_blocked(self):
+                self.send_json({"error": "forbidden"}, 403)
+                return
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             name = qs.get("name", [""])[0]
             if not name or "/" in name or "\\" in name or ".." in name:
@@ -1507,6 +1688,39 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/pay/create":
+            # 即刻收模式优先：商品和收银台都在支付宝托管
+            if nowpay.ENABLED and nowpay.products_config():
+                user = require_login(self, "购买")
+                if not user:
+                    return
+                data = read_body(self)
+                product_id = str(data.get("product_id") or "").strip()
+                info = nowpay.products_config().get(product_id)
+                if not info:
+                    self.send_json({"error": "没有这个商品"}, 400)
+                    return
+                try:
+                    r = nowpay.purchase_create(user["id"], product_id, info.get("sku_id", ""))
+                except Exception as e:
+                    print("[nowpay] 下单失败：" + str(e), flush=True)
+                    self.send_json({"error": "下单失败，稍后再试"}, 500)
+                    return
+                if str(r.get("code", "")) != "10000":
+                    self.send_json(
+                        {"error": "下单失败：" + str(r.get("sub_msg") or r.get("msg") or "")},
+                        400,
+                    )
+                    return
+                self.send_json(
+                    {
+                        "ok": True,
+                        "pay_url": r.get("purchase_url", ""),
+                        "qr_code": r.get("purchase_qr_code", ""),
+                        "mode": "nowpay",
+                        "product": product_id,
+                    }
+                )
+                return
             user = require_login(self, "购买")
             if not user:
                 return

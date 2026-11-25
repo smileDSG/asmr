@@ -133,15 +133,14 @@ def purchase_consult(user_id, product_key):
     if not out_product_id:
         return {"decision": "DENY", "reason_code": "NO_PRODUCT_ID"}
 
-    result = _call(
-        M_CONSULT,
-        {
-            "out_product_id": out_product_id,
-            "external_buyer_id": str(user_id),
-            "callback_url": callback_url(),
-        },
-    )
-    return result
+    biz = {
+        "out_product_id": out_product_id,
+        "external_buyer_id": str(user_id),
+    }
+    cb = callback_url()
+    if cb.startswith("https://"):
+        biz["callback_url"] = cb
+    return _call(M_CONSULT, biz)
 
 
 # ---------------- 3. 生成购买链接 ----------------
@@ -155,8 +154,12 @@ def purchase_create(user_id, product_key, sku_id=""):
         "out_request_no": _request_no("purchase"),
         "out_product_id": out_product_id,
         "external_buyer_id": str(user_id),
-        "callback_url": callback_url(),
     }
+    # callback_url 必须是 HTTPS。没有 HTTPS 就别传——它是可选的，
+    # 付完不自动跳回也没关系，权益一律靠 quota.query 查余额确认。
+    cb = callback_url()
+    if cb.startswith("https://"):
+        biz["callback_url"] = cb
     if sku_id:
         biz["sku_id"] = sku_id
     return _call(M_PURCHASE, biz)
