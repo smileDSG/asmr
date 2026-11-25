@@ -1732,9 +1732,9 @@ class Handler(BaseHTTPRequestHandler):
                 qr_url = r.get("purchase_qr_code", "")
                 if qr_url:
                     try:
-                        import urllib.request
+                        from urllib.request import urlretrieve
                         qr_path = os.path.join(SITE_DIR, "_pay_qr.png")
-                        urllib.request.urlretrieve(qr_url, qr_path)
+                        urlretrieve(qr_url, qr_path)
                         qr_local = "/_pay_qr.png?v=" + str(int(time.time()))
                     except Exception as e:
                         print("[nowpay] 二维码本地化失败：" + str(e), flush=True)
