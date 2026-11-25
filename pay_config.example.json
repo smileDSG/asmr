@@ -10,15 +10,15 @@
     "callback_url": "https://你的域名/pay_return.html",
     "products": {
       "week": {
-        "out_product_id": "np_从即刻收小程序商品详情页复制",
+        "out_product_id": "从即刻收小程序商品详情页复制（DIRECT_ 或 np_ 开头）",
         "note": "一周全库，时长包 ONE_TIME_DURATION / WEEK"
       },
       "month": {
-        "out_product_id": "np_从即刻收小程序商品详情页复制",
+        "out_product_id": "从即刻收小程序商品详情页复制（DIRECT_ 或 np_ 开头）",
         "note": "整月全库，时长包 ONE_TIME_DURATION / MONTH"
       },
       "commercial": {
-        "out_product_id": "np_从即刻收小程序商品详情页复制",
+        "out_product_id": "从即刻收小程序商品详情页复制（DIRECT_ 或 np_ 开头）",
         "note": "商用买断，永久买断 ONE_TIME"
       }
     }

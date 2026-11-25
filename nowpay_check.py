@@ -59,11 +59,12 @@ def check_local():
     line(GOOD + "nowpay.products 有 " + str(len(products)) + " 个商品")
     for name, info in products.items():
         pid = (info or {}).get("out_product_id", "")
-        if pid.startswith("np_"):
+        # 官方文档示例写 np_，但个人账号实际开出来是 DIRECT_ 开头，两种都认
+        if pid.startswith("np_") or pid.startswith("DIRECT_"):
             line(GOOD + "  " + name + " -> " + pid)
         else:
             line(BAD + "  " + name + " 的商品 ID 不对：" + str(pid))
-            line("      商品 ID 应该以 np_ 开头，从小程序商品详情页复制")
+            line("      商品 ID 从小程序商品详情页复制，一般是 DIRECT_ 开头")
             problems += 1
 
     cb = np.get("callback_url", "")
