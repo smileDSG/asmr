@@ -21,6 +21,7 @@ import feedback_translate as ft
 import memory_system as memory
 import auth_db
 import input_guard
+import pay
 
 # 部署平台通过 PORT 环境变量注入端口，本机开发默认 8000
 PORT = int(os.environ.get("PORT", "8000"))
@@ -59,6 +60,23 @@ def read_body(handler):
     length = int(handler.headers.get("Content-Length", "0"))
     raw = handler.rfile.read(length).decode("utf-8")
     return json.loads(raw)
+
+
+def read_form(handler):
+    # 支付宝的异步通知是表单编码（application/x-www-form-urlencoded），不是 JSON
+    length = int(handler.headers.get("Content-Length", "0"))
+    raw = handler.rfile.read(length).decode("utf-8")
+    parsed = urllib.parse.parse_qs(raw, keep_blank_values=True)
+    return {k: v[0] for k, v in parsed.items()}
+
+
+def send_text(handler, text, code=200):
+    body = text.encode("utf-8")
+    handler.send_response(code)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 
 def current_user(handler):
@@ -527,8 +545,9 @@ def map_client_items(raw_items):
     return mapped
 
 
-def map_client_tracks(raw_items):
+def map_client_tracks(raw_items, allowed=None):
     # 把前端传入的声轨列表（含 weight / pan / mode / density）映射并校验到白名单
+    # allowed 不是 None 时，越权的素材直接丢掉（免费用户拿不到付费层）
     if not isinstance(raw_items, list):
         return []
     mapped = []
@@ -537,6 +556,8 @@ def map_client_tracks(raw_items):
             continue
         rel = find_relpath(os.path.basename(str(it.get("path", ""))))
         if not rel:
+            continue
+        if allowed is not None and rel not in allowed:
             continue
         spec = _normalize_track_spec({
             "rel": rel,
@@ -660,7 +681,49 @@ def _voter_key(handler, user):
     return None
 
 
-def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts, force_unlock=False):
+# 免费用户每天能生成几次。付费解锁全库后不限次。
+FREE_DAILY_GENERATE = 2
+
+
+def _access(handler):
+    # 一次算清三件事：有没有解锁全库、额度记在谁头上、当前权益
+    user = current_user(handler)
+    ent = auth_db.list_entitlements(user["id"]) if user else {}
+    full = bool(ent.get("full") and ent["full"].get("active"))
+    owner = _voter_key(handler, user) or "c:anon"
+    return full, owner, ent
+
+
+def _quota_exhausted(handler, quota):
+    handler.send_json({
+        "ok": False,
+        "action": "quota",
+        "error": "今天的 " + str(FREE_DAILY_GENERATE) + " 次生成用完了",
+        "reply": "今天的免费次数用完了。想再生成，明天还有，或者解锁全库继续。",
+        "need_pay": True,
+        "quota": quota,
+        "products": pay.public_products(),
+    }, 402)
+
+
+def _downgrade_tracks(tracks, intent, allowed):
+    # 免费用户：配方里只要混进了付费素材，就整条退到该场景的免费默认组合。
+    # 这样不会出现「三层被删成一层」的奇怪声音。
+    if not tracks:
+        return tracks
+    if all(t["rel"] in allowed for t in tracks):
+        return tracks
+    picked = executor.pick(intent, allowed)
+    if not picked:
+        return tracks
+    total = sum(w for _, w in picked) or 1.0
+    out = []
+    for rel, w in picked:
+        out.append(_normalize_track_spec({"rel": rel, "weight": w / total}))
+    return out
+
+
+def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts, force_unlock=False, profiles=None):
     pid = post["id"]
     is_mine = bool(viewer_user and post.get("user_id") and viewer_user["id"] == post.get("user_id"))
     starred_by_me = (pid, "borrow") in voter_votes
@@ -674,10 +737,21 @@ def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts
     raw_counts = vote_counts.get(pid) or {}
     counts = {k: max(0, int(raw_counts.get(k, 0) or 0)) for k in auth_db.ALLOWED_VOTE_TAGS}
 
+    # 作者头像：有 user_id 且能查到 profile 就用预设头像，否则前端退回首字
+    author_profile = None
+    if profiles and post.get("user_id") in profiles:
+        ap = profiles[post.get("user_id")]
+        author_profile = {
+            "display_name": ap.get("display_name") or "",
+            "avatar_glyph": int(ap.get("avatar_glyph") or 0),
+            "avatar_tone": int(ap.get("avatar_tone") or 0),
+        }
+
     out = {
         "id": pid,
         "title": post.get("title") or "我的夜息声景",
         "author": post.get("author") or "深夜旅人",
+        "author_profile": author_profile,
         "group": post.get("group") or "自然",
         "story": post.get("story") or "",
         "remix_of": post.get("remix_of"),
@@ -764,10 +838,68 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         print("[GET] " + path, flush=True)
-        if path == "/api/me":
+        if path == "/api/pay/products":
+            self.send_json({
+                "products": pay.public_products(),
+                "mode": pay.PAY_MODE,
+                "configured": pay.configured(),
+            })
+        elif path == "/api/entitlement":
+            user = current_user(self)
+            if not user:
+                self.send_json({"need_login": True, "entitlements": {}}, 401)
+                return
+            self.send_json({"entitlements": auth_db.list_entitlements(user["id"])})
+        elif path == "/api/pay/return":
+            # 同步跳回只用来展示结果，真实状态一律以库里为准
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            out_trade_no = qs.get("out_trade_no", [""])[0]
+            order = auth_db.get_order(out_trade_no)
+            paid = "1" if (order and order["status"] == "paid") else "0"
+            self.send_response(302)
+            self.send_header(
+                "Location",
+                "/pay_return.html?order=" + urllib.parse.quote(out_trade_no) + "&paid=" + paid
+            )
+            self.end_headers()
+        elif path == "/api/pay/query":
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            out_trade_no = qs.get("order", [""])[0]
+            user = current_user(self)
+            order = auth_db.get_order(out_trade_no)
+            if not order:
+                self.send_json({"error": "订单不存在"}, 404)
+                return
+            if not user or user["id"] != order["user_id"]:
+                self.send_json({"error": "无权查看这笔订单"}, 403)
+                return
+            # 通知可能还没到，主动问一次支付宝；问到了就顺手入账
+            if order["status"] != "paid" and pay.PAY_MODE != "mock":
+                try:
+                    trade_status = pay.query(out_trade_no)
+                except Exception as e:
+                    trade_status = ""
+                    print("[pay] 查单失败：" + str(e), flush=True)
+                if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+                    pay.grant(out_trade_no, "")
+                    order = auth_db.get_order(out_trade_no)
+            self.send_json({
+                "status": order["status"],
+                "order": order,
+                "entitlements": auth_db.list_entitlements(user["id"]),
+            })
+        elif path == "/api/me":
             user = current_user(self)
             self.send_json({"logged_in": user is not None,
-                            "username": user["username"] if user else ""})
+                            "username": user["username"] if user else "",
+                            "profile": auth_db.get_profile(user["id"]) if user else None})
+
+        elif path == "/api/profile":
+            user = current_user(self)
+            if not user:
+                self.send_json({"error": "请先登录"}, 401)
+                return
+            self.send_json({"ok": True, "profile": auth_db.get_profile(user["id"])})
 
         elif path == "/api/memory":
             self.send_json(get_user_memory(current_user(self)))
@@ -785,7 +917,14 @@ class Handler(BaseHTTPRequestHandler):
             st = memory.DbStore(user["id"]).read("queue_state.json")
             self.send_json({"logged_in": True, "state": st if isinstance(st, dict) else {}})
         elif path == "/api/catalog":
-            self.send_json({"total": len(sound_catalog.ALL_SOUNDS), "items": sound_catalog.ALL_SOUNDS})
+            full, owner, ent = _access(self)
+            self.send_json({
+                "total": len(sound_catalog.ALL_SOUNDS),
+                "items": sound_catalog.ALL_SOUNDS,
+                "free_count": len(sound_catalog.FREE_RELPATHS),
+                "premium_count": sound_catalog.PREMIUM_COUNT,
+                "unlocked": full,
+            })
         elif path == "/api/community_votes":
             user = current_user(self)
             voter_key = _voter_key(self, user)
@@ -802,8 +941,9 @@ class Handler(BaseHTTPRequestHandler):
             vote_counts = auth_db.get_all_vote_counts()
             posts = auth_db.list_community_posts_raw(100)
             comment_counts = auth_db.get_comment_counts()
+            profiles = auth_db.get_profiles_map([p.get("user_id") for p in posts])
             formatted = [
-                _format_public_post(p, viewer, voter_votes, fork_counts, vote_counts)
+                _format_public_post(p, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles)
                 for p in posts
             ]
             for fp in formatted:
@@ -822,11 +962,13 @@ class Handler(BaseHTTPRequestHandler):
             fork_counts = auth_db.get_fork_counts_map()
             vote_counts = auth_db.get_all_vote_counts()
             forks = auth_db.list_forks_of(pid)
+            all_rows = [post] + forks
+            profiles = auth_db.get_profiles_map([p.get("user_id") for p in all_rows])
             self.send_json({
                 "ok": True,
-                "post": _format_public_post(post, viewer, voter_votes, fork_counts, vote_counts),
+                "post": _format_public_post(post, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles),
                 "forks": [
-                    _format_public_post(f, viewer, voter_votes, fork_counts, vote_counts)
+                    _format_public_post(f, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles)
                     for f in forks
                 ],
             })
@@ -834,6 +976,10 @@ class Handler(BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             pid = str(qs.get("post_id", [""])[0]).strip()
             comments = auth_db.list_comments(pid)
+            me = current_user(self)
+            me_id = me["id"] if me else None
+            for c in comments:
+                c["is_mine"] = bool(me_id and c.get("user_id") == me_id)
             self.send_json({"ok": True, "comments": comments})
         elif path == "/api/creator":
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -850,8 +996,12 @@ class Handler(BaseHTTPRequestHandler):
             fork_counts = hub["fork_counts"]
             vote_counts = hub["vote_counts"]
 
+            hub_profiles = auth_db.get_profiles_map(
+                [p.get("user_id") for p in hub["my_posts"]]
+            )
             my_posts = [
-                _format_public_post(p, user, voter_votes, fork_counts, vote_counts, force_unlock=True)
+                _format_public_post(p, user, voter_votes, fork_counts, vote_counts,
+                                    force_unlock=True, profiles=hub_profiles)
                 for p in hub["my_posts"]
             ]
 
@@ -888,6 +1038,7 @@ class Handler(BaseHTTPRequestHandler):
                 "custom_recipes": custom_recipes,
                 "ai_recipes": ai_recipes,
                 "ear_profile": valid_ep,
+                "profile": auth_db.get_profile(user["id"]) if user else None,
                 "memory": get_user_memory(user),
             })
         elif path == "/api/recipes":
@@ -1039,7 +1190,58 @@ class Handler(BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         print("[POST] " + path, flush=True)
 
-        if path == "/api/register":
+        if path == "/api/pay/create":
+            user = require_login(self, "购买")
+            if not user:
+                return
+            data = read_body(self)
+            product_id = str(data.get("product_id") or "").strip()
+            result = pay.create(user["id"], product_id, channel="web")
+            if not result:
+                self.send_json({"error": "没有这个商品"}, 400)
+                return
+            self.send_json(result)
+
+        elif path == "/api/pay/notify":
+            # 支付宝异步通知：不管成功失败，都必须回纯文本，否则它会一直重发
+            form = read_form(self)
+            out_trade_no = form.get("out_trade_no", "")
+            print(
+                "[pay] notify " + out_trade_no + " " + form.get("trade_status", ""),
+                flush=True
+            )
+            if not pay.verify_notify(form):
+                print("[pay] 验签没通过，丢弃", flush=True)
+                send_text(self, "fail", 400)
+                return
+            order = auth_db.get_order(out_trade_no)
+            if not pay.check_notify(order, form):
+                send_text(self, "fail", 400)
+                return
+            pay.grant(out_trade_no, form.get("trade_no", ""))
+            send_text(self, "success")
+
+        elif path == "/api/pay/mock_success":
+            # 只给 mock 模式用：本地演示时点一下就当付过了。线上绝不能开放。
+            if pay.PAY_MODE != "mock":
+                self.send_json({"error": "模拟支付只在 mock 模式可用"}, 403)
+                return
+            user = require_login(self, "模拟支付")
+            if not user:
+                return
+            data = read_body(self)
+            out_trade_no = str(data.get("order") or "").strip()
+            order = auth_db.get_order(out_trade_no)
+            if not order or order["user_id"] != user["id"]:
+                self.send_json({"error": "订单不存在"}, 404)
+                return
+            pay.grant(out_trade_no, "MOCK-" + out_trade_no)
+            self.send_json({
+                "ok": True,
+                "entitlements": auth_db.list_entitlements(user["id"]),
+            })
+
+        elif path == "/api/register":
             data = read_body(self)
             ok, msg = auth_db.register(data.get("username", ""), data.get("password", ""))
             self.send_json({"ok": ok, "message": msg}, 200 if ok else 400)
@@ -1056,6 +1258,40 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/logout":
             auth_db.logout(get_token(self))
             self.send_json({"ok": True})
+
+        elif path == "/api/profile/update":
+            user = current_user(self)
+            if not user:
+                self.send_json({"error": "请先登录"}, 401)
+                return
+            data = read_body(self)
+            kwargs = {}
+            if "display_name" in data:
+                name = str(data.get("display_name") or "").strip()
+                if len(name) > 16:
+                    self.send_json({"error": "昵称最多 16 个字"}, 400)
+                    return
+                kwargs["display_name"] = name
+            if "bio" in data:
+                bio = str(data.get("bio") or "").strip()
+                if len(bio) > 40:
+                    self.send_json({"error": "简介最多 40 个字"}, 400)
+                    return
+                kwargs["bio"] = bio
+            if "avatar_glyph" in data:
+                try:
+                    g = int(data.get("avatar_glyph"))
+                except (TypeError, ValueError):
+                    g = 0
+                kwargs["avatar_glyph"] = max(0, min(auth_db.AVATAR_GLYPH_COUNT - 1, g))
+            if "avatar_tone" in data:
+                try:
+                    t = int(data.get("avatar_tone"))
+                except (TypeError, ValueError):
+                    t = 0
+                kwargs["avatar_tone"] = max(0, min(auth_db.AVATAR_TONE_COUNT - 1, t))
+            prof, msg = auth_db.update_profile(user["id"], **kwargs)
+            self.send_json({"ok": True, "message": msg, "profile": prof})
 
         elif path == "/api/migrate":
             # 注册/登录后：把游客本机档案并进账号（各取并集，不丢数据）
@@ -1126,6 +1362,16 @@ class Handler(BaseHTTPRequestHandler):
                     "suggestions": suggestions,
                 })
                 return
+
+            # 免费额度：每天 N 次，用完就地拦下；解锁全库后不限
+            full_access, quota_owner, ent = _access(self)
+            free_rels = None
+            if not full_access:
+                peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+                if peek["left"] <= 0:
+                    _quota_exhausted(self, peek)
+                    return
+                free_rels = sound_catalog.relpaths_for(False)
 
             try:
                 seconds = max(5, min(60, int(data.get("seconds", 30) or 30)))
@@ -1201,6 +1447,18 @@ class Handler(BaseHTTPRequestHandler):
                 fallback_rel = find_relpath("母带_城市夜雨_CC0.mp3")
                 if fallback_rel:
                     mapped_tracks = [_normalize_track_spec({"rel": fallback_rel, "weight": 0.72})]
+            quota_info = None
+            if free_rels is not None:
+                # 免费用户：把配方里越权的付费素材换掉，然后才扣一次额度
+                mapped_tracks = _downgrade_tracks(
+                    mapped_tracks, design.get("intent") or {}, free_rels
+                )
+                ok_take, quota_info = auth_db.take_daily_quota(
+                    quota_owner, FREE_DAILY_GENERATE
+                )
+                if not ok_take:
+                    _quota_exhausted(self, quota_info)
+                    return
 
             mix, sr = render(mapped_tracks, seconds)
             self.server.last_audio = (mix, sr)
@@ -1236,6 +1494,8 @@ class Handler(BaseHTTPRequestHandler):
                 "followups": design["followups"],
                 "used_profile": used_profile,
                 "audio": "/api/audio",
+                "full_access": full_access,
+                "quota": quota_info,
             })
 
         elif path == "/api/generate":
@@ -1259,8 +1519,24 @@ class Handler(BaseHTTPRequestHandler):
                 }, 400)
                 return
 
+            full_access, quota_owner, ent = _access(self)
+            free_rels = None
+            if not full_access:
+                peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+                if peek["left"] <= 0:
+                    _quota_exhausted(self, peek)
+                    return
+                free_rels = sound_catalog.relpaths_for(False)
+
             intent, source = understanding_brain.understand(say)
-            items = executor.pick(intent)
+            items = executor.pick(intent, free_rels)
+            if free_rels is not None:
+                ok_take, quota_info = auth_db.take_daily_quota(
+                    quota_owner, FREE_DAILY_GENERATE
+                )
+                if not ok_take:
+                    _quota_exhausted(self, quota_info)
+                    return
             session["intent"] = intent
             session["items"] = items
             session["say"] = say
@@ -1435,7 +1711,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             # 官方示例（r1-r6）不在 posts 表里，但允许真人给它留言
             saved = auth_db.add_comment(
-                pid, user["id"], user["username"], body,
+                pid, user["id"], auth_db.display_name_of(user["id"], user["username"]), body,
                 allow_builtin=(pid in _BUILTIN_RECIPES),
             )
             if saved is None:
@@ -1516,7 +1792,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "无效的配方许可"}, 400)
                 return
 
-            author = user["username"] if user else (str(data.get("author_name") or "").strip()[:20] or "深夜旅人")
+            # 登录用户优先用自定义昵称，其次登录名；游客用填的署名
+            if user:
+                author = auth_db.display_name_of(user["id"], user["username"])
+            else:
+                author = str(data.get("author_name") or "").strip()[:20] or "深夜旅人"
             title = str(data.get("title") or "我的夜息声景").strip()[:36] or "我的夜息声景"
             story = str(data.get("story") or "").strip()[:120]
 
@@ -1644,7 +1924,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
 
         elif path == "/api/export_commercial":
-            if not require_login(self, "导出商用音频与授权凭证"):
+            user = require_login(self, "导出商用音频与授权凭证")
+            if not user:
+                return
+            # 商用买断是「一次购买、永久可用」，只校验资格，不扣次数
+            ent = auth_db.list_entitlements(user["id"]).get("commercial")
+            if not ent or not ent.get("active"):
+                self.send_json({
+                    "error": "商用导出需要先购买商用授权",
+                    "need_pay": True,
+                    "product_id": "commercial",
+                    "products": pay.public_products(),
+                }, 402)
                 return
             import io
             data = read_body(self)
@@ -1674,6 +1965,44 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Expose-Headers", "X-Yexi-Cert-Id")
             self.send_header("X-Yexi-Cert-Id", cert_id)
             self.send_header("Content-Disposition", 'attachment; filename="yexi_commercial.wav"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        elif path == "/api/download":
+            # 整夜版导出：5 分钟可循环母带。解锁全库后才能带走。
+            user = require_login(self, "导出整夜版")
+            if not user:
+                return
+            ent = auth_db.list_entitlements(user["id"]).get("full")
+            if not ent or not ent.get("active"):
+                self.send_json({
+                    "error": "导出需要先解锁全库",
+                    "need_pay": True,
+                    "product_id": "day3",
+                    "products": pay.public_products(),
+                }, 402)
+                return
+            data = read_body(self)
+            raw_tracks = data.get("items")
+            if raw_tracks is None:
+                raw_tracks = data.get("tracks", [])
+            items = map_client_tracks(raw_tracks)
+            if not items:
+                self.send_json({"error": "配方里没有可用素材"}, 400)
+                return
+            mix, sr = render(items, 300)
+            import io
+            buf = io.BytesIO()
+            executor.write_wav(buf, mix, sr)
+            body = buf.getvalue()
+            cert_id = "YX-LOOP-" + time.strftime("%Y%m%d") + "-" + secrets.token_hex(3).upper()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Expose-Headers", "X-Yexi-Cert-Id")
+            self.send_header("X-Yexi-Cert-Id", cert_id)
+            self.send_header("Content-Disposition", 'attachment; filename="yexi_loop.wav"')
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

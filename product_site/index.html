@@ -819,6 +819,7 @@
   }
   .lib-item {
     min-width: 0;
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -863,6 +864,25 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* 需要解锁全库的素材：压暗一点，右上角挂个「全库」小标 */
+  .lib-item.locked {
+    opacity: 0.62;
+  }
+  .lib-item.locked:hover {
+    opacity: 0.85;
+  }
+  .lib-item .li-lock {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px 7px;
+    border-radius: 6px;
+    color: #1a1208;
+    background: var(--y-accent);
+    letter-spacing: 0.06em;
   }
   .lib-item.on {
     background: none;
@@ -1444,6 +1464,105 @@
     margin: 7px 0 2px;
     line-height: 1.5;
   }
+
+  /* ===== 手机：声场别占掉整屏，字和控件都放松一档 ===== */
+  @media (max-width: 619px) {
+    .card {
+      padding: 16px;
+      border-radius: 20px;
+    }
+    .ph-presets {
+      margin-top: 14px;
+      gap: 8px 12px;
+    }
+    /* 模板名放宽一点间距，滑着看，别五个词挤成一行 */
+    .preset-scroll {
+      gap: 20px;
+      /* 尾部留一点空，最后一项能完整滑进来，而不是被容器边缘切断 */
+      padding-right: 10px;
+    }
+    .preset-chip {
+      font-size: 13px;
+      letter-spacing: 0.05em;
+      color: rgba(236, 228, 248, 0.58);
+    }
+    .rand-chip {
+      font-size: 12.5px;
+    }
+    .player-head {
+      gap: 12px;
+      margin-bottom: 11px;
+    }
+    .mix-title-input {
+      font-size: 17px;
+    }
+    .player-info .d {
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    /* 声场按屏高收缩，把音量条、按钮、下面的面板都往首屏挤 */
+    .stage-box {
+      height: clamp(158px, 21dvh, 208px);
+      border-radius: 14px;
+    }
+    .stage-empty {
+      font-size: 12px;
+      padding: 0 18px;
+    }
+    .stage-axis-label {
+      font-size: 11px;
+    }
+    .studio-primary-actions {
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn-soft {
+      padding: 10px 8px;
+      font-size: 12.5px;
+    }
+    /* 下面这排 tab（选声音/调参数/作品）别紧贴屏幕边缘 */
+    .panel-tabs {
+      gap: 14px;
+    }
+    .master-vol {
+      margin-top: 12px;
+    }
+    /* 新增的入睡渐退开关：手机上一行放完，说明压成一行，
+       否则它会把下面的保存/发广场按钮挤出首屏 */
+    .sleep-curve-box {
+      margin: 10px 0 12px;
+      padding: 8px 10px;
+    }
+    .sleep-curve-row {
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+    .sleep-curve-toggle {
+      flex: 0 0 auto;
+      padding: 5px 8px;
+      font-size: 11.5px;
+    }
+    .sleep-curve-durs {
+      gap: 4px;
+    }
+    .sleep-dur-chip {
+      padding: 4px 6px;
+      font-size: 10.5px;
+    }
+    .sleep-curve-hint {
+      margin-top: 5px;
+      font-size: 11px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1532,6 +1651,7 @@
         </div>
 
         <div class="more-drawer" id="moreActionsDrawer">
+          <button class="drawer-btn" id="exportLoopBtn" type="button">⬇ 导出整夜版 (5 分钟循环)</button>
           <button class="drawer-btn" id="exportWavBtn" type="button">⬇ 商用导出 (WAV + CC0凭证)</button>
           <button class="drawer-btn" id="postcardBtn" type="button">声音明信片</button>
           <button class="drawer-btn" id="shareWorkBtn" type="button">↗ 复制分享链接</button>
@@ -1713,6 +1833,7 @@
 <div class="tabbar"></div>
 
 <script src="auth_ui.js"></script>
+<script src="pay_ui.js?v=1"></script>
 <script src="yexi_shell.js"></script>
 <script src="yexi_catalog.js?v=44"></script>
 <script src="yexi_mixer.js?v=13"></script>
@@ -2371,6 +2492,7 @@ function updatePlayerSummary() {
   document.getElementById("shareWorkBtn").disabled = !hasTracks;
   document.getElementById("postcardBtn").disabled = !hasTracks;
   document.getElementById("exportWavBtn").disabled = !hasTracks;
+  document.getElementById("exportLoopBtn").disabled = !hasTracks;
 
   if (!hasTracks) {
     document.getElementById("moreActionsDrawer").classList.remove("open");
@@ -2756,6 +2878,30 @@ function renderAiPicks() {
 }
 
 // ===== Tab 1：展示当前层全部分类与素材（不再分页隐藏）+ 底部当前托盘 =====
+// 素材分层：premium 段要解锁全库才能用。
+// 拿不到分层信息时一律按免费处理，宁可少收钱，也不能把免费用户锁在门外。
+var yTierMap = {};
+var yUnlocked = false;
+
+function yTierOf(path) {
+  var base = String(path || "").split("/").pop();
+  if (yTierMap[base]) return yTierMap[base];
+  return "free";
+}
+
+function loadTierMap() {
+  yGet("/api/catalog").then(function(r) { return r.json(); }).then(function(d) {
+    var map = {};
+    var items = d.items || [];
+    for (var i = 0; i < items.length; i++) {
+      map[items[i].filename] = items[i].tier || "premium";
+    }
+    yTierMap = map;
+    yUnlocked = !!d.unlocked;
+    renderLayeredLibrary();
+  }).catch(function() {});
+}
+
 function renderLayeredLibrary() {
   updateLayerCountsAndGuide();
   var grid = document.getElementById("layeredLibrary");
@@ -2824,17 +2970,24 @@ function renderLayeredLibrary() {
   for (var pi = 0; pi < pageList.length; pi++) {
     (function(s) {
       var active = hasTrack(s.path);
+      var locked = !yUnlocked && yTierOf(s.path) === "premium";
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "lib-item" + (active ? " on" : "");
+      btn.className = "lib-item" + (active ? " on" : "") + (locked ? " locked" : "");
       btn.innerHTML =
         '<span class="li-ico y-thumb" style="background-image:url(' + (s.img || "img/moon-water.jpg") + ')"></span>' +
         '<span class="li-info">' +
           '<span class="li-name">' + yEscape(s.name) + '</span>' +
-          '<div class="li-state">' + yEscape(s.desc) + '</div>' +
+          '<div class="li-state">' + (locked ? "解锁全库后可用" : yEscape(s.desc)) + '</div>' +
         '</span>' +
-        '<span class="li-check" aria-hidden="true">✓</span>';
-      btn.onclick = function() { toggleLibrarySound(s); };
+        (locked
+          ? '<span class="li-lock">全库</span>'
+          : '<span class="li-check" aria-hidden="true">✓</span>');
+      if (locked) {
+        btn.onclick = function() { yexiPayWall("day3"); };
+      } else {
+        btn.onclick = function() { toggleLibrarySound(s); };
+      }
       grid.appendChild(btn);
     })(pageList[pi]);
   }
@@ -2846,7 +2999,17 @@ function renderLayeredLibrary() {
   }
   var summaryText = document.getElementById("libSummaryText");
   if (summaryText) {
-    summaryText.textContent = "全库共 " + YEXI_SOUNDS.length + " 段素材 · 切换上方「底幕 / 纹理 / 点缀」浏览其余分类";
+    var freeCount = 0;
+    for (var tk in yTierMap) {
+      if (yTierMap[tk] === "free") freeCount += 1;
+    }
+    if (yUnlocked) {
+      summaryText.textContent = "全库 " + YEXI_SOUNDS.length + " 段已解锁 · 切换上方「底幕 / 纹理 / 点缀」浏览其余分类";
+    } else if (freeCount > 0) {
+      summaryText.textContent = "免费 " + freeCount + " 段 · 全库共 " + YEXI_SOUNDS.length + " 段，挂「全库」标的解锁后可用";
+    } else {
+      summaryText.textContent = "全库共 " + YEXI_SOUNDS.length + " 段素材 · 切换上方「底幕 / 纹理 / 点缀」浏览其余分类";
+    }
   }
   var prevBtn = document.getElementById("libPagePrev");
   var nextBtn = document.getElementById("libPageNext");
@@ -3387,6 +3550,59 @@ function closeExportModal() {
 }
 
 document.getElementById("exportWavBtn").onclick = openExportModal;
+
+// 导出整夜版：5 分钟可循环母带，凭 download 权益扣次；没次数就弹商品墙
+document.getElementById("exportLoopBtn").onclick = function() {
+  var payloadTracks = currentItemsPayload();
+  if (payloadTracks.length === 0) {
+    showToast("先挑一层声音");
+    return;
+  }
+  if (!yToken()) {
+    yNeedLogin("导出整夜版", "index.html");
+    return;
+  }
+  var btn = document.getElementById("exportLoopBtn");
+  var leftQuota = null;
+  btn.disabled = true;
+  showToast("正在渲染 5 分钟母带，稍等…");
+  fetch(API + "/api/download", {
+    method: "POST",
+    headers: yHeaders(true),
+    body: JSON.stringify({ items: payloadTracks })
+  })
+  .then(function(res) {
+    if (res.status === 402) {
+      return res.json().then(function(d) {
+        yexiPayWall(d.product_id || "day3");
+        throw new Error("need_pay");
+      });
+    }
+    if (res.status === 401) {
+      yNeedLogin("导出整夜版", "index.html");
+      throw new Error("need_pay");
+    }
+    if (!res.ok) throw new Error("server " + res.status);
+    leftQuota = res.headers.get("X-Yexi-Quota");
+    return res.blob();
+  })
+  .then(function(blob) {
+    var name = (titleInputEl.value.trim() || "夜息整夜版").replace(/[\\/:*?"<>|]/g, "_");
+    triggerBlobDownload(blob, name + "_5min_loop.wav");
+    if (leftQuota !== null) {
+      showToast("已导出，剩余 " + leftQuota + " 次");
+    } else {
+      showToast("已导出，可以循环播一整夜");
+    }
+  })
+  .catch(function(err) {
+    if (err && err.message === "need_pay") return;
+    showToast("导出失败：" + (err && err.message ? err.message : "请重试"));
+  })
+  .then(function() {
+    btn.disabled = false;
+  });
+};
 document.getElementById("expCloseBtn").onclick = closeExportModal;
 exportModal.onclick = function(e) {
   if (e.target === exportModal) closeExportModal();
@@ -3435,6 +3651,12 @@ document.getElementById("doExportWavBtn").onclick = function() {
     body: JSON.stringify({ items: payloadTracks, title: rawTitle, seconds: sec })
   })
   .then(function(res) {
+    if (res.status === 402) {
+      return res.json().then(function(d) {
+        yexiPayWall(d.product_id || "commercial");
+        throw new Error("need_pay");
+      });
+    }
     if (!res.ok) throw new Error("server " + res.status);
     var cid = res.headers.get("X-Yexi-Cert-Id");
     if (cid) lastCertId = cid;
@@ -3448,6 +3670,10 @@ document.getElementById("doExportWavBtn").onclick = function() {
   })
   .catch(function(err) {
     btn.disabled = false;
+    if (err && err.message === "need_pay") {
+      setExpStatus("商用导出需要先购买授权，已为你打开商品。", true);
+      return;
+    }
     setExpStatus("导出失败：" + (err && err.message ? err.message : "请确认后端服务已启动"), true);
   });
 };
@@ -3650,6 +3876,7 @@ if (new URLSearchParams(location.search).get("say")) {
   renderStageNodes();
   renderTracksUI();
   renderLayeredLibrary();
+  loadTierMap();
   updatePlayerSummary();
   loadMemory();
   loadSavedWorks();

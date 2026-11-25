@@ -31,6 +31,27 @@ BY_FILENAME = {it["filename"]: it for it in ALL_SOUNDS}
 BY_RELPATH = {it["rel_path"]: it for it in ALL_SOUNDS}
 ALLOWED_TRACK_FILES = [it["filename"] for it in ALL_SOUNDS]
 
+# 素材分层：free 是免费用户能用的，premium 需要解锁全库。
+# 分层原则是「免费不降级、付费是加法」——每个场景的默认首选都在免费层，
+# 付费买到的是同场景的更多变体和全部 ASMR 深度。
+FREE_RELPATHS = [it["rel_path"] for it in ALL_SOUNDS if it.get("tier") == "free"]
+ALL_RELPATHS = [it["rel_path"] for it in ALL_SOUNDS]
+PREMIUM_COUNT = len(ALL_SOUNDS) - len(FREE_RELPATHS)
+
+
+def relpaths_for(unlocked):
+    # unlocked 为 True 返回全库，False 只返回免费层
+    if unlocked:
+        return list(ALL_RELPATHS)
+    return list(FREE_RELPATHS)
+
+
+def tier_of(path_or_name):
+    it = get_item(path_or_name)
+    if not it:
+        return ""
+    return it.get("tier", "premium")
+
 
 def get_item(path_or_name):
     if not path_or_name:
@@ -61,6 +82,7 @@ def build_track_catalog_dict():
             "tags": list(it.get("tags", [])),
             "avoid_tags": list(it.get("avoid_tags", [])),
             "rel_path": it["rel_path"],
+            "tier": it.get("tier", "premium"),
             "duration_sec": float(it.get("duration_sec", 60.0)),
             "note": it.get("note", ""),
         }

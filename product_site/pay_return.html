@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 支付结果</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #07050d;
+    color: var(--y-text);
+    font-family: var(--y-serif);
+    padding: 20px;
+  }
+  .panel {
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    border: 1px solid rgba(233, 183, 131, .18);
+    border-radius: 18px;
+    background: rgba(14, 10, 24, .72);
+    padding: 34px 24px 28px;
+  }
+  .mark {
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    border: 1px solid rgba(233, 183, 131, .5);
+    color: var(--y-accent);
+    font-size: 22px;
+    line-height: 44px;
+  }
+  .title {
+    font-size: 18px;
+    color: var(--y-accent);
+    letter-spacing: .04em;
+    margin-bottom: 10px;
+  }
+  .desc {
+    font-size: 13px;
+    color: rgba(236, 228, 248, .56);
+    line-height: 1.75;
+    margin-bottom: 20px;
+    min-height: 44px;
+  }
+  .quota {
+    font-size: 12px;
+    color: rgba(236, 228, 248, .42);
+    margin-bottom: 22px;
+  }
+  .go {
+    display: inline-block;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 26px;
+    background: var(--y-accent);
+    color: #1a1208;
+    font-size: 14px;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="mark" id="mark">·</div>
+  <div class="title" id="title">正在确认…</div>
+  <div class="desc" id="desc">支付结果以服务端为准，请稍等。</div>
+  <div class="quota" id="quota"></div>
+  <a class="go" id="goBtn" href="index.html">回夜息</a>
+</div>
+
+<script src="auth_ui.js?v=12"></script>
+<script>
+var orderNo = "";
+var tries = 0;
+var MAX_TRIES = 6;
+
+function q(name) {
+  var s = location.search.replace(/^\?/, "");
+  var parts = s.split("&");
+  for (var i = 0; i < parts.length; i++) {
+    var kv = parts[i].split("=");
+    if (kv[0] === name) return decodeURIComponent(kv[1] || "");
+  }
+  return "";
+}
+
+function setDone(text) {
+  document.getElementById("mark").textContent = "✓";
+  document.getElementById("title").textContent = "已解锁";
+  document.getElementById("desc").textContent = text;
+}
+
+function setWait(text) {
+  document.getElementById("title").textContent = "还在确认";
+  document.getElementById("desc").textContent = text;
+}
+
+function renderQuota(ent) {
+  var el = document.getElementById("quota");
+  if (!ent) { el.textContent = ""; return; }
+  var parts = [];
+  if (ent.download && ent.download.quota > 0) {
+    parts.push("剩余导出 " + ent.download.quota + " 次");
+  }
+  if (ent.commercial && ent.commercial.active) {
+    parts.push("商用授权已开通");
+  }
+  el.textContent = parts.join(" · ");
+}
+
+function poll() {
+  if (!orderNo) {
+    setWait("没带订单号，回到夜息再试一次。");
+    return;
+  }
+  if (!yToken()) {
+    setWait("登录状态掉了，重新登录后可以在「我的」里查看。");
+    return;
+  }
+  yGet("/api/pay/query?order=" + encodeURIComponent(orderNo))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      renderQuota(d.entitlements);
+      if (d.status === "paid") {
+        setDone("可以带走这条声音了。次数已经记在你的账号上。");
+        return;
+      }
+      tries = tries + 1;
+      if (tries < MAX_TRIES) {
+        setWait("支付刚到，系统在确认（" + tries + "/" + MAX_TRIES + "）…");
+        setTimeout(poll, 1600);
+      } else {
+        setWait("还没收到支付成功的确认。如果已经扣款，过一会儿再来看看，不会丢。");
+      }
+    })
+    .catch(function () {
+      tries = tries + 1;
+      if (tries < MAX_TRIES) {
+        setTimeout(poll, 1600);
+      } else {
+        setWait("网络不稳，暂时查不到结果。");
+      }
+    });
+}
+
+orderNo = q("order");
+poll();
+</script>
+</body>
+</html>

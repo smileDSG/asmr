@@ -83,8 +83,9 @@ def _item_matches_avoid(rel, avoid_list):
     return False
 
 
-def pick(intent):
+def pick(intent, allowed=None):
     # 根据意图与 sound_catalog 标签挑素材和权重，返回 [(路径, 权重), ...]
+    # allowed 传 rel_path 集合时，只在集合内挑（免费用户只给免费层）
     scene = intent.get("scene", "rain")
     if scene not in LIBRARY:
         scene = "rain"
@@ -146,10 +147,38 @@ def pick(intent):
     if final_items:
         items = final_items
 
+    # 4. 素材权限：免费用户只在免费层里挑，挑不到就退到该场景的免费默认首选
+    if allowed is not None:
+        items = _limit_to_allowed(items, set(allowed), scene, avoid)
+
     # 全部权重为 0 时，默认选第一个
     total = sum(w for _, w in items)
     if total <= 0 and items:
         items[0] = (items[0][0], 1.0)
+    return items
+
+
+def _limit_to_allowed(items, allowed, scene, avoid):
+    # 先把越权的素材剔掉，剩下的权重要重新归一，别把整体音量弄小
+    kept = [(rel, w) for rel, w in items if rel in allowed]
+    if kept:
+        total = sum(w for _, w in kept)
+        if total > 0:
+            kept = [(rel, w / total) for rel, w in kept]
+        return kept
+
+    # 原本挑的全是付费素材：退到这个场景里免费的那几段
+    fallback = [(rel, w) for rel, w in LIBRARY.get(scene, []) if rel in allowed]
+    fallback = [(rel, w) for rel, w in fallback if not _item_matches_avoid(rel, avoid)]
+    if fallback:
+        fallback.sort(key=lambda pair: -pair[1])
+        picked = [(rel, w) for rel, w in fallback[:2] if w > 0]
+        if not picked:
+            picked = [(fallback[0][0], 1.0)]
+        total = sum(w for _, w in picked)
+        if total > 0:
+            return [(rel, w / total) for rel, w in picked]
+    # 兜底：宁可给出原本的结果，也不要让用户拿到空音频
     return items
 
 

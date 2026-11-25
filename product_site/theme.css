@@ -936,6 +936,32 @@ body.lights-out .lights-out-overlay {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+/* ===== 手机：页头收紧 =====
+   桌面上留着呼吸的 180px 页头，到手机上就是首屏的一半。
+   手机首屏必须尽快露出内容，标题和副标题都降一档。 */
+@media (max-width: 619px) {
+  .top {
+    padding: 14px 0 10px;
+    gap: 8px;
+  }
+  .page-hero {
+    min-height: 0;
+    padding: 4px 0 14px;
+  }
+  .page-hero h1 {
+    font-size: 26px;
+    letter-spacing: 0.05em;
+    line-height: 1.24;
+  }
+  .ph-sub {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    /* 手机上屏幕更暗，46% 的灰几乎读不出来 */
+    color: rgba(236, 228, 248, 0.7);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ambient-bg,
   .ambient-glow,

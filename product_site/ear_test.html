@@ -1100,6 +1100,11 @@ if (!forceRetest) {
   yGet("/api/ear_profile")
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      // 后端是权威：这个账号没测过就是没测过，绝不用本机旧缓存冒充
+      if (d && d.ear_profile === null) {
+        try { localStorage.removeItem(EAR_PROFILE_KEY); } catch (e) {}
+        localSaved = null;
+      }
       var prof = (d && d.ear_profile && d.ear_profile.archetype_id) ? d.ear_profile : localSaved;
       if (prof && prof.archetype_id && currentStep === 0 && answers.length === 0) {
         saveLocalProfile(prof);

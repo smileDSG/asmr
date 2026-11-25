@@ -10,9 +10,12 @@ function yToken() {
 }
 
 function ySetToken(token) {
-  if (token) {
-    localStorage.setItem("yezi_token", token);
-  } else {
+  localStorage.setItem("yezi_token", token || "");
+  // 账号切换（登录或退出）都清掉本机耳朵档案缓存：
+  // 档案以服务端为准，否则新账号/游客会看到上一个人的测试结果
+  // 注意：游客档案迁移走的是服务端 memory/*.json，不受这里的浏览器缓存影响
+  try { localStorage.removeItem("yezi_ear_profile_v1"); } catch (e) {}
+  if (!token) {
     localStorage.removeItem("yezi_token");
   }
 }
@@ -96,8 +99,10 @@ function initAuthBar(fromPage) {
 
   yGet("/api/me").then(function(r) { return r.json(); }).then(function(d) {
     if (!d.logged_in) return;
+    // 设过昵称就显示昵称，否则显示登录名
+    var shownName = (d.profile && d.profile.display_name) ? d.profile.display_name : d.username;
     slot.innerHTML = '<a class="auth-name" href="me.html" title="打开我的 ASMR 主页：' + yEscape(d.username) +
-      '">' + yEscape(d.username) + '</a>' +
+      '">' + yEscape(shownName) + '</a>' +
       '<button class="auth-out" id="authOutBtn">退出</button>';
     document.getElementById("authOutBtn").onclick = function() {
       yPost("/api/logout", {}).then(function() {
@@ -158,4 +163,8 @@ function yGateCheck() {
   if (!/^[A-Za-z0-9_-]+\.html$/.test(from)) from = "home.html";
   location.href = "gate.html?from=" + encodeURIComponent(from);
 }
-yGateCheck();
+// 支付跳转页不希望被门禁劫持（会丢掉订单号），设 window.YEXI_NO_GATE 可跳过
+if (!window.YEXI_NO_GATE) {
+  yGateCheck();
+}
+

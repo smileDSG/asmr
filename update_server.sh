@@ -20,18 +20,28 @@ fi
 SERVER_IP=$1
 USER_NAME=${2:-root}
 APP_DIR=/opt/yexi
-LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)/deploy"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 有 deploy/ 就走旧流程（先同步再传）；deploy/ 被删掉了就直接用项目根目录
+if [ -d "$ROOT_DIR/deploy" ]; then
+    LOCAL_DIR="$ROOT_DIR/deploy"
+else
+    LOCAL_DIR="$ROOT_DIR"
+fi
 
 echo "========== 更新到阿里云服务器 $SERVER_IP =========="
 
 if [ ! -f "$LOCAL_DIR/server.py" ]; then
-    echo "错误：找不到 $LOCAL_DIR/server.py，请先运行 sync_deploy.py"
+    echo "错误：找不到 $LOCAL_DIR/server.py，请检查项目结构"
     exit 1
 fi
 
-echo "[1/3] 同步最新代码到 deploy/ 目录"
-cd "$(dirname "$0")"
-"C:/Users/lenovo/.workbuddy/binaries/python/envs/default/Scripts/python.exe" sync_deploy.py >/dev/null
+echo "[1/3] 准备文件（来源：$LOCAL_DIR）"
+if [ -d "$ROOT_DIR/deploy" ]; then
+    cd "$ROOT_DIR"
+    "C:/Users/lenovo/.workbuddy/binaries/python/envs/default/Scripts/python.exe" sync_deploy.py >/dev/null
+else
+    echo "    没有 deploy/ 目录，直接从根目录上传"
+fi
 
 echo "[2/3] 上传代码文件到服务器（保留数据/密钥/素材不动）"
 scp "$LOCAL_DIR/server.py" \
@@ -44,6 +54,7 @@ scp "$LOCAL_DIR/server.py" \
     "$LOCAL_DIR/素材执行层.py" \
     "$LOCAL_DIR/sound_catalog.py" \
     "$LOCAL_DIR/sound_catalog.json" \
+    "$LOCAL_DIR/pay.py" \
     "$LOCAL_DIR/requirements.txt" \
     "${USER_NAME}@${SERVER_IP}:${APP_DIR}/"
 

@@ -1,2 +1,4 @@
 numpy>=2.0,<3
 soundfile>=0.12
+# 真实收款才需要（mock 演示模式用不到，不装也能跑）
+python-alipay-sdk>=3.3

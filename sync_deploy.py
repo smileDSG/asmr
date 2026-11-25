@@ -19,7 +19,7 @@ FILES = [
     "server.py", "auth_db.py", "qwen_client.py", "understanding_brain.py",
     "feedback_translate.py", "memory_system.py", "input_guard.py",
     "素材执行层.py", "sound_catalog.py", "sound_catalog.json",
-    "requirements.txt",
+    "pay.py", "requirements.txt",
 ]
 
 # 前端目录：只同步这个目录里的正式页面

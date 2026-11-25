@@ -55,19 +55,6 @@
   gap: 26px 20px;
   align-items: start;
 }
-/* 手机：一屏一张，顺着往下滚。卡片撑满内容宽度，
-   不再用 66vw 的横向卡册——那样一屏只能看到一个半，画面被挤小 */
-@media (max-width: 619px) {
-  #feed {
-    gap: 34px;
-    justify-items: center;
-  }
-  .item {
-    width: 100%;
-    /* 窄窗口/平板竖屏时别把一张卡撑成一整屏那么高 */
-    max-width: 440px;
-  }
-}
 @media (min-width: 620px) {
   #feed { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -326,6 +313,94 @@
   color: var(--y-text-muted);
 }
 .note a { color: rgba(var(--y-warm-rgb), 0.85); text-decoration: none; }
+
+/* 手机：两列并排。广场是「翻着挑」的地方，一屏只看到一张大图太浪费——
+   两列 + 方图，一屏能扫到四五个配方，点开再看大图和参数 */
+@media (max-width: 619px) {
+  #feed {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 12px;
+    justify-items: stretch;
+  }
+  .item {
+    width: auto;
+    max-width: none;
+    gap: 6px;
+  }
+  .cover {
+    aspect-ratio: 1 / 1;
+    border-radius: 5px;
+  }
+  .cover-name {
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    line-height: 1.35;
+  }
+  /* 两列里放不下描述，细节都留到详情页 */
+  .cover-desc {
+    display: none;
+  }
+  .cover-text {
+    left: 10px;
+    right: 10px;
+    bottom: 9px;
+  }
+  .badge-official,
+  .badge-new {
+    top: 8px;
+    left: 8px;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+  }
+  .who {
+    margin-top: 0;
+    gap: 6px;
+  }
+  .avatar {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+    font-size: 10px;
+  }
+  .who-name {
+    font-size: 11.5px;
+    max-width: 62%;
+  }
+  .who-time {
+    font-size: 10.5px;
+  }
+  /* 故事行、改编提示在列表里只会把两列撑乱，收起来 */
+  .story-line,
+  .fork-hint {
+    display: none;
+  }
+  .row {
+    gap: 8px;
+    min-height: 0;
+  }
+  .act {
+    font-size: 11.5px;
+    letter-spacing: 0.03em;
+    gap: 3px;
+  }
+  .act .n {
+    font-size: 10.5px;
+  }
+  .act.more {
+    font-size: 11.5px;
+  }
+  .sub-tabs {
+    margin: 12px 0 14px;
+    gap: 16px;
+  }
+  .sub-tab {
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    padding: 4px 0 10px;
+  }
+}
+
 
 /* =========================================================
    详情：先是一张片子（封面 + 标题 + 作者），再是条理清楚的参数
@@ -1077,6 +1152,20 @@ function avatarFor(name) {
   return { ch: ch, bg: bg };
 }
 
+// 用户设过头像就用他挑的夜空符号+配色，没设过再退回首字
+var AVATAR_GLYPHS = ["☾", "✦", "☁", "☂", "❄", "♪", "✧", "◐", "▲", "≈", "✿", "☽"];
+function avatarOfRecipe(r) {
+  var prof = r && r.author_profile;
+  if (prof && typeof prof.avatar_glyph === "number") {
+    var g = prof.avatar_glyph;
+    var t = prof.avatar_tone;
+    if (g < 0 || g >= AVATAR_GLYPHS.length) g = 0;
+    if (t < 0 || t >= AVATAR_TONES.length) t = 0;
+    return { ch: AVATAR_GLYPHS[g], bg: AVATAR_TONES[t] };
+  }
+  return avatarFor(r ? r.author : "");
+}
+
 var POLICY_LABELS = {
   open: "完全公开",
   star_to_fork: "借走解锁",
@@ -1356,11 +1445,12 @@ function renderFeed() {
         : (r.isUserPost ? '<span class="badge-new">社区新作</span>' : '');
 
       // 真人身份行：头像 + 昵称 + 时间（官方也显示，但标出来并且点了没反应）
-      var av = avatarFor(r.author);
+      var av = avatarOfRecipe(r);
+      var shownAuthor = (r.author_profile && r.author_profile.display_name) ? r.author_profile.display_name : r.author;
       var whoHtml =
         '<div class="who' + (official ? ' is-official' : '') + '" id="who_' + r.id + '">' +
           '<div class="avatar" style="background:' + av.bg + '">' + yEscape(av.ch) + '</div>' +
-          '<span class="who-name">' + yEscape(r.author) + (official ? ' · 夜息团队' : '') + '</span>' +
+          '<span class="who-name">' + yEscape(shownAuthor) + (official ? ' · 夜息团队' : '') + '</span>' +
           '<span class="who-time">' + yEscape(formatTimeAgo(r.created_at)) + '</span>' +
         '</div>';
 
@@ -1504,7 +1594,7 @@ function renderCommentList(r, comments, box) {
     html += '<div class="cmt-list">';
     for (var i = 0; i < comments.length; i++) {
       (function(c) {
-        var mine = loggedUsername && c.author === loggedUsername;
+        var mine = !!c.is_mine || (loggedUsername && c.author === loggedUsername);
         html += '<div class="cmt-item">' +
           '<div class="cmt-head">' +
             '<span class="cmt-who">' + yEscape(c.author) + '</span>' +
@@ -1607,9 +1697,11 @@ function openDetail(r) {
     kind + " · " + (POLICY_LABELS[policy] || "完全公开");
   document.getElementById("detailTitle").textContent = r.title;
 
-  var av = avatarFor(r.author);
+  var av = avatarOfRecipe(r);
   var ago = formatTimeAgo(r.created_at);
-  var whoName = r.isOfficial ? "夜息团队" : r.author;
+  var whoName = r.isOfficial
+    ? "夜息团队"
+    : ((r.author_profile && r.author_profile.display_name) ? r.author_profile.display_name : r.author);
   document.getElementById("detailSub").innerHTML =
     '<span class="d-av" style="background:' + av.bg + '">' + yEscape(av.ch) + '</span>' +
     '<span>' + yEscape(whoName) + '</span>' +

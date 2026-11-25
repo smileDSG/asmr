@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 收银台（演示）</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #07050d;
+    color: var(--y-text);
+    font-family: var(--y-serif);
+    padding: 20px;
+  }
+  .cashier {
+    width: 100%;
+    max-width: 380px;
+    border: 1px solid rgba(233, 183, 131, .18);
+    border-radius: 18px;
+    background: rgba(14, 10, 24, .72);
+    padding: 26px 22px;
+  }
+  .brand {
+    font-size: 12px;
+    letter-spacing: .18em;
+    color: rgba(236, 228, 248, .42);
+    margin-bottom: 22px;
+  }
+  .label {
+    font-size: 12px;
+    color: rgba(236, 228, 248, .46);
+    margin-bottom: 6px;
+  }
+  .subject {
+    font-size: 16px;
+    color: var(--y-text);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .amount {
+    font-size: 40px;
+    color: var(--y-accent);
+    letter-spacing: .02em;
+    margin-bottom: 6px;
+  }
+  .amount small {
+    font-size: 16px;
+    opacity: .72;
+    margin-right: 4px;
+  }
+  .hint {
+    font-size: 12px;
+    color: rgba(236, 228, 248, .38);
+    line-height: 1.7;
+    margin-bottom: 22px;
+  }
+  .pay-btn {
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--y-accent);
+    color: #1a1208;
+    font-size: 15px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .pay-btn:disabled {
+    opacity: .6;
+  }
+  .back {
+    display: block;
+    text-align: center;
+    margin-top: 16px;
+    font-size: 12px;
+    color: rgba(236, 228, 248, .42);
+    text-decoration: none;
+  }
+  .stage {
+    font-size: 13px;
+    color: rgba(236, 228, 248, .6);
+    margin-top: 14px;
+    min-height: 20px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="cashier">
+  <div class="brand">夜息 · 演示收银台</div>
+  <div class="label">商品</div>
+  <div class="subject" id="subject">正在读取订单…</div>
+  <div class="label">应付金额</div>
+  <div class="amount"><small>¥</small><span id="amount">--</span></div>
+  <div class="hint">
+    这是本地演示的收银台，点确认不会真的扣钱。<br>
+    正式环境下，这一步会跳到支付宝。
+  </div>
+  <button class="pay-btn" id="payBtn" type="button" disabled>确认支付（演示）</button>
+  <a class="back" href="javascript:history.back()">返回</a>
+  <div class="stage" id="stage"></div>
+</div>
+
+<script src="auth_ui.js?v=12"></script>
+<script>
+var orderNo = "";
+var payBtn = document.getElementById("payBtn");
+var stageEl = document.getElementById("stage");
+
+function setStage(text) {
+  stageEl.textContent = text || "";
+}
+
+function readOrder() {
+  var q = location.search.replace(/^\?/, "");
+  var parts = q.split("&");
+  for (var i = 0; i < parts.length; i++) {
+    var kv = parts[i].split("=");
+    if (kv[0] === "order") return decodeURIComponent(kv[1] || "");
+  }
+  return "";
+}
+
+function showOrder(order) {
+  if (!order) {
+    document.getElementById("subject").textContent = "订单不存在";
+    return;
+  }
+  document.getElementById("subject").textContent = order.subject || order.product_id;
+  var yuan = Math.floor(order.amount_cents / 100);
+  var fen = order.amount_cents % 100;
+  document.getElementById("amount").textContent = yuan + "." + (fen < 10 ? "0" + fen : fen);
+  if (order.status === "paid") {
+    payBtn.textContent = "这笔已经付过了";
+    payBtn.disabled = true;
+    setStage("可以回夜息继续。");
+    return;
+  }
+  payBtn.disabled = false;
+}
+
+orderNo = readOrder();
+if (!orderNo) {
+  document.getElementById("subject").textContent = "缺少订单号";
+} else if (!yToken()) {
+  document.getElementById("subject").textContent = "请先登录";
+  setStage("登录后才能支付。");
+} else {
+  yGet("/api/pay/query?order=" + encodeURIComponent(orderNo))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.order) { showOrder(d.order); }
+      else { document.getElementById("subject").textContent = d.error || "读不到订单"; }
+    })
+    .catch(function () { setStage("读取订单失败，请返回重试。"); });
+}
+
+payBtn.onclick = function () {
+  payBtn.disabled = true;
+  setStage("正在确认…");
+  yPost("/api/pay/mock_success", { order: orderNo })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok) {
+        location.href = "/pay_return.html?order=" + encodeURIComponent(orderNo) + "&paid=1";
+      } else {
+        payBtn.disabled = false;
+        setStage(d.error || "支付没成功，再试一次。");
+      }
+    })
+    .catch(function () {
+      payBtn.disabled = false;
+      setStage("网络不稳，再试一次。");
+    });
+};
+</script>
+</body>
+</html>

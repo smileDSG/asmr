@@ -800,6 +800,70 @@
     opacity: 0;
     pointer-events: none;
   }
+
+  /* ===== 手机：内容少时上下均分留白，别全堆在顶部 ===== */
+  @media (max-width: 619px) {
+    .wrap-agent:not(.in-chat) {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100dvh - 168px);
+    }
+    .wrap-agent:not(.in-chat) .designer-box {
+      margin-top: auto;
+      margin-bottom: auto;
+    }
+    /* 一条下划线太轻，输入区给足高度，正文降一档，占位文案收短 */
+    #promptDraft {
+      height: 44px;
+      font-size: 16.5px;
+      line-height: 1.5;
+      padding: 3px 0 10px;
+    }
+    .designer-head {
+      margin-bottom: 12px;
+    }
+    .designer-title {
+      font-size: 13px;
+      letter-spacing: 0.14em;
+    }
+    .designer-tools {
+      gap: 16px;
+    }
+    .tiny-btn {
+      font-size: 13px;
+    }
+    /* 三行维度：标签收窄、行距放松，别让人一眼看上去全是字 */
+    .builder-rows {
+      margin-top: 22px;
+      gap: 14px;
+    }
+    .builder-row {
+      gap: 10px;
+    }
+    .builder-dim {
+      width: 30px;
+      flex: 0 0 30px;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: var(--y-text-muted);
+    }
+    .builder-chips {
+      gap: 9px 16px;
+    }
+    .dim-chip {
+      font-size: 13px;
+    }
+    .designer-actions {
+      margin-top: 24px;
+      gap: 16px;
+    }
+    .designer-actions .y-btn-primary {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 13px 18px;
+      font-size: 15px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -836,7 +900,7 @@
         </div>
       </div>
 
-      <textarea class="y-textarea" id="promptDraft" rows="1" placeholder="例：睡不着，想要窗外暖一点的雨，别打雷"></textarea>
+      <textarea class="y-textarea" id="promptDraft" rows="1" placeholder="例：睡不着，想听窗外暖一点的雨"></textarea>
 
       <div class="builder-rows" id="promptBuilderGrid"></div>
 
@@ -888,6 +952,7 @@
 <div class="tabbar"></div>
 
 <script src="auth_ui.js?v=12"></script>
+<script src="pay_ui.js?v=1"></script>
 <script src="yexi_shell.js?v=12"></script>
 <script src="yexi_catalog.js?v=12"></script>
 <script src="yexi_mixer.js?v=13"></script>
@@ -1729,6 +1794,11 @@ function sendTurn(rawSay, forceCompose) {
         appendBlockedCard(d);
         return;
       }
+      if (d && d.action === "quota") {
+        setStatus(d.error || "今天的次数用完了", true);
+        if (typeof yexiPayWall === "function") yexiPayWall("day3");
+        return;
+      }
       setStatus((d && d.error) || "编排失败，请再试一次", true);
       return;
     }
@@ -1925,6 +1995,11 @@ function loadMemory() {
   yGet("/api/memory")
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      // 后端是权威：新账号/游客没档案就是没档案，不用本机旧缓存冒充
+      if (d && d.ear_profile === null) {
+        localProf = null;
+        try { localStorage.removeItem("yezi_ear_profile_v1"); } catch (e) {}
+      }
       var prof = (d && d.ear_profile) ? d.ear_profile : localProf;
       if (d && d.ear_profile) {
         try { localStorage.setItem("yezi_ear_profile_v1", JSON.stringify(d.ear_profile)); } catch (e) {}

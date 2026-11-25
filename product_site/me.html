@@ -13,6 +13,80 @@
    列表不用圆角卡片，改用一条细线分行的节奏
    ========================================================= */
 
+/* —— 资料头：头像 + 名字 + 一句话简介 —— */
+.profile-head{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.avatar-lg{
+  width:64px;height:64px;flex:0 0 64px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--y-serif);font-size:28px;line-height:1;
+  color:#fbf6ff;background:rgba(233,183,131,.18);
+  border:1px solid rgba(233,183,131,.28);
+  box-shadow:0 8px 30px -12px rgba(233,183,131,.5);
+  transition:background .5s ease;
+}
+.profile-id{flex:1 1 200px;min-width:0}
+.profile-id h1{margin:0}
+.profile-bio{
+  margin:6px 0 0;font-size:13px;line-height:1.7;
+  color:var(--y-text-sub);letter-spacing:.03em;
+}
+.profile-bio:empty{display:none}
+.profile-acts{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.profile-acts .ph-act{background:none;border:none;font-family:inherit;cursor:pointer;padding:0}
+
+/* —— 编辑资料弹窗 —— */
+.pf-mask{
+  position:fixed;inset:0;z-index:90;display:none;
+  align-items:center;justify-content:center;padding:16px;
+  background:rgba(7,5,13,.72);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+}
+.pf-mask.open{display:flex}
+.pf-card{
+  width:100%;max-width:440px;max-height:88vh;overflow-y:auto;
+  padding:22px;border-radius:18px;
+  background:rgba(16,12,26,.96);
+  box-shadow:0 30px 80px rgba(0,0,0,.72),0 0 0 1px rgba(255,255,255,.06);
+}
+.pf-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px}
+.pf-head h3{margin:0;font-family:var(--y-serif);font-size:19px;font-weight:400;letter-spacing:.1em;color:#fbf7ff}
+.pf-close{
+  width:26px;height:26px;flex:0 0 26px;border-radius:50%;border:none;
+  background:rgba(255,255,255,.06);color:rgba(226,216,244,.7);
+  cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;
+}
+.pf-close:hover{background:rgba(255,255,255,.12);color:#fff}
+.pf-label{
+  display:block;font-size:12.5px;letter-spacing:.14em;
+  color:var(--y-text-sub);margin:18px 0 9px;
+}
+.pf-preview{display:flex;align-items:center;gap:14px;margin:12px 0 4px}
+.pf-preview .avatar-lg{width:56px;height:56px;flex:0 0 56px;font-size:24px}
+.pf-preview-tip{font-size:12px;color:var(--y-text-muted);line-height:1.6}
+.pf-glyphs{display:flex;flex-wrap:wrap;gap:8px}
+.pf-glyph{
+  width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:rgba(236,228,248,.85);
+  font-family:var(--y-serif);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .3s ease,background .3s ease,color .3s ease;
+}
+.pf-glyph:hover{background:rgba(233,183,131,.14);color:#fff}
+.pf-glyph.on{border-color:rgba(233,183,131,.7);background:rgba(233,183,131,.2);color:#fff}
+.pf-tones{display:flex;gap:10px;flex-wrap:wrap}
+.pf-tone{
+  width:30px;height:30px;border-radius:50%;cursor:pointer;
+  border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);
+}
+.pf-tone.on{border-color:rgba(233,183,131,.85)}
+.pf-actions{display:flex;align-items:center;gap:10px;margin-top:24px}
+.pf-actions .y-btn-ghost{background:none;border:none;color:var(--y-text-sub);font-family:inherit;cursor:pointer;font-size:13.5px;padding:9px 6px}
+.pf-actions .y-btn-ghost:hover{color:#fff}
+.pf-msg{font-size:12px;color:rgba(233,183,131,.85);margin-top:10px}
+.pf-msg.err{color:rgba(255,160,185,.9)}
+
 /* —— 数据行：不装盒子，直接排在标题下面 —— */
 .profile-meta{
   display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
@@ -246,9 +320,16 @@
   </div>
 
   <header class="page-hero">
-    <div class="ph-row">
-      <h1 id="profileName">深夜旅人</h1>
-      <a class="ph-act" href="index.html">+ 新调一段</a>
+    <div class="profile-head">
+      <div class="avatar-lg" id="profileAvatar">☾</div>
+      <div class="profile-id">
+        <h1 id="profileName">深夜旅人</h1>
+        <p class="profile-bio" id="profileBio"></p>
+      </div>
+      <div class="profile-acts">
+        <button type="button" class="ph-act" id="editProfileBtn" style="display:none">编辑资料</button>
+        <a class="ph-act" href="index.html">+ 新调一段</a>
+      </div>
     </div>
 
     <div class="profile-meta">
@@ -261,6 +342,41 @@
 
     <p class="guest-line" id="guestBanner" style="display:none">数据只存在这台机器的浏览器里 · <a href="auth.html?from=me.html">登录后跨设备同步</a></p>
   </header>
+
+  <!-- 编辑资料弹窗 -->
+  <div class="pf-mask" id="pfMask" role="dialog" aria-modal="true" aria-labelledby="pfTitle">
+    <div class="pf-card">
+      <div class="pf-head">
+        <h3 id="pfTitle">编辑我的资料</h3>
+        <button type="button" class="pf-close" id="pfCloseBtn" aria-label="关闭">×</button>
+      </div>
+
+      <div class="pf-preview">
+        <div class="avatar-lg" id="pfPreviewAvatar">☾</div>
+        <div class="pf-preview-tip">头像从下面的夜空符号里挑一个，<br>不用上传照片，别人也看不到你的真实样子。</div>
+      </div>
+
+      <label class="pf-label" for="pfName">昵称</label>
+      <input type="text" class="y-input" id="pfName" maxlength="16" placeholder="想让人怎么称呼你">
+      <p class="pf-preview-tip" style="margin-top:6px">不填就用登录名。</p>
+
+      <label class="pf-label" for="pfBio">一句话简介（选填）</label>
+      <input type="text" class="y-input" id="pfBio" maxlength="40" placeholder="比如：只在雨夜出没">
+
+      <label class="pf-label">选一个头像</label>
+      <div class="pf-glyphs" id="pfGlyphs"></div>
+
+      <label class="pf-label">配色</label>
+      <div class="pf-tones" id="pfTones"></div>
+
+      <div class="pf-actions">
+        <button type="button" class="y-btn-primary" id="pfSaveBtn">保存</button>
+        <button type="button" class="y-btn-ghost" id="pfRandomBtn">随机一个</button>
+        <button type="button" class="y-btn-ghost" id="pfCancelBtn">取消</button>
+      </div>
+      <div class="pf-msg" id="pfMsg"></div>
+    </div>
+  </div>
 
   <nav class="sub-tabs" id="subTabs">
     <button type="button" class="sub-tab sel" data-tab="mine">我的配方</button>
@@ -480,12 +596,157 @@ function openInDiy(recipe, asRemix) {
   }
 }
 
+// 头像：12 个夜空符号 × 6 种配色，不用上传照片
+var AVATAR_GLYPHS = ["☾", "✦", "☁", "☂", "❄", "♪", "✧", "◐", "▲", "≈", "✿", "☽"];
+var AVATAR_TONES = [
+  "rgba(142,116,232,.30)",
+  "rgba(95,168,150,.30)",
+  "rgba(88,137,214,.30)",
+  "rgba(212,151,110,.30)",
+  "rgba(155,133,214,.30)",
+  "rgba(120,160,120,.30)"
+];
+
+function applyAvatarEl(el, glyphIdx, toneIdx) {
+  if (!el) return;
+  var g = parseInt(glyphIdx, 10);
+  var t = parseInt(toneIdx, 10);
+  if (isNaN(g) || g < 0 || g >= AVATAR_GLYPHS.length) g = 0;
+  if (isNaN(t) || t < 0 || t >= AVATAR_TONES.length) t = 0;
+  el.textContent = AVATAR_GLYPHS[g];
+  el.style.background = AVATAR_TONES[t];
+}
+
+// 编辑弹窗的临时状态
+var pfGlyph = 0;
+var pfTone = 0;
+
+function renderPfGlyphs() {
+  var box = document.getElementById("pfGlyphs");
+  var html = "";
+  for (var i = 0; i < AVATAR_GLYPHS.length; i++) {
+    html += '<button type="button" class="pf-glyph' + (i === pfGlyph ? " on" : "") +
+      '" data-g="' + i + '">' + AVATAR_GLYPHS[i] + '</button>';
+  }
+  box.innerHTML = html;
+  var btns = box.querySelectorAll(".pf-glyph");
+  for (var k = 0; k < btns.length; k++) {
+    btns[k].onclick = function() {
+      pfGlyph = parseInt(this.getAttribute("data-g"), 10) || 0;
+      renderPfGlyphs();
+      applyAvatarEl(document.getElementById("pfPreviewAvatar"), pfGlyph, pfTone);
+    };
+  }
+}
+
+function renderPfTones() {
+  var box = document.getElementById("pfTones");
+  var html = "";
+  for (var i = 0; i < AVATAR_TONES.length; i++) {
+    html += '<button type="button" class="pf-tone' + (i === pfTone ? " on" : "") +
+      '" data-t="' + i + '" style="background:' + AVATAR_TONES[i] + '"></button>';
+  }
+  box.innerHTML = html;
+  var btns = box.querySelectorAll(".pf-tone");
+  for (var k = 0; k < btns.length; k++) {
+    btns[k].onclick = function() {
+      pfTone = parseInt(this.getAttribute("data-t"), 10) || 0;
+      renderPfTones();
+      applyAvatarEl(document.getElementById("pfPreviewAvatar"), pfGlyph, pfTone);
+    };
+  }
+}
+
+function setPfMsg(msg, isErr) {
+  var el = document.getElementById("pfMsg");
+  el.textContent = msg || "";
+  el.className = "pf-msg" + (isErr ? " err" : "");
+}
+
+function openProfileEditor() {
+  if (!(hubData && hubData.logged_in)) return;
+  var prof = hubData.profile || {};
+  pfGlyph = parseInt(prof.avatar_glyph, 10) || 0;
+  pfTone = parseInt(prof.avatar_tone, 10) || 0;
+  document.getElementById("pfName").value = prof.display_name || "";
+  document.getElementById("pfBio").value = prof.bio || "";
+  renderPfGlyphs();
+  renderPfTones();
+  applyAvatarEl(document.getElementById("pfPreviewAvatar"), pfGlyph, pfTone);
+  setPfMsg("", false);
+  document.getElementById("pfMask").classList.add("open");
+}
+
+function closeProfileEditor() {
+  document.getElementById("pfMask").classList.remove("open");
+}
+
+function saveProfile() {
+  var name = document.getElementById("pfName").value.trim();
+  var bio = document.getElementById("pfBio").value.trim();
+  var btn = document.getElementById("pfSaveBtn");
+  btn.disabled = true;
+  setPfMsg("正在保存…", false);
+  yPost("/api/profile/update", {
+    display_name: name,
+    bio: bio,
+    avatar_glyph: pfGlyph,
+    avatar_tone: pfTone
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.disabled = false;
+    if (!d || !d.ok) {
+      setPfMsg((d && d.error) || "保存失败", true);
+      return;
+    }
+    closeProfileEditor();
+    loadHub();
+  })
+  .catch(function() {
+    btn.disabled = false;
+    setPfMsg("连接失败，请稍后再试", true);
+  });
+}
+
+document.getElementById("pfCloseBtn").onclick = closeProfileEditor;
+document.getElementById("pfCancelBtn").onclick = closeProfileEditor;
+document.getElementById("pfMask").onclick = function(e) {
+  if (e.target === this) closeProfileEditor();
+};
+document.getElementById("pfSaveBtn").onclick = saveProfile;
+document.getElementById("pfRandomBtn").onclick = function() {
+  pfGlyph = Math.floor(Math.random() * AVATAR_GLYPHS.length);
+  pfTone = Math.floor(Math.random() * AVATAR_TONES.length);
+  renderPfGlyphs();
+  renderPfTones();
+  applyAvatarEl(document.getElementById("pfPreviewAvatar"), pfGlyph, pfTone);
+};
+document.getElementById("editProfileBtn").onclick = openProfileEditor;
+
 function renderProfileHeader() {
   var data = hubData || {};
   var logged = !!data.logged_in;
   var stats = data.stats || {};
 
-  document.getElementById("profileName").textContent = logged ? (data.username || "夜息旅人") : "深夜旅人";
+  // 有自定义昵称就用昵称，没有就用登录名
+  var prof = data.profile || null;
+  var shownName = logged
+    ? ((prof && prof.display_name) ? prof.display_name : (data.username || "夜息旅人"))
+    : "深夜旅人";
+  document.getElementById("profileName").textContent = shownName;
+
+  // 头像与简介
+  if (logged && prof) {
+    applyAvatarEl(document.getElementById("profileAvatar"), prof.avatar_glyph, prof.avatar_tone);
+    document.getElementById("profileBio").textContent = prof.bio || "";
+    document.getElementById("editProfileBtn").style.display = "";
+  } else {
+    applyAvatarEl(document.getElementById("profileAvatar"), 0, 0);
+    document.getElementById("profileBio").textContent = "";
+    document.getElementById("editProfileBtn").style.display = "none";
+  }
+
   document.getElementById("profileSub").textContent = logged
     ? ("已收录 " + ((data.my_posts || []).length) + " 张广场配方 · " +
        ((data.custom_recipes || []).length) + " 个工坊草稿 · " +
@@ -946,6 +1207,8 @@ function loadHub() {
       hubData = d || {};
       renderProfileHeader();
       renderActiveTab();
+      // 支持用 #edit 直接打开编辑资料（方便从别处跳过来改）
+      if (location.hash === "#edit" && hubData.logged_in) openProfileEditor();
     })
     .catch(function() {
       hubData = {

@@ -47,6 +47,17 @@ def init_db():
             created_at    REAL NOT NULL
         )
     """)
+    # 个性化资料：昵称、头像（预设图形+配色，不上传真脸）、一句话简介
+    # 老库没有这些列，用 ALTER TABLE 补，已存在就跳过
+    user_cols = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "display_name" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ''")
+    if "avatar_glyph" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN avatar_glyph INTEGER NOT NULL DEFAULT 0")
+    if "avatar_tone" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN avatar_tone INTEGER NOT NULL DEFAULT 0")
+    if "bio" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             token      TEXT PRIMARY KEY,
@@ -127,6 +138,47 @@ def init_db():
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_comments_post
         ON community_comments(post_id, created_at)
+    """)
+    # 订单：out_trade_no 是主键，保证同一笔订单只会入账一次。
+    # 金额存「分」，不用浮点，避免 1.90 存成 1.8999999。
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            out_trade_no TEXT PRIMARY KEY,
+            user_id      INTEGER NOT NULL,
+            product_id   TEXT NOT NULL,
+            subject      TEXT NOT NULL DEFAULT '',
+            amount_cents INTEGER NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'created',
+            trade_no     TEXT NOT NULL DEFAULT '',
+            channel      TEXT NOT NULL DEFAULT '',
+            created_at   REAL NOT NULL,
+            paid_at      REAL NOT NULL DEFAULT 0
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_orders_user
+        ON orders(user_id, created_at)
+    """)
+    # 权益：一个用户一种 kind 一行，quota 是剩余次数，expire_at=0 表示永久
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS entitlements (
+            user_id    INTEGER NOT NULL,
+            kind       TEXT NOT NULL,
+            quota      INTEGER NOT NULL DEFAULT 0,
+            expire_at  REAL NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL,
+            PRIMARY KEY (user_id, kind)
+        )
+    """)
+    # 每日生成额度：游客按 client id 记，登录用户按 user id 记。
+    # 用「天 + 主体」做主键，跨天自动换一行，不需要清理旧数据。
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS daily_quota (
+            owner_key TEXT NOT NULL,
+            day       TEXT NOT NULL,
+            used      INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (owner_key, day)
+        )
     """)
     conn.commit()
     conn.close()
@@ -283,6 +335,253 @@ def logout(token):
     conn.execute("DELETE FROM sessions WHERE token=?", (token,))
     conn.commit()
     conn.close()
+
+
+# ---------- 个性化资料（昵称 / 预设头像 / 简介） ----------
+# 头像是「预设图形 + 配色」的组合，不存照片，保护隐私。
+AVATAR_GLYPH_COUNT = 12
+AVATAR_TONE_COUNT = 6
+
+
+def get_profile(user_id):
+    if not user_id:
+        return None
+    conn = connect()
+    row = conn.execute("""
+        SELECT id, username, display_name, avatar_glyph, avatar_tone, bio, created_at
+        FROM users WHERE id=?
+    """, (user_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "username": row[1],
+        "display_name": row[2] or "",
+        "avatar_glyph": int(row[3] or 0),
+        "avatar_tone": int(row[4] or 0),
+        "bio": row[5] or "",
+        "created_at": row[6] or 0,
+    }
+
+
+def update_profile(user_id, display_name=None, avatar_glyph=None, avatar_tone=None, bio=None):
+    """只更新传进来的字段；返回更新后的 profile。"""
+    if not user_id:
+        return None, "请先登录"
+    sets = []
+    vals = []
+    if display_name is not None:
+        sets.append("display_name=?")
+        vals.append(display_name)
+    if avatar_glyph is not None:
+        sets.append("avatar_glyph=?")
+        vals.append(int(avatar_glyph))
+    if avatar_tone is not None:
+        sets.append("avatar_tone=?")
+        vals.append(int(avatar_tone))
+    if bio is not None:
+        sets.append("bio=?")
+        vals.append(bio)
+    if not sets:
+        return get_profile(user_id), "没有要更新的内容"
+    conn = connect()
+    try:
+        vals.append(user_id)
+        conn.execute("UPDATE users SET " + ", ".join(sets) + " WHERE id=?", tuple(vals))
+        conn.commit()
+    finally:
+        conn.close()
+    return get_profile(user_id), "已保存"
+
+
+def display_name_of(user_id, fallback=""):
+    """取用户对外显示的名字；没设昵称就用登录名。"""
+    p = get_profile(user_id)
+    if not p:
+        return fallback
+    return p["display_name"] or p["username"] or fallback
+
+
+def get_profiles_map(user_ids):
+    """批量取 profile，避免列表里逐个查库。返回 {user_id: profile}。"""
+    ids = [int(x) for x in user_ids if x]
+    if not ids:
+        return {}
+    marks = ",".join("?" for _ in ids)
+    conn = connect()
+    rows = conn.execute("""
+        SELECT id, username, display_name, avatar_glyph, avatar_tone, bio, created_at
+        FROM users WHERE id IN (""" + marks + ")", tuple(ids)).fetchall()
+    conn.close()
+    out = {}
+    for r in rows:
+        out[r[0]] = {
+            "id": r[0],
+            "username": r[1],
+            "display_name": r[2] or "",
+            "avatar_glyph": int(r[3] or 0),
+            "avatar_tone": int(r[4] or 0),
+            "bio": r[5] or "",
+            "created_at": r[6] or 0,
+        }
+    return out
+
+
+# ---------- 订单与权益（支付） ----------
+# 金额一律用「分」存整数，不用浮点；时间用 time.time() 的秒数。
+
+def create_order(out_trade_no, user_id, product_id, subject, amount_cents, channel=""):
+    conn = connect()
+    conn.execute("""
+        INSERT INTO orders(
+            out_trade_no, user_id, product_id, subject,
+            amount_cents, status, channel, created_at
+        ) VALUES(?,?,?,?,?,'created',?,?)
+    """, (out_trade_no, user_id, product_id, subject, amount_cents, channel, time.time()))
+    conn.commit()
+    conn.close()
+
+
+def get_order(out_trade_no):
+    conn = connect()
+    row = conn.execute("""
+        SELECT out_trade_no, user_id, product_id, subject, amount_cents,
+               status, trade_no, channel, created_at, paid_at
+        FROM orders WHERE out_trade_no=?
+    """, (out_trade_no,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "out_trade_no": row[0],
+        "user_id": row[1],
+        "product_id": row[2],
+        "subject": row[3],
+        "amount_cents": row[4],
+        "status": row[5],
+        "trade_no": row[6],
+        "channel": row[7],
+        "created_at": row[8],
+        "paid_at": row[9],
+    }
+
+
+def mark_order_paid(out_trade_no, trade_no=""):
+    # 只认 created -> paid 这一次变更。重复通知返回 False，避免重复发权益。
+    conn = connect()
+    cur = conn.execute("""
+        UPDATE orders SET status='paid', trade_no=?, paid_at=?
+        WHERE out_trade_no=? AND status='created'
+    """, (trade_no, time.time(), out_trade_no))
+    changed = cur.rowcount == 1
+    conn.commit()
+    conn.close()
+    return changed
+
+
+def add_entitlement(user_id, kind, quota, expire_at=0):
+    # 未过期就叠加次数、到期时间取更晚；已过期就覆盖重来。0 表示永久。
+    now = time.time()
+    conn = connect()
+    row = conn.execute(
+        "SELECT quota, expire_at FROM entitlements WHERE user_id=? AND kind=?",
+        (user_id, kind)
+    ).fetchone()
+    if not row:
+        conn.execute("""
+            INSERT INTO entitlements(user_id, kind, quota, expire_at, updated_at)
+            VALUES(?,?,?,?,?)
+        """, (user_id, kind, quota, expire_at, now))
+    else:
+        old_quota, old_expire = row[0], row[1]
+        expired = old_expire != 0 and old_expire < now
+        if expired:
+            new_quota = quota
+            new_expire = expire_at
+        else:
+            new_quota = old_quota + quota
+            if old_expire == 0 or expire_at == 0:
+                new_expire = 0
+            else:
+                new_expire = max(old_expire, expire_at)
+        conn.execute("""
+            UPDATE entitlements SET quota=?, expire_at=?, updated_at=?
+            WHERE user_id=? AND kind=?
+        """, (new_quota, new_expire, now, user_id, kind))
+    conn.commit()
+    conn.close()
+
+
+def consume_entitlement(user_id, kind, n=1):
+    # 一条语句完成「检查 + 扣减」，并发下也不会扣成负数
+    now = time.time()
+    conn = connect()
+    cur = conn.execute("""
+        UPDATE entitlements SET quota = quota - ?, updated_at = ?
+        WHERE user_id=? AND kind=? AND quota >= ?
+          AND (expire_at = 0 OR expire_at > ?)
+    """, (n, now, user_id, kind, n, now))
+    ok = cur.rowcount == 1
+    conn.commit()
+    conn.close()
+    return ok
+
+
+def list_entitlements(user_id):
+    now = time.time()
+    conn = connect()
+    rows = conn.execute(
+        "SELECT kind, quota, expire_at FROM entitlements WHERE user_id=?",
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    out = {}
+    for kind, quota, expire_at in rows:
+        expired = expire_at != 0 and expire_at < now
+        out[kind] = {
+            "quota": 0 if expired else quota,
+            "expire_at": expire_at,
+            "active": not expired,
+        }
+    return out
+
+
+def peek_daily_quota(owner_key, limit):
+    # 看一眼今天还剩几次，不消耗
+    day = time.strftime("%Y-%m-%d")
+    conn = connect()
+    row = conn.execute(
+        "SELECT used FROM daily_quota WHERE owner_key=? AND day=?",
+        (owner_key, day)
+    ).fetchone()
+    conn.close()
+    used = row[0] if row else 0
+    return {"used": used, "limit": limit, "left": max(0, limit - used)}
+
+
+def take_daily_quota(owner_key, limit):
+    # 原子扣一次：只有 used 还没到上限才 +1，并发下也不会超额
+    day = time.strftime("%Y-%m-%d")
+    conn = connect()
+    conn.execute(
+        "INSERT OR IGNORE INTO daily_quota(owner_key, day, used) VALUES(?,?,0)",
+        (owner_key, day)
+    )
+    cur = conn.execute(
+        "UPDATE daily_quota SET used = used + 1 "
+        "WHERE owner_key=? AND day=? AND used < ?",
+        (owner_key, day, limit)
+    )
+    ok = cur.rowcount == 1
+    row = conn.execute(
+        "SELECT used FROM daily_quota WHERE owner_key=? AND day=?",
+        (owner_key, day)
+    ).fetchone()
+    conn.commit()
+    conn.close()
+    used = row[0] if row else 0
+    return ok, {"used": used, "limit": limit, "left": max(0, limit - used)}
 
 
 def save_memory(user_id, kind, data):

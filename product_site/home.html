@@ -844,6 +844,59 @@ body.lights-out .tabbar { opacity: 0 !important; pointer-events: none; transitio
   .play-row { flex-direction: column; }
   .now { text-align: center; }
   .queue-acts { margin-left: 0; }
+
+  /* 手机首屏：标题不溢出，整组内容一屏放得下 */
+  .hero {
+    padding: 74px 18px 92px;
+    justify-content: center;
+  }
+  /* 桌面那句 42~82px 的大标题在 360 宽的屏上会被切掉两头（"再赖一会儿也没关系"9 个字） */
+  .hero h1 {
+    font-size: clamp(25px, 7.1vw, 34px);
+    line-height: 1.34;
+    letter-spacing: 0.03em;
+  }
+  /* 标题里若有 nowrap 的片段，手机上允许折行 */
+  .hero h1 .nb {
+    white-space: normal;
+  }
+  .whisper {
+    margin-bottom: 10px;
+    font-size: 11.5px;
+    letter-spacing: 0.26em;
+  }
+  .hero-sub {
+    margin-top: 11px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    letter-spacing: 0.04em;
+  }
+  .play-row {
+    margin-top: 20px;
+    gap: 12px;
+  }
+  .now-name {
+    font-size: 20px;
+    letter-spacing: 0.1em;
+  }
+  .now-label {
+    font-size: 11.5px;
+    letter-spacing: 0.22em;
+  }
+  .now-meta {
+    font-size: 12.5px;
+    min-height: 18px;
+  }
+  .q-pill {
+    padding: 9px 15px;
+    font-size: 13px;
+  }
+  .hero-tools {
+    margin-top: 16px;
+  }
+  .ask-fallback {
+    margin-top: 16px;
+  }
 }
 @media (max-width: 520px) {
   .top.v2-top { padding: 16px 20px; gap: 8px; }
