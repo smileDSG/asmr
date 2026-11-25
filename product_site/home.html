@@ -908,8 +908,13 @@ body.lights-out .tabbar { opacity: 0 !important; pointer-events: none; transitio
 @media (max-width: 520px) {
   .top.v2-top { padding: 16px 20px; gap: 8px; }
   .v2-brand .word { letter-spacing: 0.12em; font-size: 18px; }  /* 两字连成一行，不再上下叠 */
-  #testBtn { padding: 6px 12px; font-size: 12.5px; }
+  #testBtn { padding: 6px 12px; font-size: 12.5px; white-space: nowrap; }
   .orb { width: 70px; height: 70px; flex-basis: 70px; }
+  /* 窄屏顶栏放不下「听觉图鉴+用户名」，两者都从「我的」页进入，这里隐藏避免被裁 */
+  #testBtn { display: none !important; }
+  .v2-top .auth-link, .v2-top .auth-name { display: none !important; }
+  .v2-top .v2-brand { flex-shrink: 0; }
+  .v2-top { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
