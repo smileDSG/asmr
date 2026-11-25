@@ -91,9 +91,13 @@ def _call(method, biz_content):
     client = _client()
     # server_api 会自己签名、发请求、验响应签名
     raw = client.server_api(method, biz_content)
-    # 响应结构：{alipay_aipay_nowpaydirect_xxx_response: {...}, sign: "..."}
+    # python-alipay-sdk 的 server_api 已经把外层 xxx_response 解开了，
+    # 直接返回业务字典；有些版本仍带外层，两种都兼容。
     key = method.replace(".", "_") + "_response"
-    result = raw.get(key) or {}
+    if key in raw:
+        result = raw.get(key) or {}
+    else:
+        result = raw
     code = str(result.get("code", ""))
     if code != "10000":
         # 把业务错误码打出来，方便对着官方文档排查
