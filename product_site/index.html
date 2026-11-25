@@ -812,11 +812,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 22px;
   }
-  @media (max-width: 440px) {
-    .lib-grid {
-      grid-template-columns: 1fr;
-    }
-  }
   .lib-item {
     min-width: 0;
     position: relative;
@@ -904,6 +899,21 @@
   .lib-item.on .li-check {
     display: inline-block;
   }
+  /* 手机上素材也保持两列：一列太浪费纵向空间，选项要一眼扫得完。
+     放在 .lib-item 之后，字号覆盖才不会被上面的基础规则压回去 */
+  @media (max-width: 440px) {
+    .lib-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 14px;
+    }
+    .lib-item .li-name {
+      font-size: 14px;
+    }
+    .lib-item .li-state {
+      font-size: 12px;
+    }
+  }
+
 
   /* 底部当前已选托盘 */
   .active-tray {
@@ -1509,9 +1519,9 @@
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    /* 声场按屏高收缩，把音量条、按钮、下面的面板都往首屏挤 */
+    /* 声场给足高度：之前 230~280 太扁，节点挤在一起看不清远近 */
     .stage-box {
-      height: clamp(230px, 30dvh, 280px);
+      height: clamp(280px, 38dvh, 340px);
       border-radius: 14px;
     }
     .stage-empty {
@@ -1587,11 +1597,15 @@
       -webkit-backdrop-filter: blur(20px);
       backdrop-filter: blur(20px);
       box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.62);
-      transform: translateY(calc(100% - 56px));
+      /* --drawer-visible：抽屉露出来的高度，由拉条拖动决定 */
+      --drawer-visible: 56px;
+      transform: translateY(calc(100% - var(--drawer-visible)));
       transition: transform 0.38s var(--y-ease);
+      will-change: transform;
     }
-    #mobileDrawer.open {
-      transform: translateY(0);
+    #mobileDrawer.dragging {
+      /* 手指跟着走，不要过渡 */
+      transition: none;
     }
     .drawer-handle {
       display: flex;
@@ -1606,14 +1620,26 @@
       font-family: inherit;
       font-size: 13px;
       letter-spacing: 0.06em;
-      cursor: pointer;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #mobileDrawer.dragging .drawer-handle {
+      cursor: grabbing;
     }
     .dh-grip {
-      width: 30px;
-      height: 3px;
-      flex: 0 0 30px;
+      width: 40px;
+      height: 4px;
+      flex: 0 0 40px;
       border-radius: 2px;
-      background: rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.34);
+    }
+    .dh-hint {
+      flex: 0 0 auto;
+      font-size: 11px;
+      letter-spacing: 0;
+      color: var(--y-text-muted);
     }
     .dh-label {
       flex: 1;
@@ -1798,10 +1824,11 @@
     <!-- 右栏：分步式创作面板（选声音 / 调参数 / 作品） -->
     <div class="studio-col">
       <div class="card" id="mobileDrawer">
-        <!-- 手机端专用把手：点一下从底部升出素材面板 -->
+        <!-- 手机端专用把手：可上下拖动决定抽屉露多高，轻点仍是一键升降 -->
         <button class="drawer-handle" id="drawerHandle" type="button" aria-expanded="false" aria-controls="mobileDrawer">
           <span class="dh-grip"></span>
           <span class="dh-label">选声音 · 调参数 · 作品</span>
+          <span class="dh-hint">拖动调节</span>
           <span class="dh-arrow">⌃</span>
         </button>
         <div class="panel-tabs" role="tablist">
@@ -4005,14 +4032,74 @@ window.addEventListener("hashchange", function() {
   applyMixFromHash();
 });
 
-// ===== 手机端素材抽屉：点把手升降，不用在声场和素材库之间来回滚 =====
+// ===== 手机端素材抽屉：拉条可拖动，露多高用户自己定；轻点仍是一键升降 =====
 var drawerHandleBtn = document.getElementById("drawerHandle");
 var mobileDrawerBox = document.getElementById("mobileDrawer");
 if (drawerHandleBtn && mobileDrawerBox) {
-  drawerHandleBtn.onclick = function() {
-    var opened = mobileDrawerBox.classList.toggle("open");
+  var DRAWER_PEEK = 56;        // 收起时露出的把手高度
+  var drawerVisible = DRAWER_PEEK;
+  var drawerDrag = null;       // 拖动中：{ y, from }
+  var drawerMoved = false;     // 这次是不是真拖了（避免松手又触发 click）
+
+  function drawerMax() {
+    return Math.max(mobileDrawerBox.offsetHeight, DRAWER_PEEK + 2);
+  }
+  function drawerStops() {
+    var h = drawerMax();
+    return [DRAWER_PEEK, DRAWER_PEEK + (h - DRAWER_PEEK) * 0.5, h];
+  }
+  function drawerPaint() {
+    mobileDrawerBox.style.setProperty("--drawer-visible", drawerVisible.toFixed(1) + "px");
+    var opened = drawerVisible > DRAWER_PEEK + 4;
+    mobileDrawerBox.classList.toggle("open", opened);
     drawerHandleBtn.setAttribute("aria-expanded", opened ? "true" : "false");
+  }
+  function drawerSet(v) {
+    drawerVisible = Math.max(DRAWER_PEEK, Math.min(v, drawerMax()));
+    drawerPaint();
+  }
+  function drawerSnap() {
+    var stops = drawerStops(), best = stops[0];
+    for (var i = 1; i < stops.length; i++) {
+      if (Math.abs(stops[i] - drawerVisible) < Math.abs(best - drawerVisible)) best = stops[i];
+    }
+    mobileDrawerBox.classList.remove("dragging");
+    drawerSet(best);
+  }
+  drawerPaint();
+
+  drawerHandleBtn.addEventListener("pointerdown", function(e) {
+    if (e.button) return;
+    drawerDrag = { y: e.clientY, from: drawerVisible };
+    drawerMoved = false;
+    mobileDrawerBox.classList.add("dragging");
+    if (drawerHandleBtn.setPointerCapture) {
+      try { drawerHandleBtn.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+  });
+  drawerHandleBtn.addEventListener("pointermove", function(e) {
+    if (!drawerDrag) return;
+    var dy = drawerDrag.y - e.clientY;   // 手指往上 = 抽屉再升一点
+    if (Math.abs(dy) > 6) drawerMoved = true;
+    drawerSet(drawerDrag.from + dy);
+  });
+  function drawerRelease() {
+    if (!drawerDrag) return;
+    drawerDrag = null;
+    drawerSnap();
+  }
+  drawerHandleBtn.addEventListener("pointerup", drawerRelease);
+  drawerHandleBtn.addEventListener("pointercancel", drawerRelease);
+  drawerHandleBtn.onclick = function() {
+    if (drawerMoved) { drawerMoved = false; return; }
+    drawerSet(drawerVisible > DRAWER_PEEK + 4 ? DRAWER_PEEK : drawerMax());
   };
+  // 换 tab 后内容高度会变，露出的高度跟着夹回合法区间
+  if (window.ResizeObserver) {
+    new ResizeObserver(function() {
+      if (!drawerDrag) drawerSet(drawerVisible);
+    }).observe(mobileDrawerBox);
+  }
   // 入睡渐退不常用，手机上收进抽屉的「调参数」页，首屏少一块
   if (window.innerWidth <= 619) {
     var tuneView = document.getElementById("panelTune");

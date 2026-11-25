@@ -271,6 +271,30 @@
 }
 .act:hover { color: #fff; }
 .act.play { color: var(--y-warm); }
+/* 试听图标用内联 SVG（fill:currentColor），别用 ▶ 字符——
+   华为/鸿蒙浏览器会把它当 emoji 渲染成蓝色小三角，跟主题不搭 */
+/* 详情/改编里的幽灵按钮：图标和文字排成一行 */
+.d-actions .y-btn-ghost,
+.fork-item-acts .y-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.act.play .i-tri,
+.y-btn-ghost .i-tri {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+.act.play .i-pause,
+.y-btn-ghost .i-pause {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
 .act.on { color: var(--y-warm); }
 .act .n {
   font-size: 12px;
@@ -301,6 +325,39 @@
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
+
+/* 分页：一页只渲染一屏多一点，翻到底再按游标续取，别一次性铺满 */
+.feed-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 2px;
+}
+.feed-footer .feed-empty {
+  border: none;
+  padding: 0;
+  text-align: center;
+}
+.feed-more {
+  font-family: inherit;
+  font-size: 13.5px;
+  letter-spacing: 0.08em;
+  color: var(--y-text-sub);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 11px 28px;
+  cursor: pointer;
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+.feed-more:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(var(--y-warm-rgb), 0.4);
+  color: var(--y-text);
+}
+.feed-more:disabled { opacity: 0.5; cursor: default; }
 
 /* 页脚：一句话就够，不要免责声明墙 */
 .note {
@@ -1086,6 +1143,12 @@ var activePreviewId = "";
 var communityPosts = [];
 var loggedUsername = "";
 
+// 广场分页：一页 20 条，翻到底按游标续取，不再一次性拉满 100 条
+var COMMUNITY_PAGE_SIZE = 20;
+var communityCursor = null;
+var communityHasMore = false;   // 拿到第一页之前不显示「加载更多」
+var communityLoading = false;
+
 var EVAL_TAGS = [
   { key: "steady", label: "秒睡稳态" },
   { key: "warm", label: "暖厚包裹" },
@@ -1424,89 +1487,190 @@ function renderTabs() {
 }
 
 // 听感标签只在详情里出现，不放在卡片上：卡片一行只留「试听 / 借我一晚 / 详情」
+function isFeedVisible(r) {
+  if (currentGroup === "社区发布") return !!r.isUserPost;
+  if (currentGroup !== "全部" && r.group !== currentGroup) return false;
+  return true;
+}
+
+// 造一张卡片。返回 el 和 wire —— wire 必须在 el 挂进 DOM 之后调，
+// 因为卡片里的交互是用 getElementById 按 id 找的
+function buildFeedItem(r) {
+  var borrowVoted = !!myVoted[r.id + ":borrow"];
+  var borrowCnt = getRecipeEvalCount(r.id, "borrow");
+  var playing = activePreviewId === r.id;
+  var official = !!r.isOfficial;
+  var badge = official
+    ? '<span class="badge-official">官方示范</span>'
+    : (r.isUserPost ? '<span class="badge-new">社区新作</span>' : '');
+
+  // 真人身份行：头像 + 昵称 + 时间（官方也显示，但标出来并且点了没反应）
+  var av = avatarOfRecipe(r);
+  var shownAuthor = (r.author_profile && r.author_profile.display_name) ? r.author_profile.display_name : r.author;
+  var whoHtml =
+    '<div class="who' + (official ? ' is-official' : '') + '" id="who_' + r.id + '">' +
+      '<div class="avatar" style="background:' + av.bg + '">' + yEscape(av.ch) + '</div>' +
+      '<span class="who-name">' + yEscape(shownAuthor) + (official ? ' · 夜息团队' : '') + '</span>' +
+      '<span class="who-time">' + yEscape(formatTimeAgo(r.created_at)) + '</span>' +
+    '</div>';
+
+  // 创作故事：只有真人作品有，来自发帖时填的 story
+  var storyHtml = r.story
+    ? '<div class="story-line">“' + yEscape(r.story) + '”</div>'
+    : '';
+
+  var forkHtml = (r.isUserPost && r.fork_count > 0)
+    ? '<div class="fork-hint" id="forkhint_' + r.id + '">↻ 被改编 ' + r.fork_count + ' 次 · 看看别人怎么改的</div>'
+    : "";
+
+  var el = document.createElement("div");
+  el.className = "item" + (official ? " is-official" : "");
+  el.innerHTML =
+    '<div class="cover' + (playing ? " playing" : "") + '" id="cover_' + r.id + '">' +
+      '<div class="cover-img" style="background-image:url(' + r.img + ')"></div>' +
+      '<div class="cover-shade"></div>' +
+      badge +
+      '<div class="eq" aria-hidden="true"><i></i><i></i><i></i></div>' +
+      '<div class="cover-text">' +
+        '<div class="cover-name">' + yEscape(r.title) + '</div>' +
+        '<div class="cover-desc">' + yEscape(r.desc) + '</div>' +
+      '</div>' +
+    '</div>' +
+    whoHtml +
+    storyHtml +
+    forkHtml +
+    '<div class="row">' +
+      '<button type="button" class="act play" id="p_' + r.id + '">' + (playing ? ICON_PAUSE : ICON_PLAY) + '<span>' + (playing ? "暂停试听" : "试听") + '</span></button>' +
+      '<button type="button" class="act' + (borrowVoted ? " on" : "") + '" id="borrow_' + r.id + '">' +
+        '<span>借我一晚</span>' + (borrowCnt > 0 ? '<span class="n">' + borrowCnt + '</span>' : '') +
+      '</button>' +
+      '<button type="button" class="act more" id="d_' + r.id + '">详情</button>' +
+    '</div>' +
+    '<div class="mini" id="m_' + r.id + '"></div>';
+
+  function wire() {
+    document.getElementById("cover_" + r.id).onclick = function() { preview(r); };
+    document.getElementById("p_" + r.id).onclick = function() { preview(r); };
+    document.getElementById("borrow_" + r.id).onclick = function() { toggleEvalVote(r.id, "borrow"); };
+    document.getElementById("d_" + r.id).onclick = function() { openDetail(r); };
+    document.getElementById("who_" + r.id).onclick = function() {
+      if (!official) openCreator(r.author);
+    };
+    var fh = document.getElementById("forkhint_" + r.id);
+    if (fh) fh.onclick = function() { openForksModal(r); };
+  }
+
+  return { el: el, wire: wire };
+}
+
+// 页脚：还有下一页就给「加载更多」；没有了就不占位
+function renderFeedFooter() {
+  var feed = document.getElementById("feed");
+  var old = document.getElementById("feedFooter");
+  if (old && old.parentNode) old.parentNode.removeChild(old);
+
+  var hasItems = !!feed.querySelector(".item");
+  if (!hasItems && !communityHasMore) {
+    var emptyText = currentGroup === "社区发布"
+      ? '这个角落还空着 · 去 DIY 工坊调一段你自己的，做第一个发配方的人'
+      : '这里还没有配方 · 成为第一个分享的人吧';
+    var empty = document.createElement("div");
+    empty.className = "feed-empty";
+    empty.id = "feedFooter";
+    empty.textContent = emptyText;
+    feed.appendChild(empty);
+    return;
+  }
+  if (!communityHasMore) return;
+
+  var wrap = document.createElement("div");
+  wrap.className = "feed-footer";
+  wrap.id = "feedFooter";
+  if (!hasItems) {
+    // 已加载的这批里没有当前分类的内容，但后面还有：说清楚，别让人以为空了
+    var hint = document.createElement("div");
+    hint.className = "feed-empty";
+    hint.textContent = currentGroup === "社区发布"
+      ? '已加载的这批里还没有社区发布 · 继续加载看看'
+      : '已加载的这批里还没有「' + currentGroup + '」· 继续加载看看';
+    wrap.appendChild(hint);
+  }
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "feed-more";
+  btn.id = "feedMoreBtn";
+  btn.disabled = !!communityLoading;
+  btn.textContent = communityLoading ? "正在加载…" : "加载更多";
+  btn.onclick = function() { loadCommunityPosts(false); };
+  wrap.appendChild(btn);
+  feed.appendChild(wrap);
+}
+
+// 全量重建：首屏、切分类、收藏数回来后走这里
 function renderFeed() {
   var feed = document.getElementById("feed");
   feed.innerHTML = "";
   var list = allFeedRecipes();
-  var shownCount = 0;
-
   for (var i = 0; i < list.length; i++) {
-    (function(r) {
-      if (currentGroup === "社区发布" && !r.isUserPost) return;
-      if (currentGroup !== "全部" && currentGroup !== "社区发布" && r.group !== currentGroup) return;
-      shownCount += 1;
-
-      var borrowVoted = !!myVoted[r.id + ":borrow"];
-      var borrowCnt = getRecipeEvalCount(r.id, "borrow");
-      var playing = activePreviewId === r.id;
-      var official = !!r.isOfficial;
-      var badge = official
-        ? '<span class="badge-official">官方示范</span>'
-        : (r.isUserPost ? '<span class="badge-new">社区新作</span>' : '');
-
-      // 真人身份行：头像 + 昵称 + 时间（官方也显示，但标出来并且点了没反应）
-      var av = avatarOfRecipe(r);
-      var shownAuthor = (r.author_profile && r.author_profile.display_name) ? r.author_profile.display_name : r.author;
-      var whoHtml =
-        '<div class="who' + (official ? ' is-official' : '') + '" id="who_' + r.id + '">' +
-          '<div class="avatar" style="background:' + av.bg + '">' + yEscape(av.ch) + '</div>' +
-          '<span class="who-name">' + yEscape(shownAuthor) + (official ? ' · 夜息团队' : '') + '</span>' +
-          '<span class="who-time">' + yEscape(formatTimeAgo(r.created_at)) + '</span>' +
-        '</div>';
-
-      // 创作故事：只有真人作品有，来自发帖时填的 story
-      var storyHtml = r.story
-        ? '<div class="story-line">“' + yEscape(r.story) + '”</div>'
-        : '';
-
-      var forkHtml = (r.isUserPost && r.fork_count > 0)
-        ? '<div class="fork-hint" id="forkhint_' + r.id + '">↻ 被改编 ' + r.fork_count + ' 次 · 看看别人怎么改的</div>'
-        : "";
-
-      var el = document.createElement("div");
-      el.className = "item";
-      el.innerHTML =
-        '<div class="cover' + (playing ? " playing" : "") + '" id="cover_' + r.id + '">' +
-          '<div class="cover-img" style="background-image:url(' + r.img + ')"></div>' +
-          '<div class="cover-shade"></div>' +
-          badge +
-          '<div class="eq" aria-hidden="true"><i></i><i></i><i></i></div>' +
-          '<div class="cover-text">' +
-            '<div class="cover-name">' + yEscape(r.title) + '</div>' +
-            '<div class="cover-desc">' + yEscape(r.desc) + '</div>' +
-          '</div>' +
-        '</div>' +
-        whoHtml +
-        storyHtml +
-        forkHtml +
-        '<div class="row">' +
-          '<button type="button" class="act play" id="p_' + r.id + '">' + (playing ? "暂停试听" : "▶ 试听") + '</button>' +
-          '<button type="button" class="act' + (borrowVoted ? " on" : "") + '" id="borrow_' + r.id + '">' +
-            '<span>借我一晚</span>' + (borrowCnt > 0 ? '<span class="n">' + borrowCnt + '</span>' : '') +
-          '</button>' +
-          '<button type="button" class="act more" id="d_' + r.id + '">详情</button>' +
-        '</div>' +
-        '<div class="mini" id="m_' + r.id + '"></div>';
-      feed.appendChild(el);
-
-      document.getElementById("cover_" + r.id).onclick = function() { preview(r); };
-      document.getElementById("p_" + r.id).onclick = function() { preview(r); };
-      document.getElementById("borrow_" + r.id).onclick = function() { toggleEvalVote(r.id, "borrow"); };
-      document.getElementById("d_" + r.id).onclick = function() { openDetail(r); };
-      document.getElementById("who_" + r.id).onclick = function() {
-        if (!official) openCreator(r.author);
-      };
-      var fh = document.getElementById("forkhint_" + r.id);
-      if (fh) fh.onclick = function() { openForksModal(r); };
-    })(list[i]);
+    var r = list[i];
+    if (!isFeedVisible(r)) continue;
+    var built = buildFeedItem(r);
+    feed.appendChild(built.el);
+    built.wire();
   }
+  renderFeedFooter();
+}
 
-  if (shownCount === 0) {
-    var emptyText = currentGroup === "社区发布"
-      ? '这个角落还空着 · 去 DIY 工坊调一段你自己的，做第一个发配方的人'
-      : '这里还没有配方 · 成为第一个分享的人吧';
-    feed.innerHTML = '<div class="feed-empty">' + emptyText + '</div>';
+// 只追加新一页：官方示范永远排在真人作品之后，所以新帖子插在官方块前面
+function appendCommunityPosts(rawPosts) {
+  var feed = document.getElementById("feed");
+  var anchor = feed.querySelector(".item.is-official");
+  for (var i = 0; i < rawPosts.length; i++) {
+    var r = normalizeUserPost(rawPosts[i]);
+    if (!isFeedVisible(r)) continue;
+    var built = buildFeedItem(r);
+    if (anchor) feed.insertBefore(built.el, anchor);
+    else feed.appendChild(built.el);
+    built.wire();
   }
+}
+
+function loadCommunityPosts(reset) {
+  if (communityLoading) return;
+  if (!reset && !communityHasMore) return;
+  communityLoading = true;
+  if (reset) {
+    communityCursor = null;
+    communityHasMore = false;
+  }
+  renderFeedFooter();   // 先把按钮切成「正在加载…」
+
+  var url = "/api/community_posts?limit=" + COMMUNITY_PAGE_SIZE;
+  if (!reset && communityCursor) url += "&cursor=" + encodeURIComponent(communityCursor);
+
+  yGet(url)
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      communityLoading = false;
+      if (!d || !Array.isArray(d.posts)) {
+        renderFeedFooter();
+        return;
+      }
+      communityHasMore = !!d.has_more;
+      communityCursor = d.next_cursor || null;
+      if (reset) {
+        communityPosts = d.posts;
+        renderFeed();
+      } else {
+        communityPosts = communityPosts.concat(d.posts);
+        appendCommunityPosts(d.posts);
+        renderFeedFooter();
+      }
+    })
+    .catch(function() {
+      communityLoading = false;
+      renderFeedFooter();
+    });
 }
 
 /* ---------- 创作者主页：点作者名字弹出 ---------- */
@@ -1776,7 +1940,7 @@ function openDetail(r) {
   } else {
     html += '<button type="button" class="y-btn-primary" id="u_' + r.id + '">↻ Remix 微调</button>';
   }
-  html += '<button type="button" class="y-btn-ghost" id="dp_' + r.id + '">▶ 试听这段</button>';
+  html += '<button type="button" class="y-btn-ghost" id="dp_' + r.id + '">' + ICON_PLAY + '<span>试听这段</span></button>';
   html += '<button type="button" class="y-btn-ghost" id="c_' + r.id + '">声音明信片</button>';
   html += "</div>";
 
@@ -1866,6 +2030,17 @@ function openDetail(r) {
 
 var sharedPreviewAudio = null;
 
+/* 试听按钮的图标：内联 SVG，颜色跟随文字（currentColor）。
+   不用 ▶ / ❚❚ 字符——华为浏览器会把它们当 emoji 渲染成蓝色小方块。 */
+var ICON_PLAY = '<svg class="i-tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a.9.9 0 0 0 1.4.7l10.4-6.5a.9.9 0 0 0 0-1.4L9.4 4.8A.9.9 0 0 0 8 5.5z"/></svg>';
+var ICON_PAUSE = '<svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.2v14H7zM13.8 5H17v14h-3.2z"/></svg>';
+
+/* 统一设置试听按钮：playing=true 显示暂停图标，否则显示播放图标 */
+function setPreviewBtn(btn, playing, label) {
+  if (!btn) return;
+  btn.innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + '<span>' + label + '</span>';
+}
+
 function stopCurrentPreview() {
   if (activePreviewAudio) {
     activePreviewAudio.pause();
@@ -1873,12 +2048,9 @@ function stopCurrentPreview() {
     activePreviewAudio = null;
   }
   if (activePreviewId) {
-    var oldBtn = document.getElementById("p_" + activePreviewId);
-    if (oldBtn) oldBtn.textContent = "▶ 试听";
-    var oldFkBtn = document.getElementById("fk_play_" + activePreviewId);
-    if (oldFkBtn) oldFkBtn.textContent = "试听";
-    var oldDpBtn = document.getElementById("dp_" + activePreviewId);
-    if (oldDpBtn) oldDpBtn.textContent = "▶ 试听这段";
+    setPreviewBtn(document.getElementById("p_" + activePreviewId), false, "试听");
+    setPreviewBtn(document.getElementById("fk_play_" + activePreviewId), false, "试听");
+    setPreviewBtn(document.getElementById("dp_" + activePreviewId), false, "试听这段");
     activePreviewId = "";
   }
 }
@@ -1909,19 +2081,16 @@ function preview(r) {
       activePreviewAudio = sharedPreviewAudio;
       if (typeof yBindAmbientAudio === "function") yBindAmbientAudio(activePreviewAudio);
       activePreviewId = r.id;
-      var btn = document.getElementById("p_" + r.id);
-      if (btn) btn.textContent = "暂停试听";
-      var fkBtn = document.getElementById("fk_play_" + r.id);
-      if (fkBtn) fkBtn.textContent = "暂停试听";
-      var dpBtn = document.getElementById("dp_" + r.id);
-      if (dpBtn) dpBtn.textContent = "❚❚ 暂停";
+      setPreviewBtn(document.getElementById("p_" + r.id), true, "暂停试听");
+      setPreviewBtn(document.getElementById("fk_play_" + r.id), true, "暂停试听");
+      setPreviewBtn(document.getElementById("dp_" + r.id), true, "暂停");
       activePreviewAudio.play().catch(function() {});
       ySetAmbient(r.img, r.accent, true);
       if (msg) msg.textContent = "正在试听「" + r.title + "」";
       activePreviewAudio.onended = function() {
-        if (btn) btn.textContent = "试听";
-        if (fkBtn) fkBtn.textContent = "试听";
-        if (dpBtn) dpBtn.textContent = "▶ 试听这段";
+        setPreviewBtn(document.getElementById("p_" + r.id), false, "试听");
+        setPreviewBtn(document.getElementById("fk_play_" + r.id), false, "试听");
+        setPreviewBtn(document.getElementById("dp_" + r.id), false, "试听这段");
         activePreviewId = "";
         activePreviewAudio = null;
         ySetAmbient(r.img, r.accent, false);
@@ -1984,7 +2153,7 @@ function openForksModal(r) {
             '<div class="fork-item-meta">by ' + yEscape(fk.author) + (fk.created_at ? ' · ' + yEscape(formatDateShort(fk.created_at)) : '') + '</div>' +
             diffHtml +
             '<div class="fork-item-acts">' +
-              '<button type="button" class="y-btn-ghost" id="fk_play_' + fk.id + '">试听</button>' +
+              '<button type="button" class="y-btn-ghost" id="fk_play_' + fk.id + '">' + ICON_PLAY + '<span>试听</span></button>' +
               (canRmx ? '<button type="button" class="y-btn-primary" id="fk_rmx_' + fk.id + '">↻ Remix 微调</button>' : '') +
             '</div>' +
           '</div>';
@@ -2037,15 +2206,8 @@ yGet("/api/me")
   })
   .catch(function() {});
 
-yGet("/api/community_posts")
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d && Array.isArray(d.posts)) {
-      communityPosts = d.posts;
-      renderFeed();
-    }
-  })
-  .catch(function() {});
+// 第一页按游标取，后面的交给「加载更多」按需续取
+loadCommunityPosts(true);
 
 yGet("/api/community_votes")
   .then(function(r) { return r.json(); })
