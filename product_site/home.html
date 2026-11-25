@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="/pwa-icon-192.png">
 <link rel="stylesheet" href="theme.css?v=12">
 <!-- 网络字体非阻塞加载：连不上/慢也不挡住首屏，系统宋体先顶上 -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap" media="print" onload="this.media='all'">
+<!-- 字体外链已移除：Google Fonts 在国内手机上常卡住，标题回退到系统宋体（见 --serif），零等待 -->
 <style>
 /* =========================================================
    夜息首页：整屏即场景 + 声音驱动的画面
@@ -938,6 +938,7 @@ body.lights-out .tabbar { opacity: 0 !important; pointer-events: none; transitio
     <a href="me.html">我的</a>
   </nav>
   <button class="v2-ghost" id="testBtn">听觉图鉴</button>
+  <a class="v2-ghost" href="install.html" style="text-decoration:none;display:inline-flex;align-items:center">装 App</a>
 </header>
 
 <main>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#07050d">
+<title>下载夜息 App</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;min-height:100%}
+  body{background:var(--y-bg);color:var(--y-text);font-family:var(--y-serif);
+    line-height:1.7;padding:0 0 60px}
+  .wrap{max-width:560px;margin:0 auto;padding:0 22px}
+  .head{text-align:center;padding:9vh 0 30px}
+  .moon{width:66px;height:66px;margin:0 auto 22px;border-radius:50%;
+    background:radial-gradient(circle at 36% 34%,#fbf3e6 0%,#e9cfa6 46%,rgba(233,183,131,.16) 74%,transparent 78%);
+    box-shadow:0 0 42px rgba(var(--y-warm-rgb),.3)}
+  .head h1{font-size:26px;font-weight:300;letter-spacing:.16em;margin:0 0 10px}
+  .head p{font-size:13px;color:var(--y-text-sub);margin:0;letter-spacing:.05em}
+
+  .card{position:relative;z-index:1;background:var(--y-glass);
+    border:1px solid var(--y-glass-border);border-radius:20px;
+    padding:28px 24px;margin:0 0 18px;backdrop-filter:blur(18px)}
+
+  .dl-btn{display:block;width:100%;text-align:center;text-decoration:none;
+    background:linear-gradient(135deg,rgba(var(--y-warm-rgb),.9),rgba(var(--y-warm-rgb),.7));
+    color:#1a1208;font-family:var(--y-serif);font-size:17px;font-weight:500;
+    letter-spacing:.12em;padding:17px;border-radius:14px;border:none;
+    box-shadow:0 10px 30px rgba(var(--y-warm-rgb),.22);cursor:pointer;
+    transition:transform .2s var(--y-ease),box-shadow .2s var(--y-ease)}
+  .dl-btn:active{transform:scale(.98)}
+  .dl-meta{text-align:center;font-size:12px;color:var(--y-text-muted);margin-top:12px}
+
+  .qr-row{display:flex;align-items:center;gap:18px;margin-top:26px;
+    padding-top:24px;border-top:1px solid var(--y-glass-border)}
+  .qr-box{flex:0 0 116px;width:116px;height:116px;background:#fff;
+    border-radius:12px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .qr-box img{width:100%;height:100%;display:block}
+  .qr-text{font-size:13px;color:var(--y-text-sub);line-height:1.8}
+  .qr-text b{color:var(--y-warm);font-weight:500}
+
+  .sec-title{display:flex;align-items:center;gap:10px;margin:34px 0 16px;
+    font-size:15px;font-weight:500;letter-spacing:.08em}
+  .sec-title .dot{width:8px;height:8px;border-radius:50%;background:var(--y-warm);
+    box-shadow:0 0 12px rgba(var(--y-warm-rgb),.6)}
+  .steps{margin:0;padding:0;list-style:none;counter-reset:step}
+  .steps li{position:relative;padding:0 0 0 38px;margin:0 0 16px;
+    font-size:13.5px;color:var(--y-text-sub)}
+  .steps li::before{counter-increment:step;content:counter(step);
+    position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;
+    background:rgba(var(--y-warm-rgb),.12);border:1px solid rgba(var(--y-warm-rgb),.3);
+    color:var(--y-warm);font-size:12px;display:flex;align-items:center;justify-content:center}
+  .steps b{color:var(--y-text);font-weight:500}
+  .note{font-size:12px;color:var(--y-text-muted);margin-top:14px;
+    padding:12px 14px;background:rgba(var(--y-warm-rgb),.05);
+    border-left:2px solid rgba(var(--y-warm-rgb),.4);border-radius:0 8px 8px 0}
+
+  .foot{text-align:center;font-size:11px;color:var(--y-text-muted);margin-top:38px}
+  .foot a{color:var(--y-text-sub);text-decoration:none}
+  @media(min-width:560px){.moon{margin-top:2vh}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="moon"></div>
+    <h1>夜息</h1>
+    <p>把一夜好眠，装进口袋</p>
+  </div>
+
+  <div class="card">
+    <a class="dl-btn" id="dlBtn" href="/download/yexi.apk" download="夜息.apk">下载安卓安装包</a>
+    <div class="dl-meta" id="dlMeta">Android 安装包 · 约 7 MB</div>
+    <div class="qr-row">
+      <div class="qr-box"><img src="/download/qr-download.png" alt="下载二维码"></div>
+      <div class="qr-text">手机打开相机或微信<br><b>扫一扫</b>这个二维码<br>就能直接下载安装</div>
+    </div>
+  </div>
+
+  <div class="sec-title"><span class="dot"></span>安卓手机怎么装</div>
+  <div class="card">
+    <ol class="steps">
+      <li>点上面的<b>下载安卓安装包</b>，等下载完成。</li>
+      <li>点开下载好的文件，系统可能提示<b>"未知来源应用"</b>，选择<b>允许</b>。</li>
+      <li>装好后打开"夜息"，就能用了。锁屏也能一直播放。</li>
+    </ol>
+    <div class="note">不同品牌的手机提示文字略有不同，看到"仍要安装""继续安装"之类的选项，选继续即可。安装包已通过腾讯云安全检测，请放心安装。</div>
+  </div>
+
+  <div class="sec-title"><span class="dot"></span>苹果 iPad / iPhone 怎么装</div>
+  <div class="card">
+    <ol class="steps">
+      <li>用 <b>Safari</b> 打开网址 <b>47.101.59.166:8000/m.html</b>（一定要 Safari）。</li>
+      <li>点底部/顶部的<b>分享按钮</b>（方框带向上箭头）。</li>
+      <li>下滑点<b>"添加到主屏幕"</b>，名字填"夜息"，点添加。</li>
+      <li>回到主屏幕，点"夜息"图标，就全屏打开了。</li>
+    </ol>
+    <div class="note">苹果的安装包需要开发者账号签名才能分发，目前先提供"添加到主屏幕"的方式，界面和功能一样。锁屏连续播放的稳定性不如安卓安装包。</div>
+  </div>
+
+  <div class="foot">夜息 · 说一句大白话，给你一段能入睡的声音<br><a href="/home.html">返回首页</a></div>
+</div>
+</body>
+</html>

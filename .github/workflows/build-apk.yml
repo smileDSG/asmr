@@ -45,3 +45,27 @@ jobs:
           name: yexi-debug-apk
           path: app/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 90
+
+      # 把 APK 直接传到服务器下载目录，让 install.html 的下载按钮有真实文件。
+      # APK 是编译产物不进 git，deploy.yml 的 git reset 不会碰这里的文件。
+      # 先在 CI 里改成简单文件名，避免路径层级数错。
+      - name: 准备上传文件
+        run: cp app/android/app/build/outputs/apk/debug/app-debug.apk yexi.apk
+
+      - name: 传 APK 到服务器下载目录
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          source: yexi.apk
+          target: /opt/yexi/product_site/download/
+          overwrite: true
+
+      - name: 确认服务器 APK
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: ls -lh /opt/yexi/product_site/download/
