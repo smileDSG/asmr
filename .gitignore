@@ -118,3 +118,6 @@ Thumbs.db
 
 # 即刻收动态付款二维码（每次下单覆盖）
 product_site/_pay_qr.png
+
+# 即刻收下单记录（含请求号，用于查交易号）
+data/nowpay_orders.json

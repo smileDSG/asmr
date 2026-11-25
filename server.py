@@ -1212,6 +1212,23 @@ class Handler(BaseHTTPRequestHandler):
                 + ("&product=" + urllib.parse.quote(qs.get("product", [""])[0])),
             )
             self.end_headers()
+        elif path == "/api/nowpay/trade-no":
+            # 查最近一笔购买的支付宝交易号——比赛提交表单要填这个
+            user = current_user(self)
+            if not user:
+                self.send_json({"need_login": True}, 401)
+                return
+            try:
+                r = nowpay.purchase_query()
+            except Exception as e:
+                self.send_json({"error": str(e)}, 500)
+                return
+            self.send_json({
+                "purchase_status": r.get("purchase_status", ""),
+                "trade_no": r.get("trade_no", ""),
+                "code": r.get("code", ""),
+                "msg": r.get("msg", ""),
+            })
         elif path == "/api/nowpay/quota":
             # 查即刻收次数余额；未登录按游客标识查（即刻收用 external_buyer_id 认人）
             user = current_user(self)

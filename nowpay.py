@@ -18,8 +18,10 @@
 
 import json
 import os
+import re
 import secrets
 import time
+import urllib.parse
 
 import auth_db
 
@@ -36,6 +38,11 @@ M_PURCHASE = "alipay.aipay.nowpaydirect.purchase.create"
 M_QUOTA_QUERY = "alipay.aipay.nowpaydirect.quota.query"
 M_QUOTA_VERIFY = "alipay.aipay.nowpaydirect.quota.verify"
 M_QUOTA_REFRESH = "alipay.aipay.nowpaydirect.quota.refresh"
+M_PURCHASE_QUERY = "alipay.aipay.nowpaydirect.purchase.query"
+
+# 本地保存每次下单的请求号——查交易号(purchase.query)要用原请求号，
+# 不然超过 30 分钟就查不到了。比赛提交要填支付宝交易号，靠它取。
+ORDERS_FILE = os.path.join(BASE, "data", "nowpay_orders.json")
 
 
 def load_config():
@@ -162,7 +169,41 @@ def purchase_create(user_id, product_key, sku_id=""):
         biz["callback_url"] = cb
     if sku_id:
         biz["sku_id"] = sku_id
-    return _call(M_PURCHASE, biz)
+    result = _call(M_PURCHASE, biz)
+    if str(result.get("code", "")) == "10000":
+        # 存下来，付完靠它查支付宝交易号（比赛要填的那个）
+        link_id = ""
+        purchase_url = str(result.get("purchase_url", ""))
+        m = re.search(r"purchaseLinkId=([^&]+)", purchase_url)
+        if m:
+            link_id = urllib.parse.unquote(m.group(1))
+        _save_order({
+            "out_request_no": biz["out_request_no"],
+            "out_product_id": out_product_id,
+            "external_buyer_id": str(user_id),
+            "sku_id": sku_id,
+            "purchase_link_id": link_id,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "qr_code": result.get("purchase_qr_code", ""),
+        })
+    return result
+
+
+def _save_order(rec):
+    """把一次下单的请求号存到本地，供以后查交易号。"""
+    try:
+        os.makedirs(os.path.dirname(ORDERS_FILE), exist_ok=True)
+        orders = []
+        if os.path.isfile(ORDERS_FILE):
+            with open(ORDERS_FILE, "r", encoding="utf-8") as f:
+                orders = json.load(f)
+        orders.append(rec)
+        # 只留最近 200 条，够比赛用了
+        orders = orders[-200:]
+        with open(ORDERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(orders, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print("[nowpay] 保存订单记录失败：" + str(e), flush=True)
 
 
 def _request_no(prefix):
@@ -218,3 +259,49 @@ def quota_refresh(user_id, product_key, out_request_no):
             "external_buyer_id": str(user_id),
         },
     )
+
+
+# ---------------- 7. 查支付宝交易号（比赛提交要用）----------------
+def purchase_query(rec=None):
+    """
+    查一笔购买是否成功，成功时返回支付宝交易号 trade_no。
+    rec 是 purchase_create 时保存的订单记录；不传就取最近一笔。
+    """
+    if rec is None:
+        rec = latest_order()
+    if not rec:
+        return {"error": "没有可查询的订单"}
+
+    biz = {
+        "out_product_id": rec.get("out_product_id", ""),
+        "external_buyer_id": rec.get("external_buyer_id", ""),
+    }
+    if rec.get("out_request_no"):
+        biz["out_request_no"] = rec["out_request_no"]
+    if rec.get("purchase_link_id"):
+        biz["purchase_link_id"] = rec["purchase_link_id"]
+    if rec.get("sku_id"):
+        biz["sku_id"] = rec["sku_id"]
+    return _call(M_PURCHASE_QUERY, biz)
+
+
+def latest_order():
+    """取最近一笔下单记录。"""
+    if not os.path.isfile(ORDERS_FILE):
+        return None
+    try:
+        with open(ORDERS_FILE, "r", encoding="utf-8") as f:
+            orders = json.load(f)
+        return orders[-1] if orders else None
+    except Exception:
+        return None
+
+
+def list_orders():
+    if not os.path.isfile(ORDERS_FILE):
+        return []
+    try:
+        with open(ORDERS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
