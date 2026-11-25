@@ -2,6 +2,7 @@
 # key 只在这个文件所在的服务端读取，绝不发给浏览器
 # 只用标准库 http.server，不装 Flask
 
+import gzip
 import json
 import hashlib
 import mimetypes
@@ -20,6 +21,7 @@ import 素材执行层 as executor
 import feedback_translate as ft
 import memory_system as memory
 import auth_db
+import rate_limit
 import input_guard
 import pay
 
@@ -34,7 +36,11 @@ def serve_static(handler, path):
     # 只服务 product_site 里的文件；API 路径不在这里处理
     if path == "/" or path == "":
         path = "/home.html"
-    rel = urllib.parse.unquote(path).lstrip("/")
+    # 拆出查询串（?v=12 这类版本号），缓存策略要看它。
+    # 注意：调用方传进来的 path 已经被 urlparse 剥过查询串了，
+    # 所以这里要从 handler.path 取原始的完整地址。
+    clean_path, _, query = handler.path.partition("?")
+    rel = urllib.parse.unquote(clean_path).lstrip("/")
     full = os.path.normpath(os.path.join(SITE_DIR, rel))
     # 防路径穿越：解析后必须仍在 SITE_DIR 里面
     if not full.startswith(os.path.abspath(SITE_DIR) + os.sep):
@@ -43,15 +49,52 @@ def serve_static(handler, path):
     if not os.path.isfile(full):
         handler.send_json({"error": "not found"}, 404)
         return
+    # 图片自动转 WebP（内容协商）：浏览器说支持 image/webp 且磁盘上有同名 .webp，
+    # 就发 WebP，体积比 JPG 省 40% 左右；不支持的浏览器照拿原 JPG，不用改一行前端代码。
+    # 转换脚本见 make_webp.py，改过原图后重跑一次即可。
+    accept_encoding = handler.headers.get("Accept-Encoding", "")
+    accept_type = handler.headers.get("Accept", "")
+    want_webp = "image/webp" in accept_type and full.lower().endswith((".jpg", ".jpeg", ".png"))
+    webp_path = os.path.splitext(full)[0] + ".webp"
+    if want_webp and os.path.isfile(webp_path):
+        full = webp_path
+
     with open(full, "rb") as f:
         body = f.read()
     ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
-    if ctype.startswith("text/") or "javascript" in ctype or "json" in ctype:
+    is_text = ctype.startswith("text/") or "javascript" in ctype or "json" in ctype \
+        or "svg" in ctype or "xml" in ctype
+    if is_text and "charset=" not in ctype:
         ctype += "; charset=utf-8"
+
+    # gzip：文本类资源压缩后再发，体积通常能省 60%~75%。
+    # 图片/音频本身已是压缩格式，不再压。客户端不支持就原样发。
+    if is_text and "gzip" in accept_encoding and len(body) > 512:
+        body = gzip.compress(body, compresslevel=6)
+        gzipped = True
+    else:
+        gzipped = False
+
+    # 缓存策略：
+    # - HTML 会随功能更新，短缓存（5 分钟），改版后最多等 5 分钟生效
+    # - 带 ?v= 版本号的 css/js 内容不会变，长缓存一年，改版靠换版本号
+    # - 其他图片/json 一小时
+    is_html = clean_path.endswith(".html") or clean_path == "/"
+    if is_html:
+        cache = "public, max-age=300"
+    elif query:
+        cache = "public, max-age=31536000, immutable"
+    else:
+        cache = "public, max-age=3600"
+
     handler.send_response(200)
     handler.send_header("Content-Type", ctype)
     handler.send_header("Content-Length", str(len(body)))
-    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("Cache-Control", cache)
+    # Vary 两个头都发：gzip 版/原始版、WebP 版/JPG 版不能缓存串味
+    handler.send_header("Vary", "Accept, Accept-Encoding")
+    if gzipped:
+        handler.send_header("Content-Encoding", "gzip")
     handler.end_headers()
     handler.wfile.write(body)
 
@@ -104,10 +147,9 @@ def require_login(handler, what):
 
 
 def self_send_need_login(handler, what):
-    handler.send_json({
-        "error": "登录后才能" + what + "，游客可以先听听看",
-        "need_login": True
-    }, 401)
+    handler.send_json(
+        {"error": "登录后才能" + what + "，游客可以先听听看", "need_login": True}, 401
+    )
 
 
 def get_user_memory(user):
@@ -118,9 +160,15 @@ def get_user_memory(user):
     if user:
         # 键名要和 memory_system 写入时一致，都带 .json，否则读出来永远是空
         return {
-            "preferences": auth_db.load_memory(user["id"], "preferences.json").get("counts", {}),
-            "good_count": len(auth_db.load_memory(user["id"], "good_recipes.json").get("recipes", [])),
-            "bad_count": len(auth_db.load_memory(user["id"], "bad_cases.json").get("cases", [])),
+            "preferences": auth_db.load_memory(user["id"], "preferences.json").get(
+                "counts", {}
+            ),
+            "good_count": len(
+                auth_db.load_memory(user["id"], "good_recipes.json").get("recipes", [])
+            ),
+            "bad_count": len(
+                auth_db.load_memory(user["id"], "bad_cases.json").get("cases", [])
+            ),
             "ear_profile": ear_profile,
         }
     pref = memory.read_file("preferences.json")
@@ -142,25 +190,29 @@ def _good_recipes_store(user):
 def _normalize_good_items(items):
     """把 [[path, weight], ...] 或 [{path, weight...}] 统一成前端要的对象格式。"""
     out = []
-    for it in (items or []):
+    for it in items or []:
         if isinstance(it, (list, tuple)) and len(it) >= 2:
             name = os.path.basename(str(it[0]))
             weight = it[1]
-            out.append({
-                "path": name,
-                "weight": round(float(weight), 3),
-                "pan": 0,
-                "mode": "loop",
-                "density": 0.4,
-            })
+            out.append(
+                {
+                    "path": name,
+                    "weight": round(float(weight), 3),
+                    "pan": 0,
+                    "mode": "loop",
+                    "density": 0.4,
+                }
+            )
         elif isinstance(it, dict) and it.get("path"):
-            out.append({
-                "path": os.path.basename(str(it["path"])),
-                "weight": round(float(it.get("weight", 0.5)), 3),
-                "pan": float(it.get("pan", 0)),
-                "mode": it.get("mode", "loop"),
-                "density": float(it.get("density", 0.4)),
-            })
+            out.append(
+                {
+                    "path": os.path.basename(str(it["path"])),
+                    "weight": round(float(it.get("weight", 0.5)), 3),
+                    "pan": float(it.get("pan", 0)),
+                    "mode": it.get("mode", "loop"),
+                    "density": float(it.get("density", 0.4)),
+                }
+            )
     return out
 
 
@@ -180,15 +232,19 @@ def _list_good_recipes(user, limit=20):
         if not items:
             continue
         say = str(r.get("say") or "").strip()
-        key_src = say + "|" + ",".join(i["path"] + ":" + str(i["weight"]) for i in items)
+        key_src = (
+            say + "|" + ",".join(i["path"] + ":" + str(i["weight"]) for i in items)
+        )
         key = hashlib.sha1(key_src.encode("utf-8")).hexdigest()[:12]
-        out.append({
-            "key": key,
-            "title": say[:36] or "AI 配的一段夜色",
-            "say": say,
-            "scene": r.get("scene") or "",
-            "items": items,
-        })
+        out.append(
+            {
+                "key": key,
+                "title": say[:36] or "AI 配的一段夜色",
+                "say": say,
+                "scene": r.get("scene") or "",
+                "items": items,
+            }
+        )
     # 最近收藏的排前面
     out.reverse()
     return out
@@ -238,7 +294,11 @@ def _get_user_agent_context(user):
             "scores": ep.get("scores", {}),
             "intent": ep.get("intent", {}),
         }
-    if isinstance(pref, dict) and isinstance(pref.get("counts"), dict) and pref["counts"]:
+    if (
+        isinstance(pref, dict)
+        and isinstance(pref.get("counts"), dict)
+        and pref["counts"]
+    ):
         ctx["preferences"] = pref["counts"]
     if isinstance(bad, dict) and isinstance(bad.get("cases"), list) and bad["cases"]:
         ctx["bad_feedbacks"] = [
@@ -257,16 +317,22 @@ def _get_user_agent_context(user):
                     avoid_tracks.append(fn)
         if avoid_tracks:
             ctx["avoid_tracks"] = avoid_tracks[:12]
-    if isinstance(good, dict) and isinstance(good.get("recipes"), list) and good["recipes"]:
+    if (
+        isinstance(good, dict)
+        and isinstance(good.get("recipes"), list)
+        and good["recipes"]
+    ):
         good_list = []
         for r in good["recipes"][-3:]:
             if not isinstance(r, dict):
                 continue
-            good_list.append({
-                "say": str(r.get("say") or "")[:60],
-                "scene": str(r.get("scene") or ""),
-                "tracks": _extract_track_names(r.get("items")),
-            })
+            good_list.append(
+                {
+                    "say": str(r.get("say") or "")[:60],
+                    "scene": str(r.get("scene") or ""),
+                    "tracks": _extract_track_names(r.get("items")),
+                }
+            )
         if good_list:
             ctx["good_recipes"] = good_list
     return ctx
@@ -318,6 +384,7 @@ def _normalize_track_spec(raw):
 
 def _load_stereo_resampled(path, sr):
     import numpy as np
+
     data, file_sr = executor.read_audio(path)
     if data.shape[1] == 1:
         data = np.repeat(data, 2, axis=1)
@@ -337,18 +404,19 @@ def _load_stereo_resampled(path, sr):
 def _calc_active_rms_gain(seg, sr=44100):
     # 按 0.25s 分块测有效 RMS，忽略近静音块，对齐到柔和睡前基准 (-32 dBFS / 0.025) 并保护峰值不削波
     import numpy as np
+
     if len(seg) == 0:
         return 1.0
     block = max(1, int(sr * 0.25))
     usable = (len(seg) // block) * block
     if usable >= block:
         blocks = seg[:usable].reshape(-1, block, 2)
-        rms_vals = np.sqrt(np.mean(blocks ** 2, axis=(1, 2)))
+        rms_vals = np.sqrt(np.mean(blocks**2, axis=(1, 2)))
     else:
-        rms_vals = np.array([float(np.sqrt(np.mean(seg ** 2)))], dtype="float32")
+        rms_vals = np.array([float(np.sqrt(np.mean(seg**2)))], dtype="float32")
     active = rms_vals[rms_vals >= 0.0002]
     if len(active) == 0:
-        active_rms = float(np.sqrt(np.mean(seg ** 2)))
+        active_rms = float(np.sqrt(np.mean(seg**2)))
     else:
         active_rms = float(np.median(active))
     if active_rms <= 1e-6:
@@ -363,6 +431,7 @@ def _calc_active_rms_gain(seg, sr=44100):
 def _render_intermittent_track(path, frames, sr, density):
     # 在总时长内生成确定性的自然偶发事件窗口（2.0s 淡入 + 2.5s 淡出，零音色篡改）
     import numpy as np
+
     data = _load_stereo_resampled(path, sr)
     out = np.zeros((frames, 2), dtype="float32")
     if len(data) == 0 or frames <= 0:
@@ -372,10 +441,14 @@ def _render_intermittent_track(path, frames, sr, density):
     n_buckets = max(1, len(data) // bucket_len)
     bucket_rms = []
     for idx in range(n_buckets):
-        chunk = data[idx * bucket_len:(idx + 1) * bucket_len]
-        bucket_rms.append(float(np.sqrt(np.mean(chunk ** 2))))
+        chunk = data[idx * bucket_len : (idx + 1) * bucket_len]
+        bucket_rms.append(float(np.sqrt(np.mean(chunk**2))))
     med_rms = float(np.median(bucket_rms)) if bucket_rms else 0.0
-    active_starts = [i * bucket_len for i, r in enumerate(bucket_rms) if r >= max(0.002, med_rms * 0.65)]
+    active_starts = [
+        i * bucket_len
+        for i, r in enumerate(bucket_rms)
+        if r >= max(0.002, med_rms * 0.65)
+    ]
     if not active_starts:
         active_starts = [0]
 
@@ -405,7 +478,7 @@ def _render_intermittent_track(path, frames, sr, density):
 
         src_start = rng.choice(active_starts)
         if src_start + actual_len <= len(data):
-            seg = data[src_start:src_start + actual_len].copy()
+            seg = data[src_start : src_start + actual_len].copy()
         else:
             part1 = data[src_start:]
             need = actual_len - len(part1)
@@ -421,7 +494,7 @@ def _render_intermittent_track(path, frames, sr, density):
             t_out = np.linspace(0.0, np.pi, fo, dtype="float32")[:, None]
             seg[-fo:] *= 0.5 * (1.0 + np.cos(t_out))
 
-        out[pos:pos + actual_len] += seg
+        out[pos : pos + actual_len] += seg
         gap_frames = int(sr * rng.uniform(min_gap_s, max_gap_s))
         pos += actual_len + gap_frames
 
@@ -432,6 +505,7 @@ def _render_intermittent_track(path, frames, sr, density):
 def render(items, seconds):
     # 按配比、恒定响度对齐与声像拼一段成品，零音质处理
     import numpy as np
+
     sr = 44100
     frames = int(sr * seconds)
     mix = np.zeros((frames, 2), dtype="float32")
@@ -462,7 +536,7 @@ def render(items, seconds):
 
         mix += seg * w
 
-    mix_rms = float(np.sqrt(np.mean(mix ** 2))) if len(mix) > 0 else 0.0
+    mix_rms = float(np.sqrt(np.mean(mix**2))) if len(mix) > 0 else 0.0
     if mix_rms > 1e-6:
         mix_gain = _clamp(0.025 / mix_rms, 0.25, 4.0)
         mix_peak = float(np.max(np.abs(mix)))
@@ -502,7 +576,7 @@ def find_relpath(name):
 
 # ---- 稳定播放：按配方内容落盘，URL 不随别的试听改变，供跨页面/场景卡使用 ----
 PLAY_DIR = os.path.join(OUT_DIR, "play")
-PLAY_SECONDS = 60   # 场景卡/播放页用 60 秒循环基底，前端 loop 播放
+PLAY_SECONDS = 60  # 场景卡/播放页用 60 秒循环基底，前端 loop 播放
 
 
 def play_file(items, seconds=PLAY_SECONDS):
@@ -512,12 +586,17 @@ def play_file(items, seconds=PLAY_SECONDS):
     for raw in items:
         spec = _normalize_track_spec(raw)
         base = os.path.basename(spec["rel"])
-        if spec["mode"] == "loop" and abs(spec["pan"]) < 1e-4 and abs(spec["density"] - 0.4) < 1e-4:
+        if (
+            spec["mode"] == "loop"
+            and abs(spec["pan"]) < 1e-4
+            and abs(spec["density"] - 0.4) < 1e-4
+        ):
             parts.append("%s:%.3f" % (base, spec["weight"]))
         else:
-            parts.append("%s:%.3f:%.2f:%s:%.2f" % (
-                base, spec["weight"], spec["pan"], spec["mode"], spec["density"]
-            ))
+            parts.append(
+                "%s:%.3f:%.2f:%s:%.2f"
+                % (base, spec["weight"], spec["pan"], spec["mode"], spec["density"])
+            )
     key = "v2|" + "|".join(parts)
     name = hashlib.md5(key.encode("utf-8")).hexdigest()[:16] + ".wav"
     path = os.path.join(PLAY_DIR, name)
@@ -559,13 +638,15 @@ def map_client_tracks(raw_items, allowed=None):
             continue
         if allowed is not None and rel not in allowed:
             continue
-        spec = _normalize_track_spec({
-            "rel": rel,
-            "weight": it.get("weight", 0),
-            "pan": it.get("pan", 0.0),
-            "mode": it.get("mode", "loop"),
-            "density": it.get("density", 0.4),
-        })
+        spec = _normalize_track_spec(
+            {
+                "rel": rel,
+                "weight": it.get("weight", 0),
+                "pan": it.get("pan", 0.0),
+                "mode": it.get("mode", "loop"),
+                "density": it.get("density", 0.4),
+            }
+        )
         if spec["weight"] > 0:
             mapped.append(spec)
     return mapped
@@ -612,48 +693,120 @@ _BUILTIN_RECIPES = {
         "title": "窗边夜雨",
         "author": "夜息",
         "items": [
-            {"path": "母带_城市夜雨_CC0.mp3", "weight": 0.6, "pan": 0.0, "mode": "loop", "density": 0.4},
-            {"path": "柔和雨.hq.mp3", "weight": 0.4, "pan": -0.2, "mode": "loop", "density": 0.4},
+            {
+                "path": "母带_城市夜雨_CC0.mp3",
+                "weight": 0.6,
+                "pan": 0.0,
+                "mode": "loop",
+                "density": 0.4,
+            },
+            {
+                "path": "柔和雨.hq.mp3",
+                "weight": 0.4,
+                "pan": -0.2,
+                "mode": "loop",
+                "density": 0.4,
+            },
         ],
     },
     "r2": {
         "title": "雨打树叶",
         "author": "夜息",
         "items": [
-            {"path": "备选_大雨打树叶_CC0.mp3", "weight": 0.7, "pan": -0.25, "mode": "loop", "density": 0.4},
-            {"path": "母带_城市夜雨_CC0.mp3", "weight": 0.3, "pan": 0.1, "mode": "loop", "density": 0.4},
+            {
+                "path": "备选_大雨打树叶_CC0.mp3",
+                "weight": 0.7,
+                "pan": -0.25,
+                "mode": "loop",
+                "density": 0.4,
+            },
+            {
+                "path": "母带_城市夜雨_CC0.mp3",
+                "weight": 0.3,
+                "pan": 0.1,
+                "mode": "loop",
+                "density": 0.4,
+            },
         ],
     },
     "r3": {
         "title": "远海放空",
         "author": "夜息",
         "items": [
-            {"path": "海浪_远海.hq.mp3", "weight": 0.7, "pan": 0.0, "mode": "loop", "density": 0.4},
-            {"path": "海浪_黑海.hq.mp3", "weight": 0.3, "pan": -0.22, "mode": "loop", "density": 0.4},
+            {
+                "path": "海浪_远海.hq.mp3",
+                "weight": 0.7,
+                "pan": 0.0,
+                "mode": "loop",
+                "density": 0.4,
+            },
+            {
+                "path": "海浪_黑海.hq.mp3",
+                "weight": 0.3,
+                "pan": -0.22,
+                "mode": "loop",
+                "density": 0.4,
+            },
         ],
     },
     "r4": {
         "title": "夏夜虫鸣",
         "author": "夜息",
         "items": [
-            {"path": "虫鸣.hq.mp3", "weight": 0.5, "pan": -0.4, "mode": "intermittent", "density": 0.55},
-            {"path": "夜风.hq.mp3", "weight": 0.5, "pan": 0.35, "mode": "loop", "density": 0.4},
+            {
+                "path": "虫鸣.hq.mp3",
+                "weight": 0.5,
+                "pan": -0.4,
+                "mode": "intermittent",
+                "density": 0.55,
+            },
+            {
+                "path": "夜风.hq.mp3",
+                "weight": 0.5,
+                "pan": 0.35,
+                "mode": "loop",
+                "density": 0.4,
+            },
         ],
     },
     "r5": {
         "title": "山涧溪流",
         "author": "夜息",
         "items": [
-            {"path": "溪流.hq.mp3", "weight": 0.8, "pan": -0.16, "mode": "loop", "density": 0.4},
-            {"path": "雨中低鸣.hq.mp3", "weight": 0.2, "pan": 0.16, "mode": "loop", "density": 0.4},
+            {
+                "path": "溪流.hq.mp3",
+                "weight": 0.8,
+                "pan": -0.16,
+                "mode": "loop",
+                "density": 0.4,
+            },
+            {
+                "path": "雨中低鸣.hq.mp3",
+                "weight": 0.2,
+                "pan": 0.16,
+                "mode": "loop",
+                "density": 0.4,
+            },
         ],
     },
     "r6": {
         "title": "雨夜远雷",
         "author": "夜息",
         "items": [
-            {"path": "母带_城市夜雨_CC0.mp3", "weight": 0.7, "pan": 0.0, "mode": "loop", "density": 0.4},
-            {"path": "远雷.hq.mp3", "weight": 0.35, "pan": 0.48, "mode": "intermittent", "density": 0.3},
+            {
+                "path": "母带_城市夜雨_CC0.mp3",
+                "weight": 0.7,
+                "pan": 0.0,
+                "mode": "loop",
+                "density": 0.4,
+            },
+            {
+                "path": "远雷.hq.mp3",
+                "weight": 0.35,
+                "pan": 0.48,
+                "mode": "intermittent",
+                "density": 0.3,
+            },
         ],
     },
 }
@@ -695,15 +848,18 @@ def _access(handler):
 
 
 def _quota_exhausted(handler, quota):
-    handler.send_json({
-        "ok": False,
-        "action": "quota",
-        "error": "今天的 " + str(FREE_DAILY_GENERATE) + " 次生成用完了",
-        "reply": "今天的免费次数用完了。想再生成，明天还有，或者解锁全库继续。",
-        "need_pay": True,
-        "quota": quota,
-        "products": pay.public_products(),
-    }, 402)
+    handler.send_json(
+        {
+            "ok": False,
+            "action": "quota",
+            "error": "今天的 " + str(FREE_DAILY_GENERATE) + " 次生成用完了",
+            "reply": "今天的免费次数用完了。想再生成，明天还有，或者解锁全库继续。",
+            "need_pay": True,
+            "quota": quota,
+            "products": pay.public_products(),
+        },
+        402,
+    )
 
 
 def _downgrade_tracks(tracks, intent, allowed):
@@ -723,19 +879,36 @@ def _downgrade_tracks(tracks, intent, allowed):
     return out
 
 
-def _format_public_post(post, viewer_user, voter_votes, fork_counts, vote_counts, force_unlock=False, profiles=None):
+def _format_public_post(
+    post,
+    viewer_user,
+    voter_votes,
+    fork_counts,
+    vote_counts,
+    force_unlock=False,
+    profiles=None,
+):
     pid = post["id"]
-    is_mine = bool(viewer_user and post.get("user_id") and viewer_user["id"] == post.get("user_id"))
+    is_mine = bool(
+        viewer_user and post.get("user_id") and viewer_user["id"] == post.get("user_id")
+    )
     starred_by_me = (pid, "borrow") in voter_votes
     policy = post.get("remix_policy") or "star_to_fork"
     if policy not in auth_db.VALID_REMIX_POLICIES:
         policy = "star_to_fork"
-    unlocked = bool(force_unlock or is_mine or policy == "open" or (policy == "star_to_fork" and starred_by_me))
+    unlocked = bool(
+        force_unlock
+        or is_mine
+        or policy == "open"
+        or (policy == "star_to_fork" and starred_by_me)
+    )
     items_raw = post.get("items") or []
     lead_path = os.path.basename(items_raw[0].get("path", "")) if items_raw else ""
     lead_meta = sound_catalog.BY_FILENAME.get(lead_path) if lead_path else None
     raw_counts = vote_counts.get(pid) or {}
-    counts = {k: max(0, int(raw_counts.get(k, 0) or 0)) for k in auth_db.ALLOWED_VOTE_TAGS}
+    counts = {
+        k: max(0, int(raw_counts.get(k, 0) or 0)) for k in auth_db.ALLOWED_VOTE_TAGS
+    }
 
     # 作者头像：有 user_id 且能查到 profile 就用预设头像，否则前端退回首字
     author_profile = None
@@ -804,28 +977,67 @@ def _infer_post_group(tracks):
 session = {"intent": None, "items": [], "say": ""}
 
 
+# CORS 白名单：只有这些来源能跨域调 API。
+# 正常访问走同源（前端和 API 同一个 server.py），根本不需要 CORS 头。
+# 只放行本地开发的 8080 端口；线上若换域名，在这里加一条即可。
+CORS_ALLOWED_ORIGINS = {
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+}
+
+
 class Handler(BaseHTTPRequestHandler):
+    def send_cors_headers(self):
+        """按白名单回 CORS 头。不在白名单就不回——浏览器会自动拦跨域请求。"""
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            # 同源请求不带 Origin，不需要 CORS 头，正常放行
+            return
+        if origin in CORS_ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Content-Type, Authorization, X-Yexi-Client",
+            )
+            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+
     def send_json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Yexi-Client")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_cors_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def check_rate_limit(self, path):
+        """全局限流：只管 /api/，静态页面和音频文件不限速。
+        支付宝 notify 回调要放行——它的服务器 IP 不固定，限流会误伤真实付款。"""
+        if not path.startswith("/api/"):
+            return True
+        if path == "/api/pay/notify":
+            return True
+        ok, cat, left = rate_limit.check(path, self)
+        if not ok:
+            self.send_json({
+                "error": "操作太频繁了，稍等一会儿再试",
+                "need_slow_down": True,
+            }, 429)
+            return False
+        return True
 
     def send_audio(self, data, sr):
         # 在线播放发 MP3：30 秒从 5.3MB 降到约 0.5MB，手机公网加载快一个数量级
         # 导出商用仍走 write_wav 保留无损，不受这里影响
         import io
+
         buf = io.BytesIO()
         fmt = executor.write_mp3(buf, data, sr)
         body = buf.getvalue()
         self.send_response(200)
         self.send_header("Content-Type", "audio/mpeg" if fmt == "mp3" else "audio/wav")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_cors_headers()
         self.send_header("Accept-Ranges", "none")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
@@ -833,21 +1045,24 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_OPTIONS(self):
+        # 预检请求：只在白名单来源时回 CORS 头，其它来源浏览器自己会拦
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Yexi-Client")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_cors_headers()
         self.end_headers()
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         print("[GET] " + path, flush=True)
+        if not self.check_rate_limit(path):
+            return
         if path == "/api/pay/products":
-            self.send_json({
-                "products": pay.public_products(),
-                "mode": pay.PAY_MODE,
-                "configured": pay.configured(),
-            })
+            self.send_json(
+                {
+                    "products": pay.public_products(),
+                    "mode": pay.PAY_MODE,
+                    "configured": pay.configured(),
+                }
+            )
         elif path == "/api/entitlement":
             user = current_user(self)
             if not user:
@@ -863,7 +1078,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header(
                 "Location",
-                "/pay_return.html?order=" + urllib.parse.quote(out_trade_no) + "&paid=" + paid
+                "/pay_return.html?order="
+                + urllib.parse.quote(out_trade_no)
+                + "&paid="
+                + paid,
             )
             self.end_headers()
         elif path == "/api/pay/query":
@@ -887,16 +1105,22 @@ class Handler(BaseHTTPRequestHandler):
                 if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
                     pay.grant(out_trade_no, "")
                     order = auth_db.get_order(out_trade_no)
-            self.send_json({
-                "status": order["status"],
-                "order": order,
-                "entitlements": auth_db.list_entitlements(user["id"]),
-            })
+            self.send_json(
+                {
+                    "status": order["status"],
+                    "order": order,
+                    "entitlements": auth_db.list_entitlements(user["id"]),
+                }
+            )
         elif path == "/api/me":
             user = current_user(self)
-            self.send_json({"logged_in": user is not None,
-                            "username": user["username"] if user else "",
-                            "profile": auth_db.get_profile(user["id"]) if user else None})
+            self.send_json(
+                {
+                    "logged_in": user is not None,
+                    "username": user["username"] if user else "",
+                    "profile": auth_db.get_profile(user["id"]) if user else None,
+                }
+            )
 
         elif path == "/api/profile":
             user = current_user(self)
@@ -911,7 +1135,9 @@ class Handler(BaseHTTPRequestHandler):
             if not require_login(self, "开启听觉图鉴"):
                 return
             prof = _recipe_store(current_user(self)).read("ear_profile.json")
-            valid = prof if isinstance(prof, dict) and prof.get("archetype_id") else None
+            valid = (
+                prof if isinstance(prof, dict) and prof.get("archetype_id") else None
+            )
             self.send_json({"ear_profile": valid})
         elif path == "/api/queue_state":
             user = current_user(self)
@@ -919,40 +1145,82 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"logged_in": False, "state": None})
                 return
             st = memory.DbStore(user["id"]).read("queue_state.json")
-            self.send_json({"logged_in": True, "state": st if isinstance(st, dict) else {}})
+            self.send_json(
+                {"logged_in": True, "state": st if isinstance(st, dict) else {}}
+            )
         elif path == "/api/catalog":
             full, owner, ent = _access(self)
-            self.send_json({
-                "total": len(sound_catalog.ALL_SOUNDS),
-                "items": sound_catalog.ALL_SOUNDS,
-                "free_count": len(sound_catalog.FREE_RELPATHS),
-                "premium_count": sound_catalog.PREMIUM_COUNT,
-                "unlocked": full,
-            })
+            self.send_json(
+                {
+                    "total": len(sound_catalog.ALL_SOUNDS),
+                    "items": sound_catalog.ALL_SOUNDS,
+                    "free_count": len(sound_catalog.FREE_RELPATHS),
+                    "premium_count": sound_catalog.PREMIUM_COUNT,
+                    "unlocked": full,
+                }
+            )
         elif path == "/api/community_votes":
             user = current_user(self)
             voter_key = _voter_key(self, user)
             voter_votes = auth_db.get_voter_votes(voter_key)
-            self.send_json({
-                "votes": auth_db.get_all_vote_counts(),
-                "my_votes": {f"{pid}:{tag}": True for pid, tag in voter_votes},
-            })
+            self.send_json(
+                {
+                    "votes": auth_db.get_all_vote_counts(),
+                    "my_votes": {f"{pid}:{tag}": True for pid, tag in voter_votes},
+                }
+            )
         elif path == "/api/community_posts":
             viewer = current_user(self)
             voter_key = _voter_key(self, viewer)
             voter_votes = auth_db.get_voter_votes(voter_key)
             fork_counts = auth_db.get_fork_counts_map()
             vote_counts = auth_db.get_all_vote_counts()
-            posts = auth_db.list_community_posts_raw(100)
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try:
+                page_size = int(qs.get("limit", ["20"])[0])
+            except (TypeError, ValueError):
+                page_size = 20
+            page_size = max(1, min(page_size, 50))
+            cursor = str(qs.get("cursor", [""])[0]).strip()
+            before_ts = before_id = None
+            if cursor:
+                cursor_parts = cursor.split("|", 1)
+                if len(cursor_parts) == 2:
+                    try:
+                        before_ts = float(cursor_parts[0])
+                        before_id = cursor_parts[1]
+                    except (TypeError, ValueError):
+                        before_ts = before_id = None
+            # 多取一条，只用来判断还有没有下一页，不返回给前端
+            rows = auth_db.list_community_posts_raw(page_size + 1, before_ts, before_id)
+            has_more = len(rows) > page_size
+            posts = rows[:page_size]
             comment_counts = auth_db.get_comment_counts()
             profiles = auth_db.get_profiles_map([p.get("user_id") for p in posts])
             formatted = [
-                _format_public_post(p, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles)
+                _format_public_post(
+                    p, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles
+                )
                 for p in posts
             ]
             for fp in formatted:
                 fp["comment_count"] = comment_counts.get(fp["id"], 0)
-            self.send_json({"posts": formatted})
+            next_cursor = None
+            if has_more and posts:
+                tail = posts[-1]
+                # repr 保证浮点往返不丢精度：四舍五入会把边界那条重复返回
+                next_cursor = "%s|%s" % (
+                    repr(float(tail.get("created_at") or 0)),
+                    tail.get("id") or "",
+                )
+            self.send_json(
+                {
+                    "posts": formatted,
+                    "has_more": has_more,
+                    "next_cursor": next_cursor,
+                    "limit": page_size,
+                }
+            )
         elif path == "/api/community_post":
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             pid = str(qs.get("id", [""])[0]).strip()
@@ -968,14 +1236,30 @@ class Handler(BaseHTTPRequestHandler):
             forks = auth_db.list_forks_of(pid)
             all_rows = [post] + forks
             profiles = auth_db.get_profiles_map([p.get("user_id") for p in all_rows])
-            self.send_json({
-                "ok": True,
-                "post": _format_public_post(post, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles),
-                "forks": [
-                    _format_public_post(f, viewer, voter_votes, fork_counts, vote_counts, profiles=profiles)
-                    for f in forks
-                ],
-            })
+            self.send_json(
+                {
+                    "ok": True,
+                    "post": _format_public_post(
+                        post,
+                        viewer,
+                        voter_votes,
+                        fork_counts,
+                        vote_counts,
+                        profiles=profiles,
+                    ),
+                    "forks": [
+                        _format_public_post(
+                            f,
+                            viewer,
+                            voter_votes,
+                            fork_counts,
+                            vote_counts,
+                            profiles=profiles,
+                        )
+                        for f in forks
+                    ],
+                }
+            )
         elif path == "/api/comments":
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             pid = str(qs.get("post_id", [""])[0]).strip()
@@ -1004,8 +1288,15 @@ class Handler(BaseHTTPRequestHandler):
                 [p.get("user_id") for p in hub["my_posts"]]
             )
             my_posts = [
-                _format_public_post(p, user, voter_votes, fork_counts, vote_counts,
-                                    force_unlock=True, profiles=hub_profiles)
+                _format_public_post(
+                    p,
+                    user,
+                    voter_votes,
+                    fork_counts,
+                    vote_counts,
+                    force_unlock=True,
+                    profiles=hub_profiles,
+                )
                 for p in hub["my_posts"]
             ]
 
@@ -1018,12 +1309,16 @@ class Handler(BaseHTTPRequestHandler):
                 p = auth_db.get_community_post_raw(pid)
                 if p:
                     starred_posts.append(
-                        _format_public_post(p, user, voter_votes, fork_counts, vote_counts)
+                        _format_public_post(
+                            p, user, voter_votes, fork_counts, vote_counts
+                        )
                     )
 
             store = _recipe_store(user)
             custom_obj = store.read("custom_recipes.json")
-            custom_recipes = custom_obj.get("recipes", []) if isinstance(custom_obj, dict) else []
+            custom_recipes = (
+                custom_obj.get("recipes", []) if isinstance(custom_obj, dict) else []
+            )
             if not isinstance(custom_recipes, list):
                 custom_recipes = []
             ep = store.read("ear_profile.json")
@@ -1032,19 +1327,21 @@ class Handler(BaseHTTPRequestHandler):
             # AI 配声里点过「收藏配方」的，列出来放进"我的"页
             ai_recipes = _list_good_recipes(user, limit=20)
 
-            self.send_json({
-                "logged_in": user is not None,
-                "username": user["username"] if user else "",
-                "stats": hub["stats"],
-                "my_posts": my_posts,
-                "starred_posts": starred_posts,
-                "starred_builtin_ids": starred_builtin_ids,
-                "custom_recipes": custom_recipes,
-                "ai_recipes": ai_recipes,
-                "ear_profile": valid_ep,
-                "profile": auth_db.get_profile(user["id"]) if user else None,
-                "memory": get_user_memory(user),
-            })
+            self.send_json(
+                {
+                    "logged_in": user is not None,
+                    "username": user["username"] if user else "",
+                    "stats": hub["stats"],
+                    "my_posts": my_posts,
+                    "starred_posts": starred_posts,
+                    "starred_builtin_ids": starred_builtin_ids,
+                    "custom_recipes": custom_recipes,
+                    "ai_recipes": ai_recipes,
+                    "ear_profile": valid_ep,
+                    "profile": auth_db.get_profile(user["id"]) if user else None,
+                    "memory": get_user_memory(user),
+                }
+            )
         elif path == "/api/recipes":
             store = _recipe_store(current_user(self))
             data_obj = store.read("custom_recipes.json")
@@ -1071,7 +1368,10 @@ class Handler(BaseHTTPRequestHandler):
                         if isinstance(it, (list, tuple)) and len(it) >= 2:
                             p, w = it[0], it[1]
                         elif isinstance(it, dict):
-                            p, w = it.get("path") or it.get("rel"), it.get("weight", 1.0)
+                            p, w = (
+                                it.get("path") or it.get("rel"),
+                                it.get("weight", 1.0),
+                            )
                         else:
                             continue
                         try:
@@ -1080,17 +1380,21 @@ class Handler(BaseHTTPRequestHandler):
                             weight = 1.0
                         if weight <= 0:
                             continue
-                        clean_items.append({
-                            "path": os.path.basename(str(p or "").strip()),
-                            "weight": round(weight, 3),
-                        })
+                        clean_items.append(
+                            {
+                                "path": os.path.basename(str(p or "").strip()),
+                                "weight": round(weight, 3),
+                            }
+                        )
                     if not clean_items:
                         continue
-                    goods.append({
-                        "say": str(r.get("say") or ""),
-                        "scene": r.get("scene") or "",
-                        "items": clean_items,
-                    })
+                    goods.append(
+                        {
+                            "say": str(r.get("say") or ""),
+                            "scene": r.get("scene") or "",
+                            "items": clean_items,
+                        }
+                    )
             self.send_json({"recipes": goods})
         elif path == "/api/audio":
             if not hasattr(self.server, "last_audio"):
@@ -1123,7 +1427,11 @@ class Handler(BaseHTTPRequestHandler):
                 body = f.read()
             total = len(body)
             ext = os.path.splitext(rel)[1].lower()
-            ctype = "audio/wav" if ext == ".wav" else ("audio/ogg" if ext == ".ogg" else "audio/mpeg")
+            ctype = (
+                "audio/wav"
+                if ext == ".wav"
+                else ("audio/ogg" if ext == ".ogg" else "audio/mpeg")
+            )
             rng = self.headers.get("Range", "")
             if rng.startswith("bytes=") and "," not in rng:
                 spec = rng[6:].strip()
@@ -1139,20 +1447,22 @@ class Handler(BaseHTTPRequestHandler):
                             end = int(parts[1]) if parts[1] != "" else total - 1
                         end = min(end, total - 1)
                         if 0 <= start <= end < total:
-                            chunk = body[start:end + 1]
+                            chunk = body[start : end + 1]
                             self.send_response(206)
                             self.send_header("Content-Type", ctype)
-                            self.send_header("Access-Control-Allow-Origin", "*")
+                            self.send_cors_headers()
                             self.send_header("Accept-Ranges", "bytes")
                             self.send_header("Cache-Control", "public, max-age=86400")
-                            self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+                            self.send_header(
+                                "Content-Range", f"bytes {start}-{end}/{total}"
+                            )
                             self.send_header("Content-Length", str(len(chunk)))
                             self.end_headers()
                             self.wfile.write(chunk)
                             return
                         else:
                             self.send_response(416)
-                            self.send_header("Access-Control-Allow-Origin", "*")
+                            self.send_cors_headers()
                             self.send_header("Content-Range", f"bytes */{total}")
                             self.end_headers()
                             return
@@ -1160,7 +1470,7 @@ class Handler(BaseHTTPRequestHandler):
                         pass
             self.send_response(200)
             self.send_header("Content-Type", ctype)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Cache-Control", "public, max-age=86400")
             self.send_header("Content-Length", str(total))
@@ -1181,7 +1491,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = f.read()
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -1193,6 +1503,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
         print("[POST] " + path, flush=True)
+        if not self.check_rate_limit(path):
+            return
 
         if path == "/api/pay/create":
             user = require_login(self, "购买")
@@ -1212,7 +1524,7 @@ class Handler(BaseHTTPRequestHandler):
             out_trade_no = form.get("out_trade_no", "")
             print(
                 "[pay] notify " + out_trade_no + " " + form.get("trade_status", ""),
-                flush=True
+                flush=True,
             )
             if not pay.verify_notify(form):
                 print("[pay] 验签没通过，丢弃", flush=True)
@@ -1240,19 +1552,25 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "订单不存在"}, 404)
                 return
             pay.grant(out_trade_no, "MOCK-" + out_trade_no)
-            self.send_json({
-                "ok": True,
-                "entitlements": auth_db.list_entitlements(user["id"]),
-            })
+            self.send_json(
+                {
+                    "ok": True,
+                    "entitlements": auth_db.list_entitlements(user["id"]),
+                }
+            )
 
         elif path == "/api/register":
             data = read_body(self)
-            ok, msg = auth_db.register(data.get("username", ""), data.get("password", ""))
+            ok, msg = auth_db.register(
+                data.get("username", ""), data.get("password", "")
+            )
             self.send_json({"ok": ok, "message": msg}, 200 if ok else 400)
 
         elif path == "/api/login":
             data = read_body(self)
-            user, msg = auth_db.login(data.get("username", ""), data.get("password", ""))
+            user, msg = auth_db.login(
+                data.get("username", ""), data.get("password", "")
+            )
             if not user:
                 self.send_json({"ok": False, "message": msg}, 401)
                 return
@@ -1306,10 +1624,12 @@ class Handler(BaseHTTPRequestHandler):
             db_store = memory.DbStore(user["id"])
             file_store = memory.FileStore()
             # 四类记忆分别合并
-            for name, key in [("preferences.json", "counts"),
-                              ("good_recipes.json", "recipes"),
-                              ("bad_cases.json", "cases"),
-                              ("custom_recipes.json", "recipes")]:
+            for name, key in [
+                ("preferences.json", "counts"),
+                ("good_recipes.json", "recipes"),
+                ("bad_cases.json", "cases"),
+                ("custom_recipes.json", "recipes"),
+            ]:
                 local = file_store.read(name)
                 remote = db_store.read(name)
                 merged = dict(remote)
@@ -1320,7 +1640,11 @@ class Handler(BaseHTTPRequestHandler):
                     merged["counts"] = counts
                 else:
                     items = list(merged.get(key, []))
-                    existing_ids = {it.get("id") for it in items if isinstance(it, dict) and it.get("id")}
+                    existing_ids = {
+                        it.get("id")
+                        for it in items
+                        if isinstance(it, dict) and it.get("id")
+                    }
                     for it in local.get(key, []):
                         it_id = it.get("id") if isinstance(it, dict) else None
                         if it_id and it_id in existing_ids:
@@ -1354,17 +1678,23 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # 边界门禁：只让声音需求进模型，越界问题直接给固定引导，不花模型调用
-            has_context = bool(data.get("current_tracks")) or bool(data.get("history")) or bool(data.get("initial_prompt"))
+            has_context = (
+                bool(data.get("current_tracks"))
+                or bool(data.get("history"))
+                or bool(data.get("initial_prompt"))
+            )
             allowed, guard_reason = input_guard.check(say, has_context=has_context)
             if not allowed:
                 print("[guard] 拦截 " + guard_reason + "：" + say[:40], flush=True)
                 reply, suggestions = input_guard.refusal(guard_reason)
-                self.send_json({
-                    "ok": False,
-                    "action": "blocked",
-                    "reply": reply,
-                    "suggestions": suggestions,
-                })
+                self.send_json(
+                    {
+                        "ok": False,
+                        "action": "blocked",
+                        "reply": reply,
+                        "suggestions": suggestions,
+                    }
+                )
                 return
 
             # 免费额度：每天 N 次，用完就地拦下；解锁全库后不限
@@ -1383,13 +1713,16 @@ class Handler(BaseHTTPRequestHandler):
                 seconds = 30
 
             clean_current = map_client_tracks(data.get("current_tracks") or [])
-            current_for_brain = [{
-                "path": os.path.basename(t["rel"]),
-                "weight": round(t["weight"], 2),
-                "pan": round(t["pan"], 2),
-                "mode": t["mode"],
-                "density": round(t["density"], 2),
-            } for t in clean_current]
+            current_for_brain = [
+                {
+                    "path": os.path.basename(t["rel"]),
+                    "weight": round(t["weight"], 2),
+                    "pan": round(t["pan"], 2),
+                    "mode": t["mode"],
+                    "density": round(t["density"], 2),
+                }
+                for t in clean_current
+            ]
 
             raw_hist = data.get("history")
             clean_hist = []
@@ -1425,32 +1758,38 @@ class Handler(BaseHTTPRequestHandler):
             ai_powered = source in ("Qwen3.8-Flash", "本地模型")
 
             if design.get("action") == "ask":
-                self.send_json({
-                    "ok": True,
-                    "action": "ask",
-                    "source": source,
-                    "ai_powered": ai_powered,
-                    "reply": design.get("reply", ""),
-                    "question": design.get("question", ""),
-                    "options": design.get("options", []),
-                    "collected": design.get("collected", {}),
-                    "intent": design.get("intent", {}),
-                    "reasoning": design.get("reasoning", []),
-                    "tracks": [],
-                    "used_profile": used_profile,
-                })
+                self.send_json(
+                    {
+                        "ok": True,
+                        "action": "ask",
+                        "source": source,
+                        "ai_powered": ai_powered,
+                        "reply": design.get("reply", ""),
+                        "question": design.get("question", ""),
+                        "options": design.get("options", []),
+                        "collected": design.get("collected", {}),
+                        "intent": design.get("intent", {}),
+                        "reasoning": design.get("reasoning", []),
+                        "tracks": [],
+                        "used_profile": used_profile,
+                    }
+                )
                 return
 
             role_notes = {}
             for raw_t in design.get("tracks") or []:
                 if isinstance(raw_t, dict) and raw_t.get("path"):
-                    role_notes[os.path.basename(str(raw_t["path"]))] = str(raw_t.get("role_note") or "")
+                    role_notes[os.path.basename(str(raw_t["path"]))] = str(
+                        raw_t.get("role_note") or ""
+                    )
 
             mapped_tracks = map_client_tracks(design.get("tracks") or [])
             if not mapped_tracks:
                 fallback_rel = find_relpath("母带_城市夜雨_CC0.mp3")
                 if fallback_rel:
-                    mapped_tracks = [_normalize_track_spec({"rel": fallback_rel, "weight": 0.72})]
+                    mapped_tracks = [
+                        _normalize_track_spec({"rel": fallback_rel, "weight": 0.72})
+                    ]
             quota_info = None
             if free_rels is not None:
                 # 免费用户：把配方里越权的付费素材换掉，然后才扣一次额度
@@ -1474,33 +1813,37 @@ class Handler(BaseHTTPRequestHandler):
             resp_tracks = []
             for t in mapped_tracks:
                 base = os.path.basename(t["rel"])
-                resp_tracks.append({
-                    "path": base,
-                    "weight": round(t["weight"], 2),
-                    "pan": round(t["pan"], 2),
-                    "mode": t["mode"],
-                    "density": round(t["density"], 2),
-                    "role_note": role_notes.get(base, ""),
-                })
+                resp_tracks.append(
+                    {
+                        "path": base,
+                        "weight": round(t["weight"], 2),
+                        "pan": round(t["pan"], 2),
+                        "mode": t["mode"],
+                        "density": round(t["density"], 2),
+                        "role_note": role_notes.get(base, ""),
+                    }
+                )
 
-            self.send_json({
-                "ok": True,
-                "action": "compose",
-                "source": source,
-                "ai_powered": ai_powered,
-                "title": design["title"],
-                "reply": design["reply"],
-                "final_prompt": design.get("final_prompt", ""),
-                "collected": design.get("collected", {}),
-                "intent": design["intent"],
-                "reasoning": design["reasoning"],
-                "tracks": resp_tracks,
-                "followups": design["followups"],
-                "used_profile": used_profile,
-                "audio": "/api/audio",
-                "full_access": full_access,
-                "quota": quota_info,
-            })
+            self.send_json(
+                {
+                    "ok": True,
+                    "action": "compose",
+                    "source": source,
+                    "ai_powered": ai_powered,
+                    "title": design["title"],
+                    "reply": design["reply"],
+                    "final_prompt": design.get("final_prompt", ""),
+                    "collected": design.get("collected", {}),
+                    "intent": design["intent"],
+                    "reasoning": design["reasoning"],
+                    "tracks": resp_tracks,
+                    "followups": design["followups"],
+                    "used_profile": used_profile,
+                    "audio": "/api/audio",
+                    "full_access": full_access,
+                    "quota": quota_info,
+                }
+            )
 
         elif path == "/api/generate":
             data = read_body(self)
@@ -1515,12 +1858,15 @@ class Handler(BaseHTTPRequestHandler):
             if not allowed:
                 print("[guard] 拦截 " + guard_reason + "：" + say[:40], flush=True)
                 reply, suggestions = input_guard.refusal(guard_reason)
-                self.send_json({
-                    "error": reply,
-                    "action": "blocked",
-                    "reply": reply,
-                    "suggestions": suggestions,
-                }, 400)
+                self.send_json(
+                    {
+                        "error": reply,
+                        "action": "blocked",
+                        "reply": reply,
+                        "suggestions": suggestions,
+                    },
+                    400,
+                )
                 return
 
             full_access, quota_owner, ent = _access(self)
@@ -1546,19 +1892,24 @@ class Handler(BaseHTTPRequestHandler):
             session["say"] = say
             mix, sr = render(items, seconds)
 
-            self.send_json({
-                "source": source,
-                "ai_powered": source in ("Qwen3.8-Flash", "本地模型"),
-                "scene": intent["scene"],
-                "scene_detail": intent["scene_detail"],
-                "mood": intent["mood"],
-                "warmth": intent["warmth"],
-                "dynamics": intent["dynamics"],
-                "avoid": intent.get("avoid", []),
-                "items": [{"path": os.path.basename(p), "weight": round(w, 2)}
-                          for p, w in items if w > 0],
-                "audio": "/api/audio"
-            })
+            self.send_json(
+                {
+                    "source": source,
+                    "ai_powered": source in ("Qwen3.8-Flash", "本地模型"),
+                    "scene": intent["scene"],
+                    "scene_detail": intent["scene_detail"],
+                    "mood": intent["mood"],
+                    "warmth": intent["warmth"],
+                    "dynamics": intent["dynamics"],
+                    "avoid": intent.get("avoid", []),
+                    "items": [
+                        {"path": os.path.basename(p), "weight": round(w, 2)}
+                        for p, w in items
+                        if w > 0
+                    ],
+                    "audio": "/api/audio",
+                }
+            )
             # 把当前音频缓存到内存，供 /api/audio 取
             self.server.last_audio = (mix, sr)
 
@@ -1602,13 +1953,17 @@ class Handler(BaseHTTPRequestHandler):
                 "title": shown,
             }
             if not post:
-                resp["items"] = [{
-                    "path": os.path.basename(t["rel"]),
-                    "weight": round(t["weight"], 2),
-                    "pan": round(t["pan"], 2),
-                    "mode": t["mode"],
-                    "density": round(t["density"], 2),
-                } for t in items if t["weight"] > 0]
+                resp["items"] = [
+                    {
+                        "path": os.path.basename(t["rel"]),
+                        "weight": round(t["weight"], 2),
+                        "pan": round(t["pan"], 2),
+                        "mode": t["mode"],
+                        "density": round(t["density"], 2),
+                    }
+                    for t in items
+                    if t["weight"] > 0
+                ]
             self.send_json(resp)
 
         elif path == "/api/recipes":
@@ -1620,18 +1975,28 @@ class Handler(BaseHTTPRequestHandler):
             if not tracks:
                 self.send_json({"error": "配方里没有可用素材"}, 400)
                 return
-            title = str(data.get("title") or "我的夜息配方").strip()[:40] or "我的夜息配方"
+            title = (
+                str(data.get("title") or "我的夜息配方").strip()[:40] or "我的夜息配方"
+            )
             rid = str(data.get("id") or "").strip()[:32]
             store = _recipe_store(current_user(self))
             data_obj = store.read("custom_recipes.json")
-            recipes = list(data_obj.get("recipes", [])) if isinstance(data_obj, dict) and isinstance(data_obj.get("recipes"), list) else []
-            clean_tracks = [{
-                "path": os.path.basename(t["rel"]),
-                "weight": round(t["weight"], 3),
-                "pan": round(t["pan"], 3),
-                "mode": t["mode"],
-                "density": round(t["density"], 3),
-            } for t in tracks]
+            recipes = (
+                list(data_obj.get("recipes", []))
+                if isinstance(data_obj, dict)
+                and isinstance(data_obj.get("recipes"), list)
+                else []
+            )
+            clean_tracks = [
+                {
+                    "path": os.path.basename(t["rel"]),
+                    "weight": round(t["weight"], 3),
+                    "pan": round(t["pan"], 3),
+                    "mode": t["mode"],
+                    "density": round(t["density"], 3),
+                }
+                for t in tracks
+            ]
             now = int(time.time())
             saved = None
             if rid:
@@ -1666,7 +2031,9 @@ class Handler(BaseHTTPRequestHandler):
             store = _recipe_store(current_user(self))
             data_obj = store.read("custom_recipes.json")
             old_list = data_obj.get("recipes", []) if isinstance(data_obj, dict) else []
-            recipes = [r for r in old_list if isinstance(r, dict) and r.get("id") != rid]
+            recipes = [
+                r for r in old_list if isinstance(r, dict) and r.get("id") != rid
+            ]
             store.write("custom_recipes.json", {"recipes": recipes})
             self.send_json({"ok": True, "recipes": recipes})
 
@@ -1684,7 +2051,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not removed and isinstance(r, dict):
                     items = _normalize_good_items(r.get("items"))
                     say = str(r.get("say") or "").strip()
-                    key_src = say + "|" + ",".join(i["path"] + ":" + str(i["weight"]) for i in items)
+                    key_src = (
+                        say
+                        + "|"
+                        + ",".join(i["path"] + ":" + str(i["weight"]) for i in items)
+                    )
                     k = hashlib.sha1(key_src.encode("utf-8")).hexdigest()[:12]
                     if k == want_key:
                         removed = True
@@ -1715,7 +2086,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             # 官方示例（r1-r6）不在 posts 表里，但允许真人给它留言
             saved = auth_db.add_comment(
-                pid, user["id"], auth_db.display_name_of(user["id"], user["username"]), body,
+                pid,
+                user["id"],
+                auth_db.display_name_of(user["id"], user["username"]),
+                body,
                 allow_builtin=(pid in _BUILTIN_RECIPES),
             )
             if saved is None:
@@ -1740,7 +2114,11 @@ class Handler(BaseHTTPRequestHandler):
             data = read_body(self)
             recipe_id = str(data.get("recipe_id") or "").strip()
             tag = str(data.get("tag") or "").strip()
-            if not recipe_id or len(recipe_id) > 32 or not re.match(r"^[A-Za-z0-9_-]+$", recipe_id):
+            if (
+                not recipe_id
+                or len(recipe_id) > 32
+                or not re.match(r"^[A-Za-z0-9_-]+$", recipe_id)
+            ):
                 self.send_json({"error": "无效配方编号"}, 400)
                 return
             if tag not in ALLOWED_EVAL_TAGS:
@@ -1801,16 +2179,21 @@ class Handler(BaseHTTPRequestHandler):
                 author = auth_db.display_name_of(user["id"], user["username"])
             else:
                 author = str(data.get("author_name") or "").strip()[:20] or "深夜旅人"
-            title = str(data.get("title") or "我的夜息声景").strip()[:36] or "我的夜息声景"
+            title = (
+                str(data.get("title") or "我的夜息声景").strip()[:36] or "我的夜息声景"
+            )
             story = str(data.get("story") or "").strip()[:120]
 
-            clean_tracks = [{
-                "path": os.path.basename(t["rel"]),
-                "weight": round(t["weight"], 3),
-                "pan": round(t["pan"], 3),
-                "mode": t["mode"],
-                "density": round(t["density"], 3),
-            } for t in tracks]
+            clean_tracks = [
+                {
+                    "path": os.path.basename(t["rel"]),
+                    "weight": round(t["weight"], 3),
+                    "pan": round(t["pan"], 3),
+                    "mode": t["mode"],
+                    "density": round(t["density"], 3),
+                }
+                for t in tracks
+            ]
 
             remix_raw = data.get("remix_of")
             remix_of = None
@@ -1824,12 +2207,31 @@ class Handler(BaseHTTPRequestHandler):
                 if parent_id:
                     parent = auth_db.get_community_post_raw(parent_id)
                     if parent:
-                        is_parent_owner = bool(user and parent.get("user_id") and user["id"] == parent.get("user_id"))
-                        if parent["remix_policy"] == "listen_only" and not is_parent_owner:
-                            self.send_json({"error": "原作者将此配方设为「仅限聆听」，暂不支持 Remix 改编"}, 403)
+                        is_parent_owner = bool(
+                            user
+                            and parent.get("user_id")
+                            and user["id"] == parent.get("user_id")
+                        )
+                        if (
+                            parent["remix_policy"] == "listen_only"
+                            and not is_parent_owner
+                        ):
+                            self.send_json(
+                                {
+                                    "error": "原作者将此配方设为「仅限聆听」，暂不支持 Remix 改编"
+                                },
+                                403,
+                            )
                             return
-                        if parent["remix_policy"] == "star_to_fork" and not is_parent_owner and (parent["id"], "borrow") not in voter_votes:
-                            self.send_json({"error": "请先点击「借我一晚」解锁该配方的微调权限"}, 403)
+                        if (
+                            parent["remix_policy"] == "star_to_fork"
+                            and not is_parent_owner
+                            and (parent["id"], "borrow") not in voter_votes
+                        ):
+                            self.send_json(
+                                {"error": "请先点击「借我一晚」解锁该配方的微调权限"},
+                                403,
+                            )
                             return
                         parent_post_id = parent["id"]
                         root_post_id = parent["root_post_id"] or parent["id"]
@@ -1856,48 +2258,56 @@ class Handler(BaseHTTPRequestHandler):
                         parent_items, clean_tracks, _track_label
                     )
                     if not diff_summary:
-                        self.send_json({
-                            "error": "和原配方几乎一样哦，微调一点声层或空间感再发布吧，或者直接点「借我一晚」收藏"
-                        }, 400)
+                        self.send_json(
+                            {
+                                "error": "和原配方几乎一样哦，微调一点声层或空间感再发布吧，或者直接点「借我一晚」收藏"
+                            },
+                            400,
+                        )
                         return
                 elif str(remix_raw.get("title") or "").strip():
                     remix_of = {
                         "id": parent_id,
                         "title": str(remix_raw.get("title") or "").strip()[:36],
-                        "author": str(remix_raw.get("author") or "夜息").strip()[:24] or "夜息",
+                        "author": str(remix_raw.get("author") or "夜息").strip()[:24]
+                        or "夜息",
                     }
 
             post_id = "u_" + secrets.token_hex(5)
             delete_token = secrets.token_hex(8)
             now = int(time.time())
-            created = auth_db.create_community_post({
-                "id": post_id,
-                "title": title,
-                "author": author,
-                "user_id": user["id"] if user else None,
-                "group": _infer_post_group(tracks),
-                "story": story,
-                "remix_of": remix_of,
-                "remix_policy": remix_policy,
-                "parent_post_id": parent_post_id,
-                "root_post_id": root_post_id,
-                "diff_summary": diff_summary,
-                "recipe_hash": auth_db.normalize_recipe_hash(clean_tracks),
-                "version": 1,
-                "items": clean_tracks,
-                "created_at": now,
-                "updated_at": now,
-                "delete_token": delete_token,
-            })
+            created = auth_db.create_community_post(
+                {
+                    "id": post_id,
+                    "title": title,
+                    "author": author,
+                    "user_id": user["id"] if user else None,
+                    "group": _infer_post_group(tracks),
+                    "story": story,
+                    "remix_of": remix_of,
+                    "remix_policy": remix_policy,
+                    "parent_post_id": parent_post_id,
+                    "root_post_id": root_post_id,
+                    "diff_summary": diff_summary,
+                    "recipe_hash": auth_db.normalize_recipe_hash(clean_tracks),
+                    "version": 1,
+                    "items": clean_tracks,
+                    "created_at": now,
+                    "updated_at": now,
+                    "delete_token": delete_token,
+                }
+            )
 
             formatted = _format_public_post(
                 created, user, voter_votes, {}, {}, force_unlock=True
             )
-            self.send_json({
-                "ok": True,
-                "post": formatted,
-                "delete_token": delete_token,
-            })
+            self.send_json(
+                {
+                    "ok": True,
+                    "post": formatted,
+                    "delete_token": delete_token,
+                }
+            )
 
         elif path == "/api/community_posts/policy":
             user = current_user(self)
@@ -1934,14 +2344,18 @@ class Handler(BaseHTTPRequestHandler):
             # 商用买断是「一次购买、永久可用」，只校验资格，不扣次数
             ent = auth_db.list_entitlements(user["id"]).get("commercial")
             if not ent or not ent.get("active"):
-                self.send_json({
-                    "error": "商用导出需要先购买商用授权",
-                    "need_pay": True,
-                    "product_id": "commercial",
-                    "products": pay.public_products(),
-                }, 402)
+                self.send_json(
+                    {
+                        "error": "商用导出需要先购买商用授权",
+                        "need_pay": True,
+                        "product_id": "commercial",
+                        "products": pay.public_products(),
+                    },
+                    402,
+                )
                 return
             import io
+
             data = read_body(self)
             raw_tracks = data.get("items")
             if raw_tracks is None:
@@ -1961,14 +2375,18 @@ class Handler(BaseHTTPRequestHandler):
             buf = io.BytesIO()
             executor.write_wav(buf, mix, sr)
             body = buf.getvalue()
-            cert_id = "YX-CC0-" + time.strftime("%Y%m%d") + "-" + secrets.token_hex(3).upper()
+            cert_id = (
+                "YX-CC0-" + time.strftime("%Y%m%d") + "-" + secrets.token_hex(3).upper()
+            )
 
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.send_header("Access-Control-Expose-Headers", "X-Yexi-Cert-Id")
             self.send_header("X-Yexi-Cert-Id", cert_id)
-            self.send_header("Content-Disposition", 'attachment; filename="yexi_commercial.wav"')
+            self.send_header(
+                "Content-Disposition", 'attachment; filename="yexi_commercial.wav"'
+            )
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -1980,12 +2398,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             ent = auth_db.list_entitlements(user["id"]).get("full")
             if not ent or not ent.get("active"):
-                self.send_json({
-                    "error": "导出需要先解锁全库",
-                    "need_pay": True,
-                    "product_id": "day3",
-                    "products": pay.public_products(),
-                }, 402)
+                self.send_json(
+                    {
+                        "error": "导出需要先解锁全库",
+                        "need_pay": True,
+                        "product_id": "day3",
+                        "products": pay.public_products(),
+                    },
+                    402,
+                )
                 return
             data = read_body(self)
             raw_tracks = data.get("items")
@@ -1997,16 +2418,24 @@ class Handler(BaseHTTPRequestHandler):
                 return
             mix, sr = render(items, 300)
             import io
+
             buf = io.BytesIO()
             executor.write_wav(buf, mix, sr)
             body = buf.getvalue()
-            cert_id = "YX-LOOP-" + time.strftime("%Y%m%d") + "-" + secrets.token_hex(3).upper()
+            cert_id = (
+                "YX-LOOP-"
+                + time.strftime("%Y%m%d")
+                + "-"
+                + secrets.token_hex(3).upper()
+            )
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.send_header("Access-Control-Expose-Headers", "X-Yexi-Cert-Id")
             self.send_header("X-Yexi-Cert-Id", cert_id)
-            self.send_header("Content-Disposition", 'attachment; filename="yexi_loop.wav"')
+            self.send_header(
+                "Content-Disposition", 'attachment; filename="yexi_loop.wav"'
+            )
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -2024,7 +2453,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "档案缺少可用声轨"}, 400)
                 return
 
-            raw_scores = data.get("scores") if isinstance(data.get("scores"), dict) else {}
+            raw_scores = (
+                data.get("scores") if isinstance(data.get("scores"), dict) else {}
+            )
             clean_scores = {}
             for sk in ("warmth", "crisp", "space", "nature", "immersion"):
                 try:
@@ -2033,7 +2464,9 @@ class Handler(BaseHTTPRequestHandler):
                     sv = 50
                 clean_scores[sk] = max(0, min(100, sv))
 
-            raw_intent = data.get("intent") if isinstance(data.get("intent"), dict) else {}
+            raw_intent = (
+                data.get("intent") if isinstance(data.get("intent"), dict) else {}
+            )
             clean_intent = {
                 "scene": str(raw_intent.get("scene") or "rain")[:24],
                 "mood": str(raw_intent.get("mood") or "sleep")[:24],
@@ -2041,17 +2474,22 @@ class Handler(BaseHTTPRequestHandler):
                 "dynamics": str(raw_intent.get("dynamics") or "steady")[:24],
             }
 
-            clean_tracks = [{
-                "path": os.path.basename(t["rel"]),
-                "weight": round(t["weight"], 3),
-                "pan": round(t["pan"], 3),
-                "mode": t["mode"],
-                "density": round(t["density"], 3),
-            } for t in tracks]
+            clean_tracks = [
+                {
+                    "path": os.path.basename(t["rel"]),
+                    "weight": round(t["weight"], 3),
+                    "pan": round(t["pan"], 3),
+                    "mode": t["mode"],
+                    "density": round(t["density"], 3),
+                }
+                for t in tracks
+            ]
 
             profile = {
                 "archetype_id": arch_id,
-                "archetype_name": str(data.get("archetype_name") or "夜息聆听者").strip()[:24],
+                "archetype_name": str(
+                    data.get("archetype_name") or "夜息聆听者"
+                ).strip()[:24],
                 "tagline": str(data.get("tagline") or "").strip()[:80],
                 "icon": str(data.get("icon") or "☾").strip()[:8],
                 "scores": clean_scores,
@@ -2072,7 +2510,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "游客队列仅保存在本地浏览器"}, 401)
                 return
             data = read_body(self)
-            raw_state = data.get("state") if isinstance(data.get("state"), dict) else data
+            raw_state = (
+                data.get("state") if isinstance(data.get("state"), dict) else data
+            )
             last_good = str(raw_state.get("last_good_id") or "").strip()[:48]
             active_ids = []
             for aid in (raw_state.get("active_ids") or [])[:12]:
@@ -2128,8 +2568,9 @@ class Handler(BaseHTTPRequestHandler):
                 mapped = map_client_items(data.get("items"))
                 saved_items = mapped if mapped else items
                 memory.save_preferences(intent, store)
-                memory.save_good_recipe(say_text, intent,
-                                        [[p, round(w, 3)] for p, w in saved_items], store)
+                memory.save_good_recipe(
+                    say_text, intent, [[p, round(w, 3)] for p, w in saved_items], store
+                )
                 self.send_json({"ok": True, "saved": "good"})
                 return
 
@@ -2139,20 +2580,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "还没有可调整的声轨"}, 400)
                 return
 
-            memory.save_bad_case(say_text, fb,
-                                 [[p, round(w, 3)] for p, w in items], store)
+            memory.save_bad_case(
+                say_text, fb, [[p, round(w, 3)] for p, w in items], store
+            )
             new_items, notes = ft.apply_feedback(fb, items)
             session["items"] = new_items
             mix, sr = render(new_items, seconds)
             self.server.last_audio = (mix, sr)
 
-            self.send_json({
-                "ok": True,
-                "notes": notes,
-                "items": [{"path": os.path.basename(p), "weight": round(w, 2)}
-                          for p, w in new_items if w > 0],
-                "audio": "/api/audio"
-            })
+            self.send_json(
+                {
+                    "ok": True,
+                    "notes": notes,
+                    "items": [
+                        {"path": os.path.basename(p), "weight": round(w, 2)}
+                        for p, w in new_items
+                        if w > 0
+                    ],
+                    "audio": "/api/audio",
+                }
+            )
 
         else:
             self.send_json({"error": "not found"}, 404)
@@ -2165,6 +2612,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(PLAY_DIR, exist_ok=True)
+    # 支付配置自检：缺 key 时喊出来，但不阻断听声服务
+    pay.startup_check()
     # 部署平台要求监听 0.0.0.0，本机开发这样也能访问
     print("夜息已启动：http://0.0.0.0:" + str(PORT), flush=True)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)

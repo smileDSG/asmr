@@ -29,7 +29,14 @@ jobs:
             git reset --hard origin/master
             echo ">>> 更新后："
             git log -1 --oneline
-            echo ">>> 重启服务："
+            echo ">>> 写支付环境配置（强制 prod，防白嫖）："
+            echo 'YEXI_PAY_MODE=prod' > /etc/yexi.env
+            if grep -q 'EnvironmentFile' /etc/systemd/system/yexi.service 2>/dev/null; then
+              echo "service 已引用 EnvironmentFile"
+            else
+              echo "警告：yexi.service 未引用 /etc/yexi.env，请在 [Service] 段加一行：EnvironmentFile=/etc/yexi.env"
+            fi
+            systemctl daemon-reload
             systemctl restart yexi
             sleep 3
             echo ">>> 服务状态："

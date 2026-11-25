@@ -22,7 +22,41 @@ import auth_db
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE, "pay_config.json")
 
-PAY_MODE = os.environ.get("YEXI_PAY_MODE", "mock").strip().lower()
+# 安全默认：sandbox（没配支付宝 key 就付不了，但绝不会白送权益）。
+# 本地路演要白嫖演示，必须显式设 YEXI_PAY_MODE=mock（见 start-local.bat）。
+# 线上由部署脚本写 /etc/yexi.env 设 YEXI_PAY_MODE=prod，下面会读。
+def _read_env_file(path):
+    """从 env 文件读一个 key——不依赖 systemd 是否配置了 EnvironmentFile。"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("YEXI_PAY_MODE="):
+                    return line.split("=", 1)[1].strip().strip("'\"")
+    except Exception:
+        pass
+    return ""
+
+
+MODE_FROM_ENV = os.environ.get("YEXI_PAY_MODE", "").strip().lower()
+MODE_FROM_FILE = _read_env_file("/etc/yexi.env") if os.path.exists("/etc/yexi.env") else ""
+PAY_MODE = (MODE_FROM_ENV or MODE_FROM_FILE or "sandbox").lower()
+VALID_MODES = ("mock", "sandbox", "prod")
+if PAY_MODE not in VALID_MODES:
+    raise RuntimeError("YEXI_PAY_MODE 只能是 mock / sandbox / prod，当前是：" + PAY_MODE)
+
+
+def startup_check():
+    """启动时检查支付配置。不崩服务（听声不能受影响），但把问题喊出来。"""
+    if PAY_MODE == "mock":
+        print("[pay 警告] 当前是 mock 模式：点一下就当付款成功，只能本地演示用，绝不能上公网！", flush=True)
+        return True
+    cfg = load_config()
+    if not cfg or not cfg.get("app_id"):
+        print("[pay 错误] " + PAY_MODE + " 模式缺少 pay_config.json 或 app_id，支付不可用（但听声正常）", flush=True)
+        return False
+    print("[pay] 支付模式：" + PAY_MODE + "，配置已就绪", flush=True)
+    return True
 
 # ---------------- 商品 ----------------
 # price_cents 用「分」，避免浮点。kind 是权益类型：
