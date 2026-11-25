@@ -63,6 +63,16 @@ def startup_check():
 #   full       解锁全部素材 + 不限次生成，按期到期
 #   commercial 商用买断，永久有效
 PRODUCTS = {
+    "trial3": {
+        "id": "trial3",
+        "name": "夜息 · 三次体验",
+        "short": "3 次 AI 生成 + 全库素材",
+        "price_cents": 290,
+        "kind": "full",
+        "quota": 3,
+        "days": 30,
+        "note": "先过三个晚上试试",
+    },
     "day3": {
         "id": "day3",
         "name": "夜息 · 三日全库",
@@ -248,9 +258,29 @@ def verify_notify(form):
 
 
 def check_notify(order, form):
-    # 验签通过还不够，金额和订单号都要对上，防止「付 1 分买 39.9 的货」
+    # 验签通过还不够：时间窗 + 金额 + 订单号都要对上。
+    # 时间窗挡「录一条真通知以后反复重放」；幂等由 grant() 的 mark_order_paid 保证。
     if not order:
         return False
+    # 防重放：notify_time 是支付宝必填字段，格式 yyyy-MM-dd HH:mm:ss（北京时间 UTC+8）。
+    # 关键：只对「还没入账」的订单查时间窗。因为支付宝合法重发可能在几小时后，
+    # 若一律按 5 分钟拒，遇到"首次通知没入账成功、靠重发补救"的场景会让用户付了钱没拿到权益。
+    # 已 paid 的订单直接放行——grant() 的幂等会挡住重复入账，不会多发权益。
+    if PAY_MODE != "mock" and order.get("status") != "paid":
+        notify_time = str(form.get("notify_time") or "").strip()
+        try:
+            from datetime import datetime, timedelta, timezone
+            tz8 = timezone(timedelta(hours=8))
+            sent = datetime.strptime(notify_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=tz8)
+            now = datetime.now(tz8)
+            # 允许前后 5 分钟：容忍网络延迟和轻微时钟偏差
+            delta = abs((now - sent).total_seconds())
+            if delta > 300:
+                print("[pay] 通知时间超出5分钟窗口（%.0f秒），丢弃" % delta, flush=True)
+                return False
+        except (ValueError, TypeError):
+            print("[pay] notify_time 格式不对，丢弃", flush=True)
+            return False
     status = str(form.get("trade_status", ""))
     if status not in ("TRADE_SUCCESS", "TRADE_FINISHED"):
         return False

@@ -168,6 +168,14 @@ function yPayBuy(productId, btn) {
         if (window.yNeedLogin) yNeedLogin("购买", location.pathname.split("/").pop());
         return;
       }
+      if (d.mode === "nowpay") {
+        // 即刻收：支付宝托管收银台。PC 显示二维码扫码，手机直接跳支付宝。
+        yPayPending = false;
+        btn.disabled = false;
+        btn.textContent = oldText;
+        yPayShowQr(d);
+        return;
+      }
       if (!d.pay_url) {
         yPayPending = false;
         btn.disabled = false;
@@ -183,4 +191,76 @@ function yPayBuy(productId, btn) {
       btn.textContent = oldText;
       alert("网络不稳，没连上收款服务");
     });
+}
+
+// 即刻收：显示付款二维码 + 轮询确认到账
+function yPayShowQr(d) {
+  yPayInjectStyle();
+  var old = document.getElementById("yQrMask");
+  if (old) old.parentNode.removeChild(old);
+
+  var isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  var mask = document.createElement("div");
+  mask.id = "yQrMask";
+  mask.className = "ypay-mask";
+  var body;
+  if (isMobile && d.pay_url) {
+    body = ''
+      + '<div class="ypay-title">正在打开支付宝…</div>'
+      + '<div class="ypay-sub" id="yQrStatus">如果没有自动跳转，点下面的按钮</div>'
+      + '<a class="ypay-btn" style="display:inline-block;text-decoration:none" href="' + d.pay_url + '">打开支付宝付款</a>';
+  } else {
+    body = ''
+      + '<div class="ypay-title">扫码付款</div>'
+      + '<div class="ypay-sub" id="yQrStatus">用支付宝扫下面的码，付 ¥2.90</div>'
+      + '<div style="text-align:center;margin:10px 0">'
+      + '<img src="' + (d.qr_code || "") + '" alt="付款二维码" style="width:200px;height:200px;border-radius:12px;background:#fff">'
+      + '</div>';
+  }
+  mask.innerHTML = ''
+    + '<div class="ypay-sheet">'
+    + '<div class="ypay-head"><div class="ypay-title" style="font-size:15px">夜息 · 三次体验</div>'
+    + '<button class="ypay-close" type="button" aria-label="关闭">×</button></div>'
+    + body
+    + '<div class="ypay-foot" id="yQrFoot">付完后这里会自动解锁，不用回来点</div>'
+    + '</div>';
+  document.body.appendChild(mask);
+  mask.querySelector(".ypay-close").onclick = function () {
+    if (yQrTimer) clearInterval(yQrTimer);
+    yPayClose2("yQrMask");
+  };
+
+  // 每 3 秒查一次余额，查到 >0 就说明到账了
+  var tries = 0;
+  if (yQrTimer) clearInterval(yQrTimer);
+  yQrTimer = setInterval(function () {
+    tries += 1;
+    yGet("/api/nowpay/quota").then(function (r) { return r.json(); })
+      .then(function (q) {
+        if (q.remaining > 0) {
+          clearInterval(yQrTimer);
+          var s = document.getElementById("yQrStatus");
+          var f = document.getElementById("yQrFoot");
+          if (s) s.textContent = "付款成功，已到账 " + q.remaining + " 次";
+          if (f) f.textContent = "正在解锁…";
+          yPayCache = null;
+          setTimeout(function () {
+            yPayClose2("yQrMask");
+            location.reload();
+          }, 900);
+        } else if (tries >= 40) {
+          clearInterval(yQrTimer);
+          var s2 = document.getElementById("yQrStatus");
+          if (s2) s2.textContent = "还没查到付款，请确认是否已完成支付";
+        }
+      })
+      .catch(function () {});
+  }, 3000);
+}
+
+var yQrTimer = null;
+
+function yPayClose2(id) {
+  var el = document.getElementById(id);
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }

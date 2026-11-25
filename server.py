@@ -1179,12 +1179,27 @@ class Handler(BaseHTTPRequestHandler):
         if not self.check_rate_limit(path):
             return
         if path == "/api/pay/products":
+            np_info = _nowpay_products_info()
+            if nowpay.ENABLED and np_info["enabled"]:
+                # 即刻收模式：只显示支付宝那边真实建好的商品，避免点了付不了
+                all_products = pay.public_products()
+                ids = set(p["id"] for p in np_info["products"])
+                shown = [p for p in all_products if p["id"] in ids]
+                self.send_json(
+                    {
+                        "products": shown,
+                        "mode": "nowpay",
+                        "configured": True,
+                        "nowpay": np_info,
+                    }
+                )
+                return
             self.send_json(
                 {
                     "products": pay.public_products(),
                     "mode": pay.PAY_MODE,
                     "configured": pay.configured(),
-                    "nowpay": _nowpay_products_info(),
+                    "nowpay": np_info,
                 }
             )
         elif path == "/api/nowpay/return":
