@@ -35,7 +35,7 @@ M_CONSULT = "alipay.aipay.nowpaydirect.purchase.consult"
 M_PURCHASE = "alipay.aipay.nowpaydirect.purchase.create"
 M_QUOTA_QUERY = "alipay.aipay.nowpaydirect.quota.query"
 M_QUOTA_VERIFY = "alipay.aipay.nowpaydirect.quota.verify"
-M_QUOTA_REFRESH = "alipay.aipay.nowpaydirect.quota-verify-query"
+M_QUOTA_REFRESH = "alipay.aipay.nowpaydirect.quota.refresh"
 
 
 def load_config():
