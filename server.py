@@ -1395,8 +1395,26 @@ class Handler(BaseHTTPRequestHandler):
                         before_id = cursor_parts[1]
                     except (TypeError, ValueError):
                         before_ts = before_id = None
-            # 多取一条，只用来判断还有没有下一页，不返回给前端
-            rows = auth_db.list_community_posts_raw(page_size + 1, before_ts, before_id)
+            # 多取一条，只用来判断还有没有下一页，不返回给前端。
+            # 兼容：旧版 auth_db 的这个函数只收 1 个参数（没有分页），
+            # 直接传 3 个会 TypeError 断连，整个广场就刷不出帖子。
+            # 先看函数签名支持几个参数，再决定怎么调（别用 try/except，
+            # 那样会把函数内部的 TypeError 也当成签名不匹配吞掉）。
+            import inspect
+            supports_cursor = "before_ts" in inspect.signature(
+                auth_db.list_community_posts_raw
+            ).parameters
+            if supports_cursor:
+                rows = auth_db.list_community_posts_raw(page_size + 1, before_ts, before_id)
+            else:
+                rows = auth_db.list_community_posts_raw(page_size + 1)
+                if cursor:
+                    # 旧版不支持游标分页，取回一批后在内存里过滤
+                    rows = [
+                        p for p in rows
+                        if (float(p.get("created_at") or 0), str(p.get("id") or ""))
+                        < (float(before_ts), str(before_id))
+                    ]
             has_more = len(rows) > page_size
             posts = rows[:page_size]
             comment_counts = auth_db.get_comment_counts()
