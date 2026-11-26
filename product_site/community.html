@@ -11,6 +11,111 @@
    卡片沿用首页的 4:5 满图卡；配比、听感、微调收进「详情」
    ========================================================= */
 
+/* ===== 每日推荐：三张卡，帮用户收窄，不是塞更多内容 ===== */
+.daily-rec {
+  margin: clamp(14px, 2.5vh, 24px) 0 20px;
+}
+.daily-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+.daily-head h2 {
+  margin: 0;
+  font-family: var(--y-serif);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--y-text);
+}
+.daily-head span {
+  font-size: 11px;
+  color: var(--y-text-muted);
+  letter-spacing: 0.06em;
+}
+.daily-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.daily-card {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  padding: 0;
+  color: var(--y-text);
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.35s ease, transform 0.25s ease;
+}
+.daily-card:hover { border-color: rgba(var(--y-warm-rgb), 0.45); transform: translateY(-2px); }
+.daily-card .dc-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.62);
+}
+.daily-card .dc-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7,5,13,.05) 20%, rgba(7,5,13,.88) 100%);
+}
+.daily-card .dc-body {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 9px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.daily-card .dc-kind {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: rgba(var(--y-warm-rgb), 0.92);
+}
+.daily-card .dc-title {
+  font-family: var(--y-serif);
+  font-size: 13px;
+  line-height: 1.35;
+  color: #fff8ef;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.daily-card .dc-why {
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(236, 228, 248, 0.72);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.daily-card .dc-play {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(7, 5, 13, 0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.daily-card .dc-play svg { width: 12px; height: 12px; fill: currentColor; }
+
 .sub-tabs {
   display: flex;
   align-items: center;
@@ -962,6 +1067,31 @@
 .cmt-send:hover { background: rgba(var(--y-warm-rgb), .32); }
 .cmt-hint { font-size: 11px; color: var(--y-text-muted); margin-top: 6px; }
 
+/* 分页：留言先只铺最新一页，更早的按需往上续 */
+.cmt-more {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.cmt-more:empty { display: none; }
+.cmt-more-btn {
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--y-text-sub);
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.cmt-more-btn:hover:not(:disabled) {
+  color: var(--y-text);
+  border-color: rgba(var(--y-warm-rgb), 0.4);
+}
+.cmt-more-btn:disabled { opacity: 0.5; cursor: default; }
+
 /* ---------- 创作者弹层 ---------- */
 .creator-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
 .creator-avatar {
@@ -1015,6 +1145,15 @@
     </div>
     <p class="ph-sub">听见别人为睡着调的声音。喜欢的，可以存一份给自己。</p>
   </header>
+
+  <!-- 每日推荐：3 张卡，每张来自真实数据并写明推荐理由 -->
+  <section class="daily-rec" id="dailyRec">
+    <div class="daily-head">
+      <h2>每日推荐</h2>
+      <span id="dailyDate"></span>
+    </div>
+    <div class="daily-cards" id="dailyCards"></div>
+  </section>
 
   <div class="sub-tabs" id="tabs"></div>
   <div id="feed"></div>
@@ -1468,6 +1607,118 @@ function deleteUserPost(r) {
     .catch(function() {});
 }
 
+/* ===== 每日推荐：三张卡，全部来自真实数据 =====
+   1) 猜你喜欢：读耳朵档案的偏好词，匹配配方标签；没有就用默认
+   2) 今日新声：按发布时间取最新的真人配方
+   3) 借走最多：按社区真实的 borrow 投票数取最高的
+   每张卡写明"为什么推给你"，不塞假数据。 */
+function renderDaily() {
+  var box = document.getElementById("dailyCards");
+  if (!box) return;
+
+  // 日期：每天换一批（用日期做种子，确定性轮换，无需后端）
+  var now = new Date();
+  var dateEl = document.getElementById("dailyDate");
+  if (dateEl) dateEl.textContent = (now.getMonth() + 1) + "月" + now.getDate() + "日";
+  var daySeed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+
+  var all = allFeedRecipes();
+  var userPosts = [];
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].isUserPost) userPosts.push(all[i]);
+  }
+
+  // 1) 猜你喜欢：读耳朵档案的偏好
+  var pref = "";
+  try {
+    var ep = JSON.parse(localStorage.getItem("yezi_ear_profile_v1") || "null");
+    if (ep) {
+      pref = ep.archetype_name || "";
+      if (!pref && ep.tags && ep.tags.length) pref = ep.tags[0];
+    }
+  } catch (e) {}
+  var guessPool = all.slice().sort(function(a, b) {
+    var sa = recipePrefScore(a, pref, daySeed);
+    var sb = recipePrefScore(b, pref, daySeed);
+    return sb - sa;
+  });
+  var guess = guessPool[0] || all[0];
+  var guessWhy = pref
+    ? "按你的耳朵偏好「" + pref + "」挑的"
+    : "第一次来？先听这段最稳的";
+
+  // 2) 今日新声：真人帖里最新的
+  var fresh = userPosts.slice().sort(function(a, b) {
+    return (b.created_at || 0) - (a.created_at || 0);
+  })[0];
+  if (!fresh) {
+    // 还没有真人帖时，用官方的按时段轮换，别编造用户
+    fresh = all[(daySeed) % all.length];
+  }
+  var freshWhy = fresh.isUserPost
+    ? "今晚刚有人发 · @" + (fresh.author || "夜息旅人")
+    : "今晚先听这段打底";
+
+  // 3) 借走最多：用真实的 borrow 计数
+  var borrowed = all.slice().sort(function(a, b) {
+    return getRecipeEvalCount(b.id, "borrow") - getRecipeEvalCount(a.id, "borrow");
+  });
+  var popular = borrowed[0] || all[0];
+  var popCount = getRecipeEvalCount(popular.id, "borrow");
+  var popWhy = popCount > 0
+    ? "这周被借走 " + popCount + " 次"
+    : "大家都在听的入门款";
+
+  var cards = [
+    { kind: "猜你喜欢", recipe: guess, why: guessWhy },
+    { kind: "今日新声", recipe: fresh, why: freshWhy },
+    { kind: "借走最多", recipe: popular, why: popWhy }
+  ];
+
+  var html = "";
+  for (var c = 0; c < cards.length; c++) {
+    var card = cards[c];
+    var r = card.recipe;
+    if (!r) continue;
+    var img = r.img || "img/moon-water.jpg";
+    html += '<button type="button" class="daily-card" data-id="' + yEscape(r.id) + '" data-kind="' + card.kind + '">' +
+      '<span class="dc-bg" style="background-image:url(' + img + ')"></span>' +
+      '<span class="dc-shade"></span>' +
+      '<span class="dc-play"><svg viewBox="0 0 24 24"><path d="M8 5.5v13a.6.6 0 0 0 .9.5l10.4-6.5a.6.6 0 0 0 0-1L8.9 5a.6.6 0 0 0-.9.5z"/></svg></span>' +
+      '<span class="dc-body">' +
+        '<span class="dc-kind">' + card.kind + '</span>' +
+        '<span class="dc-title">' + yEscape(r.title || "夜色") + '</span>' +
+        '<span class="dc-why">' + yEscape(card.why) + '</span>' +
+      '</span>' +
+      '</button>';
+  }
+  box.innerHTML = html;
+
+  var btns = box.querySelectorAll(".daily-card");
+  for (var b = 0; b < btns.length; b++) {
+    btns[b].onclick = function() {
+      var rid = this.getAttribute("data-id");
+      var rec = null;
+      for (var k = 0; k < all.length; k++) {
+        if (all[k].id === rid) { rec = all[k]; break; }
+      }
+      if (rec) openDetail(rec);
+    };
+  }
+}
+
+// 给"猜你喜欢"打分：标签/名字跟偏好词重合就加分，再用日期做微小扰动避免每天完全一样
+function recipePrefScore(r, pref, seed) {
+  var score = (getRecipeEvalCount(r.id, "borrow") || 0) * 0.1;
+  if (!pref) return score + ((seed + (r.id || "").length) % 7) * 0.01;
+  var text = (r.title || "") + " " + (r.group || "") + " " + (r.tags || []).join(" ") + " " + (r.say || "");
+  var chars = pref.replace(/[「」\s]/g, "").split("");
+  for (var i = 0; i < chars.length; i++) {
+    if (chars[i] && text.indexOf(chars[i]) >= 0) score += 1;
+  }
+  return score + ((seed + (r.id || "").length) % 7) * 0.01;
+}
+
 function renderTabs() {
   var box = document.getElementById("tabs");
   box.innerHTML = "";
@@ -1749,91 +2000,185 @@ function openCreator(author) {
     });
 }
 
-/* ---------- 短评论：默认折叠，点开才加载 ---------- */
-function renderCommentList(r, comments, box) {
-  var html = "";
-  if (comments.length === 0) {
-    html += '<div class="cmt-empty">还没有人留言。说一句你听着的感觉就好，比如「听着听着就睡过去了」。</div>';
-  } else {
-    html += '<div class="cmt-list">';
-    for (var i = 0; i < comments.length; i++) {
-      (function(c) {
-        var mine = !!c.is_mine || (loggedUsername && c.author === loggedUsername);
-        html += '<div class="cmt-item">' +
-          '<div class="cmt-head">' +
-            '<span class="cmt-who">' + yEscape(c.author) + '</span>' +
-            '<span class="cmt-time">' + yEscape(formatTimeAgo(c.created_at)) + '</span>' +
-            (mine ? '<button type="button" class="cmt-del" data-cid="' + yEscape(c.id) + '">删除</button>' : '') +
-          '</div>' +
-          '<div class="cmt-body">' + yEscape(c.body) + '</div>' +
-        '</div>';
-      })(comments[i]);
-    }
-    html += '</div>';
-  }
-  var canWrite = !yIsGuest();
-  if (canWrite) {
-    html += '<div class="cmt-form">' +
-      '<input class="cmt-input" id="cmtinput_' + r.id + '" maxlength="80" placeholder="说一句你的感觉（最多 80 字）">' +
-      '<button type="button" class="cmt-send" id="cmtsend_' + r.id + '">留言</button>' +
-    '</div>';
-  } else {
-    html += '<div class="cmt-hint">登录后可以留言 · <a href="auth.html?from=community.html" style="color:rgba(var(--y-warm-rgb),.85)">去登录</a></div>';
-  }
-  box.innerHTML = html;
+/* ---------- 短评论：默认折叠，点开先铺最新一页，更早的按需续取 ---------- */
+var COMMENT_PAGE_SIZE = 20;
+var commentState = {}; // post_id -> { cursor, hasMore, total, loaded, loading }
 
-  var sendBtn = document.getElementById("cmtsend_" + r.id);
-  if (sendBtn) {
-    sendBtn.onclick = function() {
-      var input = document.getElementById("cmtinput_" + r.id);
-      var body = input ? input.value.trim() : "";
-      if (!body) { input.focus(); return; }
-      sendBtn.disabled = true;
-      yPost("/api/comment", { post_id: r.id, body: body })
-        .then(function(res) { return res.json(); })
-        .then(function(d) {
-          sendBtn.disabled = false;
-          if (!d || !d.ok) {
-            box.insertAdjacentHTML("afterbegin", '<div class="cmt-hint">' + yEscape((d && d.error) || "留言失败") + '</div>');
-            return;
-          }
-          loadComments(r, box, true);
-        })
-        .catch(function() {
-          sendBtn.disabled = false;
-          box.insertAdjacentHTML("afterbegin", '<div class="cmt-hint">连接失败，请稍后再试</div>');
-        });
-    };
+function commentStateOf(pid) {
+  if (!commentState[pid]) {
+    commentState[pid] = { cursor: null, hasMore: false, total: 0, loaded: 0, loading: false };
   }
-  var dels = box.querySelectorAll(".cmt-del");
-  for (var di = 0; di < dels.length; di++) {
-    (function(btn) {
-      btn.onclick = function() {
-        var cid = btn.getAttribute("data-cid");
-        yPost("/api/comment/delete", { id: cid })
-          .then(function(res) { return res.json(); })
-          .then(function(d) { if (d && d.ok) loadComments(r, box, true); })
-          .catch(function() {});
-      };
-    })(dels[di]);
-  }
+  return commentState[pid];
 }
 
-function loadComments(r, box, keepOpen) {
-  yGet("/api/comments?post_id=" + encodeURIComponent(r.id))
+function buildCommentItem(r, c) {
+  var mine = !!c.is_mine || (loggedUsername && c.author === loggedUsername);
+  var el = document.createElement("div");
+  el.className = "cmt-item";
+  el.setAttribute("data-cid", c.id || "");
+  el.innerHTML =
+    '<div class="cmt-head">' +
+      '<span class="cmt-who">' + yEscape(c.author) + '</span>' +
+      '<span class="cmt-time">' + yEscape(formatTimeAgo(c.created_at)) + '</span>' +
+      (mine ? '<button type="button" class="cmt-del" data-cid="' + yEscape(c.id) + '">删除</button>' : '') +
+    '</div>' +
+    '<div class="cmt-body">' + yEscape(c.body) + '</div>';
+
+  var del = el.querySelector(".cmt-del");
+  if (del) {
+    del.onclick = function() {
+      del.disabled = true;
+      yPost("/api/comment/delete", { id: c.id })
+        .then(function(res) { return res.json(); })
+        .then(function(d) {
+          if (!d || !d.ok) { del.disabled = false; return; }
+          // 只摘掉这一条，不重载整页，免得把已经翻出来的更早留言弄丢
+          if (el.parentNode) el.parentNode.removeChild(el);
+          var st = commentStateOf(r.id);
+          st.loaded = Math.max(0, st.loaded - 1);
+          st.total = Math.max(0, st.total - 1);
+          updateCommentChrome(r);
+        })
+        .catch(function() { del.disabled = false; });
+    };
+  }
+  return el;
+}
+
+function setCommentMsg(r, text) {
+  var el = document.getElementById("cmtmsg_" + r.id);
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.display = text ? "block" : "none";
+}
+
+// 刷新「加载更早的留言」按钮、空态，以及详情里那颗「留言 · N 条」
+function updateCommentChrome(r) {
+  var st = commentStateOf(r.id);
+  r.comment_count = st.total;
+
+  var toggle = document.getElementById("cmttoggle_" + r.id);
+  if (toggle) toggle.textContent = "留言" + (st.total > 0 ? " · " + st.total + " 条" : "");
+
+  var empty = document.getElementById("cmtempty_" + r.id);
+  if (empty) empty.style.display = (st.loaded === 0 && !st.hasMore) ? "block" : "none";
+
+  var more = document.getElementById("cmtmore_" + r.id);
+  if (!more) return;
+  more.innerHTML = "";
+  if (!st.hasMore) return;
+  var left = Math.max(0, st.total - st.loaded);
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "cmt-more-btn";
+  btn.disabled = !!st.loading;
+  btn.textContent = st.loading ? "正在加载…" : ("加载更早的留言" + (left > 0 ? "（还有 " + left + " 条）" : ""));
+  btn.onclick = function() { loadMoreComments(r); };
+  more.appendChild(btn);
+}
+
+// 留言框骨架：顶部续取按钮，中间列表，底部输入框
+function renderCommentShell(r, box) {
+  var canWrite = !yIsGuest();
+  box.innerHTML =
+    '<div class="cmt-more" id="cmtmore_' + r.id + '"></div>' +
+    '<div class="cmt-list" id="cmtlist_' + r.id + '"></div>' +
+    '<div class="cmt-empty" id="cmtempty_' + r.id + '" style="display:none">' +
+      '还没有人留言。说一句你听着的感觉就好，比如「听着听着就睡过去了」。' +
+    '</div>' +
+    '<div class="cmt-hint" id="cmtmsg_' + r.id + '" style="display:none"></div>' +
+    (canWrite
+      ? '<div class="cmt-form">' +
+          '<input class="cmt-input" id="cmtinput_' + r.id + '" maxlength="80" placeholder="说一句你的感觉（最多 80 字）">' +
+          '<button type="button" class="cmt-send" id="cmtsend_' + r.id + '">留言</button>' +
+        '</div>'
+      : '<div class="cmt-hint">登录后可以留言 · <a href="auth.html?from=community.html" style="color:rgba(var(--y-warm-rgb),.85)">去登录</a></div>');
+
+  var sendBtn = document.getElementById("cmtsend_" + r.id);
+  if (!sendBtn) return;
+  sendBtn.onclick = function() {
+    var input = document.getElementById("cmtinput_" + r.id);
+    var body = input ? input.value.trim() : "";
+    if (!body) { input.focus(); return; }
+    sendBtn.disabled = true;
+    yPost("/api/comment", { post_id: r.id, body: body })
+      .then(function(res) { return res.json(); })
+      .then(function(d) {
+        sendBtn.disabled = false;
+        if (!d || !d.ok) {
+          setCommentMsg(r, (d && d.error) || "留言失败");
+          return;
+        }
+        if (input) input.value = "";
+        loadComments(r, box);   // 发完回到第一页，保证自己的新留言一定看得到
+      })
+      .catch(function() {
+        sendBtn.disabled = false;
+        setCommentMsg(r, "连接失败，请稍后再试");
+      });
+  };
+}
+
+function loadComments(r, box) {
+  commentState[r.id] = {
+    cursor: null,
+    hasMore: false,
+    // 先用卡片上已有的总数，免得按钮上的数字先掉一下再跳回来
+    total: typeof r.comment_count === "number" ? r.comment_count : 0,
+    loaded: 0,
+    loading: true
+  };
+  renderCommentShell(r, box);
+  updateCommentChrome(r);
+  fetchCommentPage(r, false);
+}
+
+function loadMoreComments(r) {
+  var st = commentStateOf(r.id);
+  if (st.loading || !st.hasMore) return;
+  st.loading = true;
+  updateCommentChrome(r);
+  fetchCommentPage(r, true);
+}
+
+function fetchCommentPage(r, older) {
+  var st = commentStateOf(r.id);
+  var url = "/api/comments?post_id=" + encodeURIComponent(r.id) + "&limit=" + COMMENT_PAGE_SIZE;
+  if (older && st.cursor) url += "&cursor=" + encodeURIComponent(st.cursor);
+
+  yGet(url)
     .then(function(res) { return res.json(); })
     .then(function(d) {
-      if (!d || !d.ok) return;
-      renderCommentList(r, d.comments || [], box);
-      // 本地计数同步：发完留言后卡片上的数字也跟着变
-      r.comment_count = (d.comments || []).length;
-      if (keepOpen) {
-        var toggle = document.getElementById("cmttoggle_" + r.id);
-        if (toggle) toggle.textContent = "留言 · " + r.comment_count + " 条";
+      st.loading = false;
+      if (!d || !d.ok) {
+        setCommentMsg(r, "留言暂时加载不出来，稍后再试");
+        updateCommentChrome(r);
+        return;
       }
+      st.hasMore = !!d.has_more;
+      st.cursor = d.next_cursor || null;
+      if (typeof d.total === "number") st.total = d.total;
+
+      var list = document.getElementById("cmtlist_" + r.id);
+      if (!list) return;
+      var items = Array.isArray(d.comments) ? d.comments : [];
+      var frag = document.createDocumentFragment();
+      for (var i = 0; i < items.length; i++) {
+        frag.appendChild(buildCommentItem(r, items[i]));
+      }
+      if (!older) {
+        list.innerHTML = "";
+        st.loaded = 0;
+      }
+      list.insertBefore(frag, older ? list.firstChild : null); // 更早的插在最前面
+      st.loaded += items.length;
+      setCommentMsg(r, "");
+      updateCommentChrome(r);
     })
     .catch(function() {
-      box.innerHTML = '<div class="cmt-empty">留言暂时加载不出来，稍后再试</div>';
+      st.loading = false;
+      setCommentMsg(r, "留言暂时加载不出来，稍后再试");
+      updateCommentChrome(r);
     });
 }
 
@@ -2195,6 +2540,7 @@ function useIt(r) {
 
 renderTabs();
 renderFeed();
+renderDaily();  // 先按本地缓存画出三卡，votes 回来后再刷新一次
 
 yGet("/api/me")
   .then(function(r) { return r.json(); })
@@ -2220,6 +2566,7 @@ yGet("/api/community_votes")
       myVoted = d.my_votes;
       saveLocalJson(VOTED_KEY, myVoted);
     }
+    renderDaily();
     renderFeed();
   })
   .catch(function() {});

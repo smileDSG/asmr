@@ -505,6 +505,7 @@ body.playing .orb::after {
 }
 .text-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; }
 .text-btn:hover { color: #ffffff; }
+.saved-link { text-decoration: none; }
 .text-btn.on { color: var(--warm); }
 
 .scroll-hint {
@@ -974,6 +975,8 @@ body.lights-out .tabbar { opacity: 0 !important; pointer-events: none; transitio
     <div class="hero-tools">
       <button class="text-btn" id="timerBtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span id="timerLabel">定时</span></button>
       <button class="text-btn" id="lightsBtn"><svg viewBox="0 0 24 24"><path d="M20 13.2A8 8 0 1 1 10.8 4a6.2 6.2 0 0 0 9.2 9.2z"/></svg><span>熄灯</span></button>
+      <!-- 想听自己存过的，一键进「我的-我喜欢的」，不用绕去DIY -->
+      <a class="text-btn saved-link" href="me.html#mine"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg><span>听我保存的</span></a>
     </div>
 
     <div class="ask-fallback">

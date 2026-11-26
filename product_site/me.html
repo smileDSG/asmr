@@ -149,6 +149,46 @@
   box-shadow:0 0 10px var(--y-warm);
 }
 
+/* —— 分类入口矩阵（我的页首层）：像音乐App那样按类进入独立列表 —— */
+.lib-entry-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;margin:18px 0 6px;
+}
+@media(min-width:620px){ .lib-entry-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+.lib-entry{
+  position:relative;text-align:left;cursor:pointer;
+  display:flex;flex-direction:column;gap:6px;
+  padding:16px 15px 14px;border-radius:16px;
+  border:1px solid rgba(255,255,255,.07);
+  background:linear-gradient(150deg,rgba(var(--y-warm-rgb),.09),rgba(255,255,255,.02));
+  color:var(--y-text);font-family:inherit;
+  transition:border-color .35s ease,background .35s ease,transform .25s ease;
+}
+.lib-entry:hover{border-color:rgba(var(--y-warm-rgb),.4);transform:translateY(-2px)}
+.lib-entry .le-ico{width:22px;height:22px;color:var(--y-warm)}
+.lib-entry .le-ico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.lib-entry .le-name{font-family:var(--y-serif);font-size:15px;letter-spacing:.08em}
+.lib-entry .le-sub{font-size:11px;line-height:1.5;color:var(--y-text-muted)}
+.lib-entry .le-count{
+  position:absolute;right:13px;top:14px;font-size:11px;
+  color:var(--y-warm);font-variant-numeric:tabular-nums;
+}
+.lib-entry.featured{grid-column:1 / -1;background:linear-gradient(120deg,rgba(var(--y-warm-rgb),.18),rgba(var(--y-warm-rgb),.04))}
+
+/* —— 独立列表视图：点分类后进入，带返回 —— */
+.list-view{display:none}
+.list-view.open{display:block}
+.list-view-head{
+  display:flex;align-items:center;gap:12px;margin:8px 0 4px;
+}
+.list-back{
+  background:rgba(255,255,255,.05);border:none;border-radius:999px;
+  color:var(--y-text-sub);font-family:inherit;font-size:12.5px;
+  padding:7px 14px;cursor:pointer;
+}
+.list-back:hover{color:#fff;background:rgba(var(--y-warm-rgb),.18)}
+.list-view-title{font-family:var(--y-serif);font-size:17px;letter-spacing:.1em;color:var(--y-text)}
+
 /* —— 小节标题：一行小字，不是卡片标题 —— */
 .sec-title{
   display:flex;align-items:baseline;justify-content:space-between;gap:12px;
@@ -403,13 +443,25 @@
     </div>
   </div>
 
-  <nav class="sub-tabs" id="subTabs">
+  <nav class="sub-tabs" id="subTabs" style="display:none">
     <button type="button" class="sub-tab sel" data-tab="mine">我的配方</button>
     <button type="button" class="sub-tab" data-tab="borrowed">借来的夜晚</button>
     <button type="button" class="sub-tab" data-tab="ear">耳朵档案</button>
   </nav>
 
-  <div id="tabContent"></div>
+  <!-- 首层：分类入口矩阵，像音乐App的「我的」 -->
+  <div id="libraryHome">
+    <div class="lib-entry-grid" id="libEntryGrid"></div>
+  </div>
+
+  <!-- 点分类后进入的独立列表视图 -->
+  <div class="list-view" id="listView">
+    <div class="list-view-head">
+      <button type="button" class="list-back" id="listBackBtn">‹ 返回我的</button>
+      <span class="list-view-title" id="listViewTitle">我的配方</span>
+    </div>
+    <div id="tabContent"></div>
+  </div>
 </div>
 
 <div class="tabbar"></div>
@@ -1226,13 +1278,111 @@ for (var si = 0; si < subTabs.length; si++) {
   };
 }
 
+/* ===== 分类入口矩阵 + 独立列表视图 =====
+   首页是分类入口，点进去才渲染列表，跟音乐App「我的」一样。
+   列表内容复用已有的 renderMineTab/renderBorrowedTab/renderEarTab，不重写。 */
+var LIB_ENTRIES = [
+  {
+    key: "mine", name: "我喜欢的", sub: "收藏的声音、配过的夜色", tab: "mine",
+    count: function(d) {
+      return (d.ai_recipes || []).length + (d.custom_recipes || []).length + (d.my_posts || []).length;
+    },
+    icon: '<svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg>'
+  },
+  {
+    key: "borrowed", name: "借来的夜晚", sub: "从别人那里借走的配方", tab: "borrowed",
+    count: function(d) { return (d.starred_posts || []).length + (d.starred_builtin_ids || []).length; },
+    icon: '<svg viewBox="0 0 24 24"><path d="M4 8h11v9H4zM15 11h3l2 3v3h-5z"/><circle cx="7" cy="18" r="1.5"/><circle cx="18" cy="18" r="1.5"/></svg>'
+  },
+  {
+    key: "ear", name: "耳朵档案", sub: "夜息慢慢记住的偏爱", tab: "ear",
+    count: function() { return ""; },
+    icon: '<svg viewBox="0 0 24 24"><path d="M8 18c-1.5-1.5-2-3-2-5a6 6 0 0 1 12 0c0 2-.5 3.5-2 5"/><path d="M10 13a2 2 0 0 1 4 0"/></svg>'
+  }
+];
+
+function renderLibraryHome() {
+  var box = document.getElementById("libEntryGrid");
+  if (!box) return;
+  var d = hubData || {};
+  var html = "";
+  for (var i = 0; i < LIB_ENTRIES.length; i++) {
+    var e = LIB_ENTRIES[i];
+    var n = e.count(d);
+    html += '<button type="button" class="lib-entry' + (i === 0 ? ' featured' : '') + '" data-key="' + e.key + '">' +
+      '<span class="le-ico">' + e.icon + '</span>' +
+      '<span class="le-count">' + (n !== "" ? n : "") + '</span>' +
+      '<span class="le-name">' + e.name + '</span>' +
+      '<span class="le-sub">' + e.sub + '</span>' +
+      '</button>';
+  }
+  // 第四块：去创作，不算"我的库"但常驻入口
+  html += '<button type="button" class="lib-entry" data-key="create">' +
+    '<span class="le-ico"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>' +
+    '<span class="le-name">去 DIY 创作</span>' +
+    '<span class="le-sub">挑声音，配一段属于自己的夜色</span>' +
+    '</button>';
+  box.innerHTML = html;
+
+  var btns = box.querySelectorAll(".lib-entry");
+  for (var j = 0; j < btns.length; j++) {
+    btns[j].onclick = function() {
+      var key = this.getAttribute("data-key");
+      if (key === "create") { location.href = "index.html"; return; }
+      openListView(key);
+    };
+  }
+}
+
+function openListView(key) {
+  var view = document.getElementById("listView");
+  var home = document.getElementById("libraryHome");
+  var title = document.getElementById("listViewTitle");
+  if (!view || !home) return;
+  home.style.display = "none";
+  view.classList.add("open");
+  currentTab = key;
+  for (var k = 0; k < subTabs.length; k++) {
+    subTabs[k].classList.toggle("sel", subTabs[k].getAttribute("data-tab") === key);
+  }
+  var names = { mine: "我喜欢的", borrowed: "借来的夜晚", ear: "耳朵档案" };
+  title.textContent = names[key] || "我的";
+  renderActiveTab();
+  location.hash = key;
+  window.scrollTo(0, 0);
+}
+
+function closeListView() {
+  var view = document.getElementById("listView");
+  var home = document.getElementById("libraryHome");
+  if (!view || !home) return;
+  view.classList.remove("open");
+  home.style.display = "block";
+  location.hash = "";
+  renderLibraryHome();
+  window.scrollTo(0, 0);
+}
+
+var listBack = document.getElementById("listBackBtn");
+if (listBack) listBack.onclick = closeListView;
+// 支持从首页用 me.html#mine 直接进列表
+window.addEventListener("hashchange", function() {
+  var h = (location.hash || "").replace("#", "");
+  if (h === "mine" || h === "borrowed" || h === "ear") openListView(h);
+  else if (!h && document.getElementById("listView").classList.contains("open")) closeListView();
+});
+
 function loadHub() {
   yGet("/api/me/hub")
     .then(function(r) { return r.json(); })
     .then(function(d) {
       hubData = d || {};
       renderProfileHeader();
-      renderActiveTab();
+      renderLibraryHome();
+      // 有 #mine/#borrowed/#ear 就直接进对应列表，否则停在分类首页
+      var h = (location.hash || "").replace("#", "");
+      if (h === "mine" || h === "borrowed" || h === "ear") openListView(h);
+      else renderActiveTab();
       // 支持用 #edit 直接打开编辑资料（方便从别处跳过来改）
       if (location.hash === "#edit" && hubData.logged_in) openProfileEditor();
     })
@@ -1249,6 +1399,7 @@ function loadHub() {
         memory: {}
       };
       renderProfileHeader();
+      renderLibraryHome();
       renderActiveTab();
     });
 }
@@ -1283,7 +1434,8 @@ function loadEntitlement() {
       var parts = [];
       if (full.expire_at) parts.push("有效期至 " + formatExpire(full.expire_at));
       else parts.push("永久有效");
-      parts.push("全部素材可用 · 生成不限次");
+      parts.push("全部素材可用");
+      parts.push(full.quota > 0 ? "还可生成 " + full.quota + " 段" : "生成不限次");
       descEl.textContent = parts.join(" · ");
       btnEl.style.display = commercial ? "none" : "";
       if (!commercial) btnEl.textContent = "续期 / 商用";
@@ -1302,7 +1454,7 @@ function loadEntitlement() {
   yGet("/api/nowpay/quota").then(function(r) { return r.json(); }).then(function(q) {
     if (!q.available || !(q.remaining > 0)) return;
     titleEl.textContent = "已购 " + q.total + " 次 · 剩余 " + q.remaining + " 次";
-    descEl.textContent = "3 段音频已到账，生成出声才扣、聊天追问不扣。";
+    descEl.textContent = "3 段音频 + 全库 30 天已到账，出声才扣、追问不扣。";
     btnEl.style.display = "";
     btnEl.textContent = "再加次数";
   }).catch(function() {});
