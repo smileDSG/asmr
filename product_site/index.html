@@ -45,6 +45,11 @@
     color: var(--y-text-muted);
     flex: 0 0 auto;
   }
+  .inline-link {
+    color: var(--y-warm);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(233, 183, 131, 0.4);
+  }
   .preset-scroll {
     flex: 1;
     min-width: 0;
@@ -1824,6 +1829,19 @@
       display: flex;
     }
   }
+
+  /* ===== 嵌入 DIY 顶部 tab 壳：只留创作内容，外壳由父页面提供 ===== */
+  body.embedded .top,
+  body.embedded .tabbar,
+  body.embedded .ambient-stage { display: none !important; }
+  body.embedded .wrap-wide { padding-top: 6px; padding-bottom: 26px; }
+  body.embedded .page-hero { min-height: 0; padding: 0 0 4px; }
+  body.embedded .page-hero > .ph-whisper,
+  body.embedded .page-hero > .ph-row,
+  body.embedded .page-hero > .ph-sub { display: none !important; }
+  body.embedded .ph-presets { margin-top: 6px; }
+  /* 嵌在 tab 壳里时抽屉别盖到声场节点，拉满也留出上面的声场 */
+  body.embedded #mobileDrawer { max-height: 45dvh; }
 </style>
 </head>
 <body>
@@ -1839,9 +1857,10 @@
 
   <header class="page-hero">
     <div class="ph-row">
-      <h1>DIY 声景工坊</h1>
+      <h1>做底层 · 声景工坊</h1>
+      <a class="ph-act" href="diy.html">DIY 切换 ›</a>
     </div>
-    <p class="ph-sub">叠几层声音，拖出远近左右。</p>
+    <p class="ph-sub">叠几层声音，拖出远近左右。想把几段声音拼成一整夜？<a class="inline-link" href="diy.html?pane=stitch">去「做拼接」›</a></p>
 
     <div class="ph-presets">
       <span class="ph-presets-label">模板</span>
@@ -1905,6 +1924,13 @@
             </div>
           </div>
           <div class="sleep-curve-hint" id="sleepCurveHint">前段保留采耳/翻书等轻情境，后段自动淡出纹理与点缀，仅留自然底幕伴眠</div>
+        </div>
+
+        <div class="sleep-curve-box" id="microMotionBox">
+          <div class="sleep-curve-row">
+            <button type="button" class="sleep-curve-toggle on" id="microMotionToggle" aria-pressed="true">∿ 声音起伏 · 开</button>
+          </div>
+          <div class="sleep-curve-hint" id="microMotionHint">各层音量极缓慢地轻微起伏，让声音不卡在同一句；不喜欢可以关掉</div>
         </div>
 
         <div class="studio-primary-actions">
@@ -2121,9 +2147,37 @@
 <script src="yexi_mixer.js?v=13"></script>
 <script>
 var API = YEXI_API;
+// 被 DIY 顶部 tab 壳嵌进来时，外壳（顶栏/底栏/背景）由父页面提供
+var IS_EMBEDDED = /[?&]embed=1/.test(location.search);
+if (IS_EMBEDDED) document.body.classList.add("embedded");
 initAuthBar("index.html");
-initYexiTabbar("index.html");
+if (!IS_EMBEDDED) initYexiTabbar("index.html");
 initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+if (IS_EMBEDDED) {
+  // 切到另一个 tab 时暂停这边，避免两页同时出声
+  window.addEventListener("message", function(e) {
+    if (!e.data || e.data.type !== "yexi-pause") return;
+    try { if (typeof setPlaying === "function") setPlaying(false); } catch (err) {}
+  });
+  // 把内容高度同步给父页面，让 iframe 不出现内部滚动条
+  function yPostHeight() {
+    try {
+      parent.postMessage({ type: "yexi-iframe-height", height: document.documentElement.scrollHeight }, "*");
+    } catch (e) {}
+  }
+  window.addEventListener("load", yPostHeight);
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "yexi-measure") yPostHeight();
+  });
+  if (window.ResizeObserver) {
+    new ResizeObserver(yPostHeight).observe(document.body);
+  } else {
+    setInterval(yPostHeight, 800);
+  }
+  setTimeout(yPostHeight, 120);
+  setTimeout(yPostHeight, 600);
+}
 
 var LOCAL_WORKS_KEY = "yezi_custom_recipes_v1";
 var POST_TOKENS_KEY = "yezi_my_post_tokens_v1";
@@ -2275,28 +2329,95 @@ var sleepCurveStartedAt = 0;
 var sleepCurveFadeFactor = 1.0;
 var sleepCurveTimer = null;
 
+// ===== 自动微变化：让各层音量缓慢、小幅、不同步地起伏，避免死板循环 =====
+// 只改播放权重，不碰音频素材本身（守铁律第二条）。
+var MICRO_KEY = "yexi_micro_motion_v1";
+var microMotionEnabled = true;
+var microMotionTimer = null;
+var microMotionStartAt = 0;
+try {
+  var savedMicro = localStorage.getItem(MICRO_KEY);
+  if (savedMicro !== null) microMotionEnabled = savedMicro === "1";
+} catch (e) {}
+
+// 每层一条独立正弦，周期取互质的秒数、相位错开，起伏永远不重合。
+// 幅度 ±6%：听感上是"活着"，不是"忽大忽小"。
+var MICRO_PERIODS = [47, 61, 73, 89, 101];
+function microFactor(index) {
+  if (!microMotionEnabled) return 1;
+  var period = MICRO_PERIODS[index % MICRO_PERIODS.length];
+  var phase = (index * 2.399963) % (Math.PI * 2);
+  var t = (Date.now() - microMotionStartAt) / 1000;
+  return 1 + 0.06 * Math.sin((t / period) * Math.PI * 2 + phase);
+}
+
 function effectiveTracksForMixer() {
-  if (!sleepCurveEnabled || sleepCurveFadeFactor >= 0.999) {
+  var needMicro = microMotionEnabled && microMotionStartAt > 0;
+  var needCurve = sleepCurveEnabled && sleepCurveFadeFactor < 0.999;
+  if (!needMicro && !needCurve) {
     return tracks;
   }
   var out = [];
   for (var i = 0; i < tracks.length; i++) {
     var tr = tracks[i];
+    var w = tr.weight * (needMicro ? microFactor(i) : 1);
     var layer = ySoundMeta(tr.path).layer || "texture";
-    if (layer === "bed") {
-      out.push(tr);
-    } else if (sleepCurveFadeFactor > 0.02) {
-      out.push({
-        path: tr.path,
-        weight: Math.max(0.01, tr.weight * sleepCurveFadeFactor),
-        pan: tr.pan,
-        mode: tr.mode,
-        density: tr.density
-      });
+    if (needCurve && layer !== "bed" && sleepCurveFadeFactor <= 0.02) {
+      continue;
     }
+    if (needCurve && layer !== "bed") {
+      w = w * sleepCurveFadeFactor;
+    }
+    out.push({
+      path: tr.path,
+      weight: Math.max(0.01, Math.min(1, w)),
+      pan: tr.pan,
+      mode: tr.mode,
+      density: tr.density
+    });
   }
   return out;
 }
+
+function tickMicroMotion() {
+  if (!microMotionEnabled || !isPlaying || usingFallback || !mixer) return;
+  syncEngine();
+}
+
+function startMicroMotionTicker() {
+  if (microMotionTimer) {
+    clearInterval(microMotionTimer);
+    microMotionTimer = null;
+  }
+  if (microMotionEnabled && isPlaying && !usingFallback && mixer) {
+    microMotionStartAt = Date.now();
+    microMotionTimer = setInterval(tickMicroMotion, 2000);
+  }
+}
+
+function setMicroMotion(on) {
+  microMotionEnabled = !!on;
+  try { localStorage.setItem(MICRO_KEY, microMotionEnabled ? "1" : "0"); } catch (e) {}
+  var btn = document.getElementById("microMotionToggle");
+  if (btn) {
+    btn.classList.toggle("on", microMotionEnabled);
+    btn.setAttribute("aria-pressed", microMotionEnabled ? "true" : "false");
+    btn.textContent = microMotionEnabled ? "∿ 声音起伏 · 开" : "∿ 声音起伏 · 关";
+  }
+  if (microMotionEnabled) {
+    startMicroMotionTicker();
+  } else {
+    if (microMotionTimer) { clearInterval(microMotionTimer); microMotionTimer = null; }
+    syncEngine();
+  }
+}
+
+(function initMicroMotionControl() {
+  var btn = document.getElementById("microMotionToggle");
+  if (!btn) return;
+  setMicroMotion(microMotionEnabled);
+  btn.onclick = function() { setMicroMotion(!microMotionEnabled); };
+})();
 
 function updateSleepCurveUI() {
   var btn = document.getElementById("sleepCurveToggle");
@@ -2435,6 +2556,7 @@ function setPlaying(next) {
     sleepCurveFadeFactor = 1.0;
     updateSleepCurveUI();
   }
+  startMicroMotionTicker();
   if (usingFallback && fallbackAudio) {
     if (isPlaying) {
       fallbackAudio.volume = masterVolume;
@@ -2586,7 +2708,8 @@ function stageMetrics() {
   var w = stageEl.clientWidth || 360;
   var h = stageEl.clientHeight || 276;
   var cx = w * 0.5;
-  var cy = h * 0.87;
+  // 嵌在 tab 壳里时底部抽屉会盖住舞台下沿，把节点整体上移，保证拉满抽屉时也能拖到
+  var cy = h * (IS_EMBEDDED && window.innerWidth <= 619 ? 0.62 : 0.87);
   var rMax = Math.min(w * 0.43, h * 0.72);
   var rMin = Math.max(30, Math.min(w * 0.13, 44));
   var maxAngle = (74 * Math.PI) / 180;

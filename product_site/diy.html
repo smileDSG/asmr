@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · DIY</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+  /* app 式布局：tab 壳固定顶部，内容区占满剩余屏幕自己滚。
+     这样嵌入视图里的 fixed 抽屉才是贴屏幕底，而不是贴一张很高的 iframe 底。 */
+  html, body { height: 100%; }
+  body {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 顶部 tab 壳：两个视图常驻，切换只改显示，不重新加载 */
+  .diy-top {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 5;
+    background: rgba(7, 5, 13, 0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .diy-top .wrap-wide { padding-bottom: 12px; }
+
+  .diy-seg {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    max-width: 100%;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .diy-seg-btn {
+    min-width: 104px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--y-text-muted);
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  .diy-seg-btn.on {
+    background: rgba(233,183,131,0.14);
+    color: var(--y-warm);
+  }
+  .diy-caption {
+    margin: 10px 0 2px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--y-text-muted);
+  }
+
+  .diy-panes {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .diy-pane {
+    position: absolute;
+    inset: 0;
+    display: none;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+  }
+  .diy-pane.on { display: block; }
+
+  @media (max-width: 420px) {
+    .diy-seg-btn { min-width: 92px; padding: 8px 12px; font-size: 12.5px; }
+  }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="diy-top">
+  <div class="wrap-wide">
+    <div class="top">
+      <a class="brand" href="home.html">
+        <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
+        <div class="name">夜息</div>
+      </a>
+    </div>
+    <div class="diy-seg" role="tablist" aria-label="DIY 功能切换">
+      <button type="button" class="diy-seg-btn on" data-pane="mix" role="tab" aria-selected="true" aria-controls="paneMix">做底层</button>
+      <button type="button" class="diy-seg-btn" data-pane="stitch" role="tab" aria-selected="false" aria-controls="paneStitch">做拼接</button>
+    </div>
+    <p class="diy-caption" id="diyCaption">叠几层声音，拖出远近左右。</p>
+  </div>
+</div>
+
+<div class="diy-panes" id="diyPanes">
+  <iframe id="paneMix" class="diy-pane on" src="index.html?embed=1" title="做底层" aria-hidden="false"></iframe>
+  <iframe id="paneStitch" class="diy-pane" src="stitch.html?embed=1" title="做拼接" aria-hidden="true"></iframe>
+</div>
+
+<div class="tabbar"></div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_shell.js"></script>
+<script src="yexi_catalog.js?v=44"></script>
+<script>
+initAuthBar("diy.html");
+initYexiTabbar("diy.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+var paneMix = document.getElementById("paneMix");
+var paneStitch = document.getElementById("paneStitch");
+var panes = { mix: paneMix, stitch: paneStitch };
+var captions = {
+  mix: "叠几层声音，拖出远近左右。",
+  stitch: "几段声音接成一整夜，点哪段就从哪段听。"
+};
+var currentPane = "mix";
+
+function switchPane(name) {
+  if (!panes[name]) return;
+  if (name !== currentPane) {
+    // 离开的那个先停声，避免两个视图同时出声
+    try { panes[currentPane].contentWindow.postMessage({ type: "yexi-pause" }, "*"); } catch (e) {}
+    currentPane = name;
+    for (var k in panes) {
+      if (!Object.prototype.hasOwnProperty.call(panes, k)) continue;
+      panes[k].classList.toggle("on", k === name);
+      panes[k].setAttribute("aria-hidden", k === name ? "false" : "true");
+    }
+    var allBtns = document.querySelectorAll(".diy-seg-btn");
+    for (var i = 0; i < allBtns.length; i++) {
+      var on = allBtns[i].getAttribute("data-pane") === name;
+      allBtns[i].classList.toggle("on", on);
+      allBtns[i].setAttribute("aria-selected", on ? "true" : "false");
+    }
+    document.getElementById("diyCaption").textContent = captions[name];
+    try { history.replaceState(null, "", "diy.html?pane=" + name); } catch (e) {}
+    // 布局是壳固定 + 视图内部滚动，所以滚回顶要滚 iframe 自己
+    try { panes[name].contentWindow.scrollTo(0, 0); } catch (e) {}
+  }
+  // 重新量一次高度（刚显示出来时 iframe 尺寸可能刚变化）
+  try { panes[name].contentWindow.postMessage({ type: "yexi-measure" }, "*"); } catch (e) {}
+}
+
+var segBtns = document.querySelectorAll(".diy-seg-btn");
+for (var b = 0; b < segBtns.length; b++) {
+  segBtns[b].onclick = function() { switchPane(this.getAttribute("data-pane")); };
+}
+
+// 视图高度现在由 CSS 撑满剩余屏幕，不再按内容长高，
+// 否则 iframe 比屏幕还高，里面的 fixed 抽屉就会飘在半空、盖住声场。
+// 子页面报上来的高度忽略即可。
+
+paneMix.addEventListener("load", function() {
+  try { paneMix.contentWindow.postMessage({ type: "yexi-measure" }, "*"); } catch (e) {}
+});
+paneStitch.addEventListener("load", function() {
+  try { paneStitch.contentWindow.postMessage({ type: "yexi-measure" }, "*"); } catch (e) {}
+});
+
+// ?pane=stitch 可直接落在做拼接
+var wanted = new URLSearchParams(location.search).get("pane");
+if (wanted === "stitch") switchPane("stitch");
+</script>
+</body>
+</html>

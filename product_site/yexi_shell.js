@@ -13,7 +13,7 @@ function initYexiTabbar(activePage) {
       svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>'
     },
     {
-      href: "index.html",
+      href: "diy.html",
       label: "DIY",
       svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M11 16v4"/></svg>'
     },
@@ -29,12 +29,16 @@ function initYexiTabbar(activePage) {
     }
   ];
 
+  // 做底层(index.html)和做拼接(stitch.html)都算 DIY 这一栏
+  var active = activePage;
+  if (active === "index.html" || active === "stitch.html") active = "diy.html";
+
   // 1. 移动端底部悬浮导航（桌面端由 theme.css 隐藏）
   var html = "";
   var navHtml = "";
   for (var i = 0; i < tabs.length; i++) {
     var t = tabs[i];
-    var on = activePage === t.href ? ' class="on"' : "";
+    var on = active === t.href ? ' class="on"' : "";
     html += '<a href="' + t.href + '"' + on + '><span class="ti">' + t.svg + '</span>' + t.label + "</a>";
     navHtml += '<a href="' + t.href + '"' + on + '>' + t.label + "</a>";
   }

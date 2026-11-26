@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 做拼接</title>
+<link rel="stylesheet" href="theme.css?v=12">
+<style>
+  .card {
+    background: var(--y-glass);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: none;
+    border-radius: 22px;
+    padding: 24px;
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.44);
+  }
+  .stitch-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 6px;
+  }
+  @media (min-width: 780px) {
+    .stitch-layout { grid-template-columns: 1.12fr 0.88fr; gap: 20px; align-items: start; }
+  }
+  .stitch-main {
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .player-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .player-info { flex: 1; min-width: 0; }
+  .stitch-title {
+    font-family: var(--y-serif);
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    color: #fbf7ff;
+    line-height: 1.4;
+  }
+  .player-info .d {
+    font-size: 13px;
+    color: var(--y-text-sub);
+    margin-top: 3px;
+    line-height: 1.45;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* ===== 时间线：和做底层页互不干扰，逻辑在 yexi_timeline.js ===== */
+  .timeline-box {
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.025);
+  }
+  .timeline-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .timeline-title { font-size: 13px; color: var(--y-text); letter-spacing: 0.04em; }
+  .timeline-sub {
+    font-size: 11px; color: var(--y-text-muted); margin-top: 2px; line-height: 1.4;
+  }
+  .timeline-tpls { display: flex; gap: 6px; flex-wrap: wrap; }
+  .timeline-tpl {
+    font-size: 11px; padding: 4px 9px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: transparent; color: var(--y-text-muted); cursor: pointer;
+  }
+  .timeline-tpl.on {
+    border-color: var(--y-warm); color: var(--y-warm);
+    background: rgba(233,183,131,0.08);
+  }
+  .timeline-strip {
+    display: flex; gap: 3px; height: 52px; margin: 12px 0 6px;
+    overflow: hidden; border-radius: 8px;
+  }
+  .tl-seg {
+    position: relative; min-width: 34px; height: 100%;
+    border-radius: 6px; border: 1px solid rgba(255,255,255,0.14);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; font-size: 10px; line-height: 1.25;
+    color: rgba(255,255,255,0.86); cursor: pointer;
+    user-select: none; -webkit-user-select: none; overflow: hidden;
+    transition: border-color 0.2s ease;
+  }
+  .tl-seg.on { border-color: var(--y-warm); }
+  .tl-seg-name {
+    max-width: 100%; padding: 0 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tl-seg-dur { opacity: 0.7; font-size: 9px; }
+  .tl-seg-grip {
+    position: absolute; right: 0; top: 0; width: 12px; height: 100%;
+    cursor: ew-resize; z-index: 2;
+  }
+  .tl-seg-grip::after {
+    content: ""; position: absolute; right: 4px; top: 30%;
+    width: 2px; height: 40%; border-radius: 2px;
+    background: rgba(255,255,255,0.35);
+  }
+  .timeline-foot { font-size: 11px; color: var(--y-text-muted); line-height: 1.6; margin-top: 8px; }
+  .tl-cursor {
+    font-size: 11px; color: var(--y-warm); margin-top: 6px; min-height: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .master-vol {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 16px; padding: 2px 2px 0;
+  }
+  .master-vol span { font-size: 13px; color: var(--y-text-muted); white-space: nowrap; }
+  .master-vol .vol-pct {
+    min-width: 36px; text-align: right; color: var(--y-text-sub);
+    font-variant-numeric: tabular-nums;
+  }
+  .toast {
+    font-size: 13px; color: #e5d2ff; text-align: center; margin-top: 10px;
+    opacity: 0; transition: opacity 0.35s ease; min-height: 18px;
+  }
+  .toast.show { opacity: 1; }
+
+  .stitch-side h3 {
+    margin: 0 0 4px; font-family: var(--y-serif); font-weight: 400;
+    font-size: 18px; letter-spacing: 0.08em; color: #fbf7ff;
+  }
+  .stitch-side .side-sub { margin: 0 0 16px; font-size: 12px; color: var(--y-text-muted); }
+  .seg-track-list { display: flex; flex-direction: column; gap: 8px; }
+  .seg-track-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 11px; border-radius: 10px;
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.06);
+    font-size: 12px; color: var(--y-text-sub);
+  }
+  .seg-track-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .seg-track-w { margin-left: auto; color: var(--y-text-muted); font-variant-numeric: tabular-nums; }
+  .stitch-tip {
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    font-size: 12px; line-height: 1.8; color: var(--y-text-muted);
+  }
+  .stitch-switch { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
+  .stitch-switch a { font-size: 12px; color: var(--y-warm); text-decoration: none; border-bottom: 1px solid rgba(233,183,131,0.4); }
+
+  /* ===== 嵌入 DIY 顶部 tab 壳：只留拼接内容，外壳由父页面提供 ===== */
+  body.embedded .top,
+  body.embedded .tabbar,
+  body.embedded .ambient-stage,
+  body.embedded .page-hero { display: none !important; }
+  body.embedded .wrap-wide { padding-top: 6px; padding-bottom: 26px; }
+  body.embedded .stitch-layout { margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="ambient-stage" id="ambientStage"></div>
+
+<div class="wrap-wide">
+  <div class="top">
+    <a class="brand" href="home.html">
+      <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
+      <div class="name">夜息</div>
+    </a>
+  </div>
+
+  <header class="page-hero">
+    <div class="ph-whisper">DIY · STITCH A NIGHT</div>
+    <div class="ph-row">
+      <h1>做拼接 · 一夜时间线</h1>
+      <a class="ph-act" href="diy.html?pane=stitch">DIY 切换 ›</a>
+    </div>
+    <p class="ph-sub">几段声音接成一整夜。已经给你拼好了一版，点哪段就从哪段听，拖住右边缘还能改它的时长。</p>
+    <div class="stitch-switch"><a href="diy.html?pane=mix">去「做底层」：调一层声音 ›</a></div>
+  </header>
+
+  <div class="stitch-layout">
+    <div class="card stitch-main">
+      <div class="player-head">
+        <div class="breath-wrap" id="breathWrap">
+          <div class="breath-ring"></div>
+          <button class="breath-btn" id="playBtn" type="button" aria-label="播放或暂停">
+            <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a.9.9 0 0 0 1.4.7l10.4-6.5a.9.9 0 0 0 0-1.4L9.4 4.8A.9.9 0 0 0 8 5.5z"/></svg>
+            <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5.5" width="3.4" height="13" rx="1"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1"/></svg>
+          </button>
+        </div>
+        <div class="player-info">
+          <div class="stitch-title" id="stitchTitle">一夜时间线</div>
+          <div class="d" id="stitchSummary">选一套模板，铺开你的夜</div>
+        </div>
+      </div>
+
+      <div class="timeline-box" id="timelineBox">
+        <div class="timeline-head">
+          <div>
+            <div class="timeline-title">一夜时间线</div>
+            <div class="timeline-sub">换一套模板，整条夜就重铺一遍 · 段与段会轻轻接上</div>
+          </div>
+          <div class="timeline-tpls" id="timelineTpls"></div>
+        </div>
+        <div class="timeline-strip" id="timelineStrip"></div>
+        <div class="tl-cursor" id="tlCursor"></div>
+        <div class="timeline-foot">点一块从那段起听 · 拖它的右边缘改时长（1 / 3 / 5 / 10 分钟）· 声音只做重叠淡入淡出，不改原始录音</div>
+      </div>
+
+      <div class="master-vol">
+        <span>总音量</span>
+        <input type="range" class="y-slider" id="masterVol" min="0" max="100" value="85" aria-label="总音量">
+        <span class="vol-pct" id="masterVolPct">85%</span>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div class="card stitch-side">
+      <h3>这一段在响什么</h3>
+      <p class="side-sub">走到哪一段，这里就换成那一段的声底。</p>
+      <div class="seg-track-list" id="segTracks"></div>
+      <div class="stitch-tip">
+        拼接只动播放顺序和段落长短，不会把素材剪碎、降噪或加效果。<br>
+        想细调某一层的远近、音量、偶发频率，去「做底层」。
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">真实 CC0 录音 · 零音质篡改</div>
+</div>
+
+<div class="tabbar"></div>
+
+<script src="auth_ui.js"></script>
+<script src="yexi_shell.js"></script>
+<script src="yexi_catalog.js?v=44"></script>
+<script src="yexi_mixer.js?v=13"></script>
+<script src="yexi_timeline.js?v=1"></script>
+<script>
+var API = YEXI_API;
+// 被 DIY 顶部 tab 壳嵌进来时，外壳（顶栏/底栏/背景）由父页面提供
+var IS_EMBEDDED = /[?&]embed=1/.test(location.search);
+if (IS_EMBEDDED) document.body.classList.add("embedded");
+initAuthBar("stitch.html");
+if (!IS_EMBEDDED) initYexiTabbar("stitch.html");
+initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
+
+if (IS_EMBEDDED) {
+  // 切到另一个 tab 时暂停这边，避免两页同时出声
+  window.addEventListener("message", function(e) {
+    if (!e.data || e.data.type !== "yexi-pause") return;
+    try { if (typeof setPlaying === "function") setPlaying(false); } catch (err) {}
+  });
+  // 把内容高度同步给父页面，让 iframe 不出现内部滚动条
+  function yPostHeight() {
+    try {
+      parent.postMessage({ type: "yexi-iframe-height", height: document.documentElement.scrollHeight }, "*");
+    } catch (e) {}
+  }
+  window.addEventListener("load", yPostHeight);
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "yexi-measure") yPostHeight();
+  });
+  if (window.ResizeObserver) {
+    new ResizeObserver(yPostHeight).observe(document.body);
+  } else {
+    setInterval(yPostHeight, 800);
+  }
+  setTimeout(yPostHeight, 120);
+  setTimeout(yPostHeight, 600);
+}
+
+var mixer = null;
+if (YexiMixer && YexiMixer.isSupported()) {
+  mixer = new YexiMixer({
+    apiBase: API,
+    onError: function(path) {
+      showToast("加载「" + ySoundMeta(path).name + "」失败，请确认本地后端服务已启动");
+    }
+  });
+}
+
+var tracks = [];
+var isPlaying = false;
+var masterVolume = 0.85;
+var timeline = null;
+var toastTimer = null;
+var breathWrap = document.getElementById("breathWrap");
+
+function showToast(msg) {
+  var el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { el.classList.remove("show"); }, 2600);
+}
+
+function clamp(v, lo, hi) {
+  v = Number(v);
+  if (isNaN(v)) return lo;
+  if (v < lo) return lo;
+  if (v > hi) return hi;
+  return v;
+}
+
+function normalizeTrackObj(raw) {
+  var base = String(raw && raw.path || "").split("/").pop().split("\\").pop();
+  if (!base) return null;
+  var meta = ySoundMeta(base);
+  var w = parseFloat(raw.weight);
+  if (isNaN(w) || w <= 0) w = meta.defaultWeight || 0.5;
+  var pan = parseFloat(raw.pan);
+  if (isNaN(pan)) pan = meta.defaultPan || 0;
+  var mode = raw.mode === "intermittent" ? "intermittent" : "loop";
+  var den = parseFloat(raw.density);
+  if (isNaN(den)) den = meta.defaultDensity || 0.4;
+  return {
+    path: base,
+    weight: clamp(w, 0.05, 1.0),
+    pan: clamp(pan, -1.0, 1.0),
+    mode: mode,
+    density: clamp(den, 0.1, 1.0)
+  };
+}
+
+function syncEngine() {
+  if (!mixer) return;
+  mixer.setMasterVolume(masterVolume);
+  mixer.syncTracks(tracks);
+}
+
+function setPlaying(next) {
+  if (tracks.length === 0) {
+    showToast("先选一套模板");
+    return;
+  }
+  isPlaying = !!next;
+  if (timeline) timeline.onPlayChanged(isPlaying);
+  syncEngine();
+  if (mixer) mixer.setPlaying(isPlaying);
+  breathWrap.classList.toggle("playing", isPlaying);
+  ySetAmbient("img/night-lake-stars.jpg", "#e9b783", isPlaying);
+}
+
+function renderSegTracks(seg, index) {
+  var box = document.getElementById("segTracks");
+  box.innerHTML = "";
+  document.getElementById("stitchSummary").textContent =
+    "第 " + (index + 1) + " 段 · " + seg.name + " · " + seg.tracks.length + " 层声音";
+  for (var i = 0; i < seg.tracks.length; i++) {
+    var tr = normalizeTrackObj(seg.tracks[i]);
+    if (!tr) continue;
+    var meta = ySoundMeta(tr.path);
+    var row = document.createElement("div");
+    row.className = "seg-track-item";
+    var dot = document.createElement("span");
+    dot.className = "seg-track-dot";
+    dot.style.background = meta.accent || "#e9b783";
+    var name = document.createElement("span");
+    name.textContent = meta.name || tr.path;
+    var pct = document.createElement("span");
+    pct.className = "seg-track-w";
+    pct.textContent = Math.round(tr.weight * 100) + "%";
+    row.appendChild(dot);
+    row.appendChild(name);
+    row.appendChild(pct);
+    box.appendChild(row);
+  }
+}
+
+timeline = new YexiTimeline({
+  strip: document.getElementById("timelineStrip"),
+  tpls: document.getElementById("timelineTpls"),
+  cursor: document.getElementById("tlCursor"),
+  isPlaying: function() { return isPlaying; },
+  canTick: function() { return !!mixer; },
+  play: function() { setPlaying(true); },
+  toast: showToast,
+  onApply: function(rawTracks, index, seg) {
+    tracks = [];
+    var seen = {};
+    for (var i = 0; i < rawTracks.length; i++) {
+      var tr = normalizeTrackObj(rawTracks[i]);
+      if (tr && !seen[tr.path]) { seen[tr.path] = true; tracks.push(tr); }
+    }
+    syncEngine();
+    renderSegTracks(seg, index);
+  },
+  onTitle: function(title) {
+    document.getElementById("stitchTitle").textContent = title;
+  }
+});
+
+// 第一声规则：第一次进来也先铺好一夜，不让人面对空白
+timeline.restore();
+if (!timeline.active) timeline.load("rain_night", false);
+
+document.getElementById("playBtn").onclick = function() {
+  setPlaying(!isPlaying);
+};
+
+document.getElementById("masterVol").oninput = function() {
+  var val = parseInt(this.value, 10) || 0;
+  masterVolume = val / 100;
+  document.getElementById("masterVolPct").textContent = val + "%";
+  if (mixer) mixer.setMasterVolume(masterVolume);
+};
+</script>
+</body>
+</html>
