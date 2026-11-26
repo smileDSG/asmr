@@ -1265,6 +1265,87 @@ function renderActiveTab() {
   } else {
     renderEarTab(box);
   }
+  wireTonightButtons();
+}
+
+/* 「听我保存的」闭环：把列表里的「试听」改成「今晚听这个」——
+   点了写入 sessionStorage，跳回首页自动播放，不用再点第二次。 */
+function wireTonightButtons() {
+  var box = document.getElementById("tabContent");
+  if (!box) return;
+  var d = hubData || {};
+
+  // 把当前分类下的配方整理成统一结构，按按钮 id 匹配
+  var map = {};
+  function add(key, title, items, img, accent) {
+    if (key && items && items.length) map[key] = { title: title || "夜息", items: items, img: img || "", accent: accent || "" };
+  }
+
+  if (currentTab === "mine") {
+    var posts = d.my_posts || [];
+    for (var i = 0; i < posts.length; i++) {
+      var p = posts[i];
+      var leadP = ySoundMeta(p.lead_path || (p.items && p.items[0] ? p.items[0].path : ""));
+      add("post_" + p.id, p.title, p.items, p.img || leadP.img, p.accent || leadP.accent);
+    }
+    var customs = d.custom_recipes || readLocalJson(LOCAL_WORKS_KEY, []);
+    for (var j = 0; j < customs.length; j++) {
+      var c = customs[j];
+      var itemsC = c.tracks || c.items || [];
+      var leadC = ySoundMeta(itemsC.length ? itemsC[0].path : "");
+      add("draft_" + c.id, c.title, itemsC, c.img || leadC.img, c.accent || leadC.accent);
+    }
+    var ais = d.ai_recipes || [];
+    for (var a = 0; a < ais.length; a++) {
+      var rec = ais[a];
+      var leadA = ySoundMeta(rec.items && rec.items.length ? rec.items[0].path : "");
+      add("ai_" + rec.key, rec.title, rec.items, rec.img || leadA.img, rec.accent || leadA.accent);
+    }
+  } else if (currentTab === "borrowed") {
+    var stars = d.starred_posts || [];
+    for (var s = 0; s < stars.length; s++) {
+      var r = stars[s];
+      var leadS = ySoundMeta(r.lead_path || (r.items && r.items[0] ? r.items[0].path : ""));
+      add("star_" + r.id, r.title, r.items, r.img || leadS.img, r.accent || leadS.accent);
+    }
+    // 内置收藏：数据在 BUILTIN_RECIPES，不在 starred_posts 里
+    var bids = d.starred_builtin_ids || [];
+    for (var bi = 0; bi < bids.length; bi++) {
+      var br = BUILTIN_RECIPES[bids[bi]];
+      if (br) add("star_" + bids[bi], br.title, br.items, br.img, br.accent);
+    }
+    // 游客态本地点过「借我一晚」的：从 RECIPES 里找
+    var localVoted = readLocalJson(VOTED_KEY, {});
+    for (var vk in localVoted) {
+      if (!localVoted[vk] || vk.indexOf(":borrow") < 0) continue;
+      var vid = vk.split(":")[0];
+      var lr = BUILTIN_RECIPES[vid];
+      if (lr && !map["star_" + vid]) add("star_" + vid, lr.title, lr.items, lr.img, lr.accent);
+    }
+  }
+
+  var btns = box.querySelectorAll('[id^="play_"]');
+  for (var b = 0; b < btns.length; b++) {
+    (function(btn) {
+      var key = btn.id.replace(/^play_/, "");
+      var data = map[key];
+      if (!data) return;                       // 没有配方数据的按钮（如普通试听）保持原样
+      btn.textContent = "今晚听这个 ›";
+      btn.onclick = function() {
+        try {
+          sessionStorage.setItem("yezi_play", JSON.stringify({
+            fromSaved: true,
+            key: key,
+            title: data.title,
+            items: data.items,
+            img: data.img,
+            accent: data.accent
+          }));
+        } catch (e) {}
+        location.href = "home.html";
+      };
+    })(btns[b]);
+  }
 }
 
 var subTabs = document.querySelectorAll("#subTabs .sub-tab");

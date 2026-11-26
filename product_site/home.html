@@ -1328,6 +1328,25 @@ function orderedActiveIds() {
 }
 
 function getInitialSelected() {
+  // 从「我的-我喜欢的」点「今晚听这个」过来时，读取带回来的配方并排到最前。
+  // 用完就清掉，避免下次打开首页还停在旧的那条。
+  try {
+    var saved = JSON.parse(sessionStorage.getItem("yezi_play") || "null");
+    if (saved && saved.fromSaved && saved.title && saved.items && saved.items.length) {
+      sessionStorage.removeItem("yezi_play");
+      return {
+        id: "saved_" + (saved.key || saved.title),
+        name: saved.title,
+        desc: "你存下的声音 · 今晚就听这段",
+        img: saved.img || DEFAULT_HERO,
+        fx: saved.fx || "rain",
+        acc: saved.acc || "142,116,232",
+        scene: saved.scene || "rain",
+        tracks: saved.items,
+        fromSaved: true
+      };
+    }
+  } catch (e) {}
   var ordered = orderedActiveIds();
   return findQueueItem(ordered[0]) || QUEUE_POOL[0];
 }
@@ -2060,6 +2079,10 @@ FX.build(selected.fx);
 selectScene(selected);
 var initCat = selected.scene === "asmr" ? "asmr" : (selected.scene === "fire" ? "bed" : "nature");
 renderCards(initCat);
+// 从「听我保存的」带回来时，直接开始播，不用再点一次播放键
+if (selected.fromSaved) {
+  setTimeout(function() { playScene(selected, true); }, 400);
+}
 (function() {
   var cats = document.querySelectorAll("#cats .cat");
   for (var i = 0; i < cats.length; i++) cats[i].classList.toggle("on", cats[i].getAttribute("data-cat") === activeCat);
