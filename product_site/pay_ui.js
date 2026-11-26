@@ -81,7 +81,7 @@ function yPayCardHtml(p, hot) {
     + '<div class="ypay-note">' + p.short + ' · ' + p.note + '</div>'
     + '</div>'
     + '<div class="ypay-price">¥' + p.price + '</div>'
-    + '<button class="ypay-btn" type="button" data-pid="' + p.id + '">带走</button>'
+    + '<button class="ypay-btn" type="button" data-pid="' + p.id + '" data-price="' + p.price + '" data-name="' + p.name + '">带走</button>'
     + '</div>';
 }
 
@@ -141,12 +141,16 @@ function yexiPayWall(productId) {
       if (!btn || !btn.getAttribute) return;
       var pid = btn.getAttribute("data-pid");
       if (!pid) return;
-      yPayBuy(pid, btn);
+      yPayBuy(pid, btn, {
+        price: btn.getAttribute("data-price") || "",
+        name: btn.getAttribute("data-name") || "",
+      });
     };
   });
 }
 
-function yPayBuy(productId, btn) {
+function yPayBuy(productId, btn, meta) {
+  meta = meta || {};
   if (yPayPending) return;
   yPayPending = true;
   var oldText = btn.textContent;
@@ -173,6 +177,8 @@ function yPayBuy(productId, btn) {
         yPayPending = false;
         btn.disabled = false;
         btn.textContent = oldText;
+        d.price = meta.price || "";
+        d.product_name = meta.name || "";
         yPayShowQr(d);
         return;
       }
@@ -212,14 +218,14 @@ function yPayShowQr(d) {
   } else {
     body = ''
       + '<div class="ypay-title">扫码付款</div>'
-      + '<div class="ypay-sub" id="yQrStatus">用支付宝扫下面的码，付 ¥2.90</div>'
+      + '<div class="ypay-sub" id="yQrStatus">用支付宝扫下面的码，付 ¥' + (d.price || "") + '</div>'
       + '<div style="text-align:center;margin:10px 0">'
       + '<img src="' + (d.qr_code || "") + '" alt="付款二维码" style="width:200px;height:200px;border-radius:12px;background:#fff">'
       + '</div>';
   }
   mask.innerHTML = ''
     + '<div class="ypay-sheet">'
-    + '<div class="ypay-head"><div class="ypay-title" style="font-size:15px">夜息 · 三次体验</div>'
+    + '<div class="ypay-head"><div class="ypay-title" style="font-size:15px">' + (d.product_name || "夜息") + '</div>'
     + '<button class="ypay-close" type="button" aria-label="关闭">×</button></div>'
     + body
     + '<div class="ypay-foot" id="yQrFoot">付完后这里会自动解锁，不用回来点</div>'

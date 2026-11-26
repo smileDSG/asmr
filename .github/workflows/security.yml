@@ -1,8 +1,11 @@
 name: 安全门禁（CodeQL + 依赖漏洞扫描）
 
 # SDLC 测试构建阶段的自动化安全门禁：
-# 每次 push / PR 到 master 自动跑，结果出现在 GitHub 的 Security 标签页。
-# 不阻断部署（deploy.yml 独立），但问题会显性暴露，避免"上线前才打补丁"。
+# 每次 push / PR 到 master 自动跑。不阻断部署（deploy.yml 独立）。
+# 注意：本仓库是私有仓库且未启用 GitHub Code Scanning（个人账号通常需付费的
+# Advanced Security），所以 CodeQL 分析能跑、但结果无法上传到 Security 标签页。
+# 因此给 analyze 步骤加 continue-on-error：扫描照跑、日志照看，但不让 workflow 误报失败。
+# 将来若开启了 Code Scanning，去掉 continue-on-error 即可恢复上传。
 on:
   push:
     branches: [master]
@@ -34,6 +37,7 @@ jobs:
 
       - name: 分析并上传结果
         uses: github/codeql-action/analyze@v4
+        continue-on-error: true
         with:
           category: "/language:python"
 

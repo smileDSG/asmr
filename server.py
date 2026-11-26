@@ -887,17 +887,58 @@ FREE_DAILY_GENERATE = 2
 
 
 def _nowpay_products_info():
-    """给前端看即刻收商品是否可用。不联网，只读配置。"""
+    """给前端看即刻收商品是否可用 + 真实价格（从支付宝 charge.query 读）。
+    价格以支付宝后台为准，改完后台前端自动跟上，不用改代码。
+    charge.query 失败时降级到 pay.py 里的本地价格，不让页面空白。"""
     products = nowpay.products_config()
     if not products:
         return {"enabled": False, "products": []}
     out = []
     for name, info in products.items():
+        price_text = ""
+        try:
+            q = nowpay.charge_query(name)
+            if str(q.get("capability_status", "")) == "ENABLED":
+                # 档位列表里取第一个的价格；字段名按官方文档 charging_options
+                opts = q.get("charging_options") or []
+                if isinstance(opts, list) and opts:
+                    # 实测线上返回：{"price": "0.99", "quota_amount": 3, ...}
+                    # price 是「元」的字符串，不是分！直接用，不要再除以 100。
+                    def _price_of(o):
+                        v = (o or {}).get("price")
+                        if v is None or v == "":
+                            return ""
+                        return "%.2f" % float(v)
+
+                    price_text = _price_of(opts[0])
+                    # 记下完整档位，将来多档位直接用
+                    price_map = []
+                    for o in opts:
+                        p = _price_of(o)
+                        if p:
+                            price_map.append({
+                                "sku_id": (o or {}).get("sku_id", ""),
+                                "price": p,
+                                "price_cents": int(round(float(p) * 100)),
+                                "quota_amount": (o or {}).get("quota_amount", 0),
+                            })
+                    out.append({
+                        "id": name,
+                        "product_id": (info or {}).get("out_product_id", ""),
+                        "sku_id": (info or {}).get("sku_id", ""),
+                        "price": price_text,
+                        "options": price_map,
+                    })
+                    continue
+        except Exception as e:
+            print("[nowpay] 查商品价格失败：" + str(e)[:100], flush=True)
         out.append(
             {
                 "id": name,
                 "product_id": (info or {}).get("out_product_id", ""),
                 "sku_id": (info or {}).get("sku_id", ""),
+                "price": price_text,
+                "options": [],
             }
         )
     return {"enabled": True, "products": out}
@@ -1215,8 +1256,17 @@ class Handler(BaseHTTPRequestHandler):
             if nowpay.ENABLED and np_info["enabled"]:
                 # 即刻收模式：只显示支付宝那边真实建好的商品，避免点了付不了
                 all_products = pay.public_products()
-                ids = set(p["id"] for p in np_info["products"])
-                shown = [p for p in all_products if p["id"] in ids]
+                live = dict((p["id"], p) for p in np_info["products"])
+                shown = []
+                for p in all_products:
+                    if p["id"] not in live:
+                        continue
+                    p = dict(p)  # 不改原字典
+                    real_price = live[p["id"]].get("price") or ""
+                    if real_price:
+                        p["price"] = real_price
+                        p["price_cents"] = int(round(float(real_price) * 100))
+                    shown.append(p)
                 self.send_json(
                     {
                         "products": shown,
@@ -1812,6 +1862,7 @@ class Handler(BaseHTTPRequestHandler):
                         "qr_code": qr_local or qr_url,
                         "mode": "nowpay",
                         "product": product_id,
+                        "product_name": (pay.PRODUCTS.get(product_id) or {}).get("name", ""),
                         "expire_time": r.get("expire_time", ""),
                     }
                 )
