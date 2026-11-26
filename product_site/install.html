@@ -91,7 +91,7 @@
   <div class="sec-title"><span class="dot"></span>苹果 iPad / iPhone 怎么装</div>
   <div class="card">
     <ol class="steps">
-      <li>用 <b>Safari</b> 打开网址 <b>47.101.59.166:8000/m.html</b>（一定要 Safari）。</li>
+      <li>用 <b>Safari</b> 打开网址 <b id="mUrl">m.html</b>（一定要 Safari）。</li>
       <li>点底部/顶部的<b>分享按钮</b>（方框带向上箭头）。</li>
       <li>下滑点<b>"添加到主屏幕"</b>，名字填"夜息"，点添加。</li>
       <li>回到主屏幕，点"夜息"图标，就全屏打开了。</li>
@@ -101,5 +101,12 @@
 
   <div class="foot">夜息 · 说一句大白话，给你一段能入睡的声音<br><a href="/home.html">返回首页</a></div>
 </div>
+<script>
+// 安装地址跟随当前域名，换服务器不用改这页
+(function () {
+  var el = document.getElementById("mUrl");
+  if (el) el.textContent = location.host + "/m.html";
+})();
+</script>
 </body>
 </html>
