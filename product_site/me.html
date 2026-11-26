@@ -1302,7 +1302,7 @@ function loadEntitlement() {
   yGet("/api/nowpay/quota").then(function(r) { return r.json(); }).then(function(q) {
     if (!q.available || !(q.remaining > 0)) return;
     titleEl.textContent = "已购 " + q.total + " 次 · 剩余 " + q.remaining + " 次";
-    descEl.textContent = "三次体验包已到账，可在 AI 配声里继续使用。";
+    descEl.textContent = "3 段音频已到账，生成出声才扣、聊天追问不扣。";
     btnEl.style.display = "";
     btnEl.textContent = "再加次数";
   }).catch(function() {});
