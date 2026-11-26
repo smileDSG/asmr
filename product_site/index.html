@@ -370,7 +370,8 @@
 
   .studio-primary-actions {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    /* 手机上三颗常用操作并排：定时入睡 / 保存 / 发广场 */
+    grid-template-columns: 1.15fr 0.9fr 0.9fr;
     gap: 9px;
     margin-top: 16px;
   }
@@ -2391,6 +2392,33 @@ document.getElementById("panelTabSounds").onclick = function() { switchPanelTab(
 document.getElementById("panelTabTune").onclick = function() { switchPanelTab("tune"); };
 document.getElementById("panelTabWorks").onclick = function() { switchPanelTab("works"); };
 
+/* 从声场节点跳到「调参数」：切 tab、手机上展开抽屉、滚动并高亮对应声轨。
+   给点节点的人一个顺手的反馈，不用再自己翻到那一层。 */
+function focusTrackInTune(path) {
+  switchPanelTab("tune");
+  selectedTrackPath = path;
+  syncStageSelectionClass();
+  renderTracksUI();
+
+  // 手机上抽屉若收着，升起来才看得见调参数
+  var handle = document.getElementById("drawerHandle");
+  if (handle && window.innerWidth <= 619 && handle.getAttribute("aria-expanded") !== "true") {
+    handle.click();
+  }
+  // 滚到对应那条轨（renderTracksUI 会给选中轨加 expanded 类）
+  setTimeout(function() {
+    var box = document.getElementById("activeTracks");
+    var rows = box ? box.querySelectorAll(".track-row") : [];
+    var target = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].classList.contains("expanded")) { target = rows[i]; break; }
+    }
+    if (target && target.scrollIntoView) {
+      try { target.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {}
+    }
+  }, 60);
+}
+
 function updatePresetHighlight() {
   var pills = document.querySelectorAll("#presetsPanel .preset-chip");
   for (var i = 0; i < pills.length; i++) {
@@ -2525,6 +2553,7 @@ function renderStageNodes() {
 
       node.addEventListener("pointerdown", function(e) {
         e.preventDefault();
+        var startX = e.clientX, startY = e.clientY, didMove = false;
         selectedTrackPath = tracks[idx].path;
         syncStageSelectionClass();
         renderTracksUI();
@@ -2536,6 +2565,7 @@ function renderStageNodes() {
         showStageHud(tracks[idx]);
 
         var onMove = function(ev) {
+          if (Math.abs(ev.clientX - startX) > 6 || Math.abs(ev.clientY - startY) > 6) didMove = true;
           var rect = stageEl.getBoundingClientRect();
           var mNow = stageMetrics();
           var px = clamp(ev.clientX - rect.left, 16, mNow.w - 16);
@@ -2556,17 +2586,26 @@ function renderStageNodes() {
           updatePlaybackVisuals();
         };
 
-        var onUp = function() {
+        var onUp = function(ev) {
           node.classList.remove("dragging");
           stageHudEl.classList.remove("show");
           node.removeEventListener("pointermove", onMove);
           node.removeEventListener("pointerup", onUp);
-          node.removeEventListener("pointercancel", onUp);
+          node.removeEventListener("pointercancel", onCancel);
+          // 轻点（没拖动）才跳调参数；拖动时是在调远近，跳走会打断操作
+          if (ev.type === "pointerup" && !didMove) focusTrackInTune(tracks[idx].path);
+        };
+        var onCancel = function() {
+          node.classList.remove("dragging");
+          stageHudEl.classList.remove("show");
+          node.removeEventListener("pointermove", onMove);
+          node.removeEventListener("pointerup", onUp);
+          node.removeEventListener("pointercancel", onCancel);
         };
 
         node.addEventListener("pointermove", onMove);
         node.addEventListener("pointerup", onUp);
-        node.addEventListener("pointercancel", onUp);
+        node.addEventListener("pointercancel", onCancel);
       });
 
       stageNodesEl.appendChild(node);
@@ -4117,15 +4156,14 @@ if (drawerHandleBtn && mobileDrawerBox) {
         };
       }
     }
-    // 发布/更多属于作品操作，手机上收进抽屉的「作品」页，
-    // 首屏只留定时入睡和保存两颗按钮，腾出的高度还给声场
+    // 手机上「发广场」是常用操作，保留在首屏（和定时入睡、保存并排），
+    // 只把低频的「更多」（导出/分享/明信片）收进抽屉的「作品」页。
+    // 之前把发布也收进去，用户反馈找不到入口。
     var worksView = document.getElementById("panelWorks");
-    var pubBtn = document.getElementById("publishBtn");
     var moreBtn = document.getElementById("moreActionsBtn");
     var moreDrawer = document.getElementById("moreActionsDrawer");
-    if (worksView && pubBtn && moreBtn && moreDrawer) {
+    if (worksView && moreBtn && moreDrawer) {
       worksView.insertBefore(moreBtn, worksView.firstChild);
-      worksView.insertBefore(pubBtn, worksView.firstChild);
       worksView.appendChild(moreDrawer);
     }
   }

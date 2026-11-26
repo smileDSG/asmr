@@ -75,6 +75,10 @@
     border:1px solid rgba(var(--y-warm-rgb),.45);background:radial-gradient(circle,rgba(var(--y-warm-rgb),.16),transparent 70%);
     box-shadow:0 0 42px rgba(var(--y-warm-rgb),.22)}
   .goodnight .g-t{font-family:var(--y-serif);font-weight:300;font-size:24px;letter-spacing:.4em;color:#fbf7ff;margin-top:24px}
+  .goodnight .g-back{margin-top:36px;padding:11px 26px;border:1px solid rgba(var(--y-warm-rgb),.45);
+    border-radius:999px;background:rgba(var(--y-warm-rgb),.10);color:#f3e6d6;
+    font-family:inherit;font-size:13px;letter-spacing:.08em;cursor:pointer}
+  .goodnight .g-back:active{background:rgba(var(--y-warm-rgb),.22)}
 
   audio{display:none}
   @media(prefers-reduced-motion:reduce){
@@ -121,6 +125,9 @@
 <div class="goodnight" id="goodnight">
   <div class="g-moon">☾</div>
   <div class="g-t">晚安</div>
+  <!-- 以前这里只有月亮和字，全屏盖住后没有任何出口，只能清后台。
+       给一个明确的返回按钮，点屏幕任意处也能退出。 -->
+  <button class="g-back" id="goodnightBack" type="button">回到夜息 ›</button>
 </div>
 
 <audio id="audio" loop preload="auto"></audio>
@@ -247,6 +254,20 @@ document.addEventListener("touchstart",function(){
 },false);
 
 document.getElementById("backBtn").onclick=function(){history.back();};
+
+// 晚安界面：定时结束后全屏盖住，必须能退出（之前只能清后台）
+function leavePlayer(){
+  // 有上一页就返回，没有就直接回首页，避免按了没反应
+  if(history.length>1) history.back(); else location.replace("home.html");
+}
+var gn=document.getElementById("goodnight");
+var gnBack=document.getElementById("goodnightBack");
+if(gnBack) gnBack.onclick=function(e){ e.stopPropagation(); leavePlayer(); };
+if(gn) gn.onclick=leavePlayer;  // 点月亮/空白处也能退
+// 键盘 Esc / 安卓物理返回键：直接退，不等浏览器默认行为
+document.addEventListener("keydown",function(e){
+  if(gn && gn.classList.contains("show") && e.key==="Escape") leavePlayer();
+});
 </script>
 </body>
 </html>
