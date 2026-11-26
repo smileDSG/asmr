@@ -1326,24 +1326,38 @@
     max-width: 470px;
     max-height: 88vh;
     overflow-y: auto;
-    padding: 20px;
-    background: rgba(16, 12, 26, 0.94);
-    border: none;
-    border-radius: 22px;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.56);
+    padding: 22px 22px 20px;
+    /* 深夜暖灯：不用纯黑，深灰紫底 + 顶部一道暖光，像台灯下写字 */
+    background:
+      radial-gradient(120% 62% at 50% -12%, rgba(var(--y-warm-rgb), 0.16), transparent 70%),
+      rgba(20, 15, 31, 0.97);
+    border: 1px solid rgba(var(--y-warm-rgb), 0.10);
+    border-radius: 24px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.66), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .y-modal-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: 12px;
+    margin-bottom: 6px;
   }
   .y-modal-head h3 {
     margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    color: #fff;
+    font-family: var(--y-serif);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: #fff5e9;
+    line-height: 1.4;
+  }
+  /* 标题下的一行小注，给弹窗一个"场景感"而不是表单感 */
+  .pub-subtitle {
+    margin: 0 0 18px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: rgba(236, 228, 248, 0.55);
+    letter-spacing: 0.02em;
   }
   .y-modal-close {
     width: 28px;
@@ -1360,23 +1374,93 @@
   }
   .y-field-label {
     display: block;
-    font-size: 13px;
-    color: var(--y-text-sub);
-    margin: 11px 0 6px;
+    font-size: 12.5px;
+    color: rgba(236, 228, 248, 0.72);
+    letter-spacing: 0.04em;
+    margin: 16px 0 8px;
+  }
+  /* 输入框：更深的凹陷感 + 聚焦时暖色描边 */
+  .y-modal .y-input {
+    background: rgba(7, 5, 13, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .y-modal .y-input:focus {
+    outline: none;
+    border-color: rgba(var(--y-warm-rgb), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--y-warm-rgb), 0.09);
+  }
+  /* 许可选项：做成三张小卡，默认项顶上带暖色小标，一眼看懂主次 */
+  .dur-pills#pubPolicyPills {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .dur-pills#pubPolicyPills .dur-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 11px 13px;
+    border-radius: 13px;
+    text-align: left;
+    line-height: 1.4;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .dur-pills#pubPolicyPills .dur-pill i.icon {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    display: block;
+  }
+  .dur-pills#pubPolicyPills .dur-pill i.icon svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .dur-pills#pubPolicyPills .dur-pill small {
+    font-size: 11px;
+    color: rgba(236, 228, 248, 0.5);
+    font-weight: 400;
+  }
+  .dur-pills#pubPolicyPills .dur-pill.on small {
+    color: rgba(255, 240, 220, 0.75);
+  }
+  .dur-pills#pubPolicyPills .dur-pill:last-child {
+    grid-column: 1 / -1;
+  }
+  .dur-pills#pubPolicyPills .dur-pill.on {
+    border-color: rgba(var(--y-warm-rgb), 0.45);
+    background: rgba(var(--y-warm-rgb), 0.14);
+  }
+  .policy-hint {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(236, 228, 248, 0.6);
+    padding-left: 11px;
+    border-left: 2px solid rgba(var(--y-warm-rgb), 0.35);
   }
   .pub-preview-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 12px;
+    gap: 7px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
   .pub-pill {
-    font-size: 12.5px;
-    color: #e4d8ff;
-    background: rgba(255, 255, 255, 0.06);
-    border: none;
+    font-size: 12px;
+    color: rgba(240, 232, 255, 0.85);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 999px;
-    padding: 3px 9px;
+    padding: 5px 11px;
   }
   .modal-actions {
     display: flex;
@@ -1390,29 +1474,48 @@
   }
   .pub-success {
     display: none;
-    margin-top: 12px;
-    padding: 11px 13px;
-    border-radius: 13px;
-    background: rgba(94, 196, 168, 0.14);
-    border: none;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(94, 196, 168, 0.10);
+    border: 1px solid rgba(94, 196, 168, 0.22);
     font-size: 13.5px;
     color: #dcfff3;
+  }
+  .pub-success.show {
+    display: block;
+  }
+  .pub-success .pub-success-top {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
   }
-  .pub-success.show {
-    display: flex;
-  }
   .pub-success a {
-    color: #fff;
+    color: #eafff7;
     font-weight: 600;
     text-decoration: none;
-    background: rgba(94, 196, 168, 0.34);
+    background: rgba(94, 196, 168, 0.28);
     padding: 5px 12px;
     border-radius: 999px;
     white-space: nowrap;
+    font-size: 12.5px;
   }
+  /* 撤回：低调的链接样式，不跟"去广场"抢注意力 */
+  .pub-undo {
+    margin-top: 9px;
+    width: 100%;
+    background: none;
+    border: none;
+    color: rgba(236, 228, 248, 0.5);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .pub-undo:hover { color: #ffb9c6; }
   .dur-pills {
     display: flex;
     flex-wrap: wrap;
@@ -1940,9 +2043,10 @@
 <div class="y-modal-mask" id="publishModal" role="dialog" aria-modal="true" aria-labelledby="pubModalTitle">
   <div class="y-modal">
     <div class="y-modal-head">
-      <h3 id="pubModalTitle">发布深夜声音明信片</h3>
+      <h3 id="pubModalTitle">把这夜色寄到广场</h3>
       <button type="button" class="y-modal-close" id="pubCloseBtn" aria-label="关闭">×</button>
     </div>
+    <p class="pub-subtitle">总有人和你一样睡不着。留一张明信片，也许今晚就有人因此松一口气。</p>
     <div class="remix-banner" id="pubRemixPreview"></div>
     <label class="y-field-label" for="pubTitle">配方标题</label>
     <input type="text" class="y-input" id="pubTitle" maxlength="36" placeholder="给这段夜色起个名字">
@@ -1952,18 +2056,28 @@
       <label class="y-field-label" for="pubAuthor">署名昵称（选填）</label>
       <input type="text" class="y-input" id="pubAuthor" maxlength="20" placeholder="深夜旅人">
     </div>
-    <div class="y-field-label">配方许可（决定别人能不能拿走你的配比）</div>
+    <div class="y-field-label">这份夜色，别人能拿走多少？</div>
     <div class="dur-pills" id="pubPolicyPills">
-      <button type="button" class="dur-pill on" data-policy="star_to_fork">借走解锁 · 默认</button>
-      <button type="button" class="dur-pill" data-policy="listen_only">仅限聆听</button>
-      <button type="button" class="dur-pill" data-policy="open">完全公开</button>
+      <button type="button" class="dur-pill on" data-policy="star_to_fork">
+        <i class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></i>借走解锁 · 默认<br><small>免费听，点「借我一晚」才看配比</small>
+      </button>
+      <button type="button" class="dur-pill" data-policy="listen_only">
+        <i class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></i>仅限聆听<br><small>只让人听，配比不外传</small>
+      </button>
+      <button type="button" class="dur-pill" data-policy="open">
+        <i class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></i>完全公开<br><small>任何人都能直接拿去改</small>
+      </button>
     </div>
-    <div class="policy-hint" id="pubPolicyHint">配方默认不外传：听众先免费试听，点一下「借我一晚」才看得到每层素材和比例，改编要带你署名</div>
+    <div class="policy-hint" id="pubPolicyHint">默认不外传配比：听众先免费试听，点「借我一晚」才看得到素材和比例，改编会带上你的署名</div>
     <div class="pub-preview-pills" id="pubTrackPills"></div>
     <div class="status" id="pubStatus"></div>
     <div class="pub-success" id="pubSuccessRow">
-      <span>已发布到配方广场</span>
-      <a href="community.html">去广场看看 ›</a>
+      <div class="pub-success-top">
+        <span>✓ 已寄到广场</span>
+        <a href="community.html">去广场看看 ›</a>
+      </div>
+      <!-- 刚发完就能反悔，不用绕去「我的」页找删除 -->
+      <button type="button" class="pub-undo" id="pubUndoBtn">刚发出的不想要了？撤回</button>
     </div>
     <div class="modal-actions">
       <button type="button" class="y-btn-ghost" id="pubCancelBtn">取消</button>
@@ -3585,10 +3699,12 @@ document.getElementById("remixClearBtn").onclick = function() {
 // ===== 发布到广场弹窗 =====
 var publishModal = document.getElementById("publishModal");
 var publishPolicy = "star_to_fork";
+var lastPublishedPostId = "";  // 刚发出的那条，供「撤回」用
+var pubUndoBtn = document.getElementById("pubUndoBtn");
 var PUB_POLICY_HINTS = {
-  open: "配比完全公开：谁都能看到每层素材和比例，也能直接复制进工坊。只有你真想送出去时才选",
-  star_to_fork: "配方默认不外传：听众先免费试听，点「借我一晚」才看得到每层和比例，改编要带你署名",
-  listen_only: "只开放播放和收藏：配比完全隐藏，别人也改不了"
+  open: "完全公开：谁都能看到每层素材和比例，也能直接复制进工坊。真想送出去时才选",
+  star_to_fork: "默认不外传配比：听众先免费试听，点「借我一晚」才看得到素材和比例，改编会带上你的署名",
+  listen_only: "只开放聆听：配比完全隐藏，别人也改不了"
 };
 
 function setPubPolicy(pol) {
@@ -3634,6 +3750,11 @@ function openPublishModal() {
   document.getElementById("pubStory").value = "";
   document.getElementById("pubSuccessRow").classList.remove("show");
   document.getElementById("pubSubmitBtn").disabled = false;
+  lastPublishedPostId = "";
+  if (pubUndoBtn) {
+    pubUndoBtn.disabled = false;
+    pubUndoBtn.textContent = "刚发出的不想要了？撤回";
+  }
   setPubPolicy("star_to_fork");
   setPubStatus("", false);
 
@@ -3701,6 +3822,8 @@ document.getElementById("pubSubmitBtn").onclick = function() {
     }
     if (d.post && d.post.id && d.delete_token) {
       savePostDeleteToken(d.post.id, d.delete_token);
+      // 记住刚发的这条，撤回按钮只撤这一条，不会误删别的作品
+      lastPublishedPostId = d.post.id;
     }
     titleInputEl.value = title;
     setPubStatus("", false);
@@ -3711,6 +3834,46 @@ document.getElementById("pubSubmitBtn").onclick = function() {
     setPubStatus("连接后端失败：" + e.message, true);
   });
 };
+
+// 撤回刚发的那条：用发布时拿到的 delete_token，删掉后清本地记录并关弹窗
+if (pubUndoBtn) {
+  pubUndoBtn.onclick = function() {
+    if (!lastPublishedPostId) return;
+    if (!window.confirm("撤回这张明信片？广场上就看不到了。")) return;
+    var tok = "";
+    try {
+      var raw = localStorage.getItem(POST_TOKENS_KEY);
+      var map = raw ? JSON.parse(raw) : {};
+      tok = (map && map[lastPublishedPostId]) || "";
+    } catch (e) {}
+    pubUndoBtn.disabled = true;
+    pubUndoBtn.textContent = "正在撤回…";
+    yPost("/api/community_posts/delete", { id: lastPublishedPostId, delete_token: tok })
+      .then(function(res) { return res.json(); })
+      .then(function(d) {
+        if (!d || !d.ok) {
+          pubUndoBtn.disabled = false;
+          pubUndoBtn.textContent = "撤回失败，点这里重试";
+          return;
+        }
+        try {
+          var raw = localStorage.getItem(POST_TOKENS_KEY);
+          var map = raw ? JSON.parse(raw) : {};
+          delete map[lastPublishedPostId];
+          localStorage.setItem(POST_TOKENS_KEY, JSON.stringify(map));
+        } catch (e) {}
+        lastPublishedPostId = "";
+        document.getElementById("pubSuccessRow").classList.remove("show");
+        setPubStatus("", false);
+        closePublishModal();
+        showToast("已撤回，广场上看不到了");
+      })
+      .catch(function() {
+        pubUndoBtn.disabled = false;
+        pubUndoBtn.textContent = "撤回失败，点这里重试";
+      });
+  };
+}
 
 // ===== 商用导出与 CC0 溯源凭证弹窗 =====
 var exportModal = document.getElementById("exportModal");
