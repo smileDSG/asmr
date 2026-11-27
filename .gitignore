@@ -130,3 +130,26 @@ data/lineage_edits.json
 # 浏览器自动化测试产物与临时截图，不进仓库
 tmp/
 paste-images/
+
+# 归档的旧脚本与前端调试页（不再参与运行与部署）
+legacy/
+
+# ===== 仓库只保留部署所需：以下本地保留，不进版本库 =====
+# 安卓打包源码（APK 编译产物本来就不进 git；保留源码在本地可手动打包）
+app/
+.github/workflows/build-apk.yml
+# 文档、方案、比赛材料
+*.md
+*.docx
+参赛材料/
+# 一次性辅助脚本与配置样例（不是运行时依赖）
+get_trade_no.py
+make_webp.py
+nowpay_check.py
+pay_check.py
+reduce_siren.py
+start-local.bat
+sync_deploy.py
+pay_config.backup.json
+pay_config.example.json
+*.example.txt

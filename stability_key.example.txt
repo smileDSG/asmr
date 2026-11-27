@@ -1,3 +1,0 @@
-Stability API key（仅早期实验用，当前主线已改用真实素材，不需要也能跑）。
-如需实验，把 key 粘贴到这里并改名为 stability_key.txt。
-本文件对应的 stability_key.txt 已被 .gitignore 排除，不会上传。
