@@ -565,7 +565,7 @@
     padding: 4px 11px;
   }
 
-  /* 底部常驻聊天输入区 + 迷你播放条 */
+  /* 底部常驻聊天输入区（播放交给对话里的版本卡） */
   .agent-dock-fixed {
     position: fixed;
     left: 12px;
@@ -588,67 +588,16 @@
   .agent-dock-fixed > * {
     pointer-events: auto;
   }
-  .mini-bar {
-    display: none;
-    align-items: center;
-    gap: 9px;
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: rgba(12, 9, 20, 0.90);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 12px 32px rgba(4, 2, 12, 0.45);
-  }
-  .mini-bar.show {
-    display: flex;
-  }
-  .mini-play-btn {
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
-    border-radius: 50%;
-    border: 1px solid rgba(var(--y-warm-rgb), 0.42);
-    background: rgba(var(--y-warm-rgb), 0.16);
-    color: #fff;
-    font-size: 12px;
-    cursor: pointer;
+  .dock-tools {
     display: flex;
     align-items: center;
-    justify-content: center;
-  }
-  .mini-title {
-    font-size: 12.5px;
-    color: #fff;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 128px;
-  }
-  .mini-vol-wrap {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 56px;
-  }
-  .mini-vol-pct {
-    font-size: 11.5px;
-    color: var(--y-text-muted);
-    min-width: 28px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  .mini-tools {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+    gap: 4px;
     flex: 0 0 auto;
+    margin-left: auto;
   }
-  .mini-tools .hero-tool-btn {
-    padding: 4px 9px;
-    font-size: 12px;
+  .dock-tools .hero-tool-btn {
+    padding: 3px 8px;
+    font-size: 11.5px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -716,15 +665,17 @@
   .chat-dock-meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 2px 8px 1px;
+    gap: 6px 8px;
+    padding: 0 10px;
+    min-height: 18px;
+    flex-wrap: wrap;
   }
   .chat-dock-status {
-    font-size: 12px;
+    font-size: 11.5px;
     color: #d6c2ff;
     min-height: 16px;
     line-height: 1.45;
+    flex: 0 1 auto;
   }
   .chat-dock-status.err {
     color: #ff9eb5;
@@ -736,6 +687,8 @@
     font-size: 11.5px;
     color: var(--y-text-muted);
     line-height: 1.45;
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .chat-edit-hint:empty {
     display: none;
@@ -784,16 +737,12 @@
   <section class="chat-stream" id="chatStream"></section>
 </div>
 
-<!-- 底部悬浮：迷你播放条 + 常驻自由打字对话栏 -->
+<!-- 底部悬浮：提示/定时/熄灯 + 常驻自由打字对话栏 -->
 <div class="agent-dock-fixed">
-  <div class="mini-bar" id="miniBar">
-    <button type="button" class="mini-play-btn" id="miniPlayBtn" aria-label="播放或暂停">▶</button>
-    <div class="mini-title" id="miniTitle">未开始</div>
-    <div class="mini-vol-wrap">
-      <input type="range" class="y-slider" id="masterVol" min="0" max="100" value="85" aria-label="总音量">
-      <span class="mini-vol-pct" id="masterVolPct">85%</span>
-    </div>
-    <div class="mini-tools">
+  <div class="chat-dock-meta">
+    <div class="chat-dock-status" id="status"></div>
+    <div class="chat-edit-hint" id="editHintLine"></div>
+    <div class="dock-tools">
       <button type="button" class="hero-tool-btn" id="timerBtn" title="点击切换睡眠定时"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="timerLabel">定时</span></button>
       <button type="button" class="hero-tool-btn" id="lightsOutBtn" title="熄灭界面只留夜色与声音"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>熄灯</span></button>
     </div>
@@ -803,10 +752,6 @@
     <div class="chat-input-row">
       <textarea id="say" class="chat-textarea" rows="1" placeholder="说说你想听什么声音（例：睡不着，想要窗外暖一点的夜雨）" autocomplete="off"></textarea>
       <button type="button" class="chat-send-btn" id="genBtn" title="新生成 1 段扣 1 次（附带 3 次免费修改）；用完后继续改每扣 1 次可改 2 次；追问不扣，DIY 手动调不限次">发送</button>
-    </div>
-    <div class="chat-dock-meta">
-      <div class="chat-dock-status" id="status"></div>
-      <div class="chat-edit-hint" id="editHintLine"></div>
     </div>
   </div>
 </div>
@@ -881,9 +826,6 @@ var statusEl = document.getElementById("status");
 var editHintEl = document.getElementById("editHintLine");
 var chatStream = document.getElementById("chatStream");
 var newChatBtn = document.getElementById("newChatBtn");
-var miniBar = document.getElementById("miniBar");
-var miniPlayBtn = document.getElementById("miniPlayBtn");
-var miniTitle = document.getElementById("miniTitle");
 var timerBtn = document.getElementById("timerBtn");
 
 function clamp(v, lo, hi) {
@@ -1022,11 +964,7 @@ function updatePlaybackUI() {
   wrapAgent.classList.toggle("has-player", versions.length > 0);
   newChatBtn.classList.toggle("show", inConversation || versions.length > 0);
 
-  miniBar.classList.toggle("show", versions.length > 0);
-  miniPlayBtn.textContent = isPlaying ? "❚❚" : "▶";
-
   if (ver) {
-    miniTitle.textContent = "v" + ver.verNum + " · " + ver.title;
     document.getElementById("lightsOutTitle").textContent = ver.title;
     var lead = findLeadTrack(ver.tracks);
     if (lead) {
@@ -2039,21 +1977,6 @@ document.getElementById("lightsOutBtn").onclick = function() {
 };
 document.getElementById("lightsOutOverlay").onclick = function() {
   document.body.classList.remove("lights-out");
-};
-
-miniPlayBtn.onclick = function() {
-  if (isPlaying) {
-    pauseAll();
-  } else if (versions.length > 0) {
-    playVersion(activeVersionIdx >= 0 ? activeVersionIdx : versions.length - 1);
-  }
-};
-
-document.getElementById("masterVol").oninput = function() {
-  var val = parseInt(this.value, 10) || 0;
-  masterVolume = val / 100;
-  document.getElementById("masterVolPct").textContent = val + "%";
-  syncEngine();
 };
 
 function resetConversation() {
