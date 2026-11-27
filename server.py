@@ -5,6 +5,7 @@
 import gzip
 import json
 import hashlib
+import hmac
 import mimetypes
 import os
 import random
@@ -33,6 +34,16 @@ PORT = int(os.environ.get("PORT", "8000"))
 BASE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(BASE, "agent_output")
 SITE_DIR = os.path.join(BASE, "product_site")
+
+# 意见箱管理口令：只放服务端环境变量，不写死在前端。
+# 线上用 systemd 的 Environment=YEXI_ADMIN_TOKEN=... 设置；本机没设就用开发口令。
+ADMIN_TOKEN = os.environ.get("YEXI_ADMIN_TOKEN", "yexi-dev-admin")
+
+
+def _admin_ok(handler):
+    """管理接口鉴权：比对 X-Admin-Token 请求头，用 constant-time 防时序攻击。"""
+    raw = (handler.headers.get("X-Admin-Token") or "").strip()
+    return hmac.compare_digest(raw, ADMIN_TOKEN)
 
 
 def _hotlink_blocked(handler):
@@ -1741,7 +1752,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
             self.send_header(
                 "Access-Control-Allow-Headers",
-                "Content-Type, Authorization, X-Yexi-Client",
+                "Content-Type, Authorization, X-Yexi-Client, X-Admin-Token",
             )
             self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 
@@ -3388,6 +3399,60 @@ class Handler(BaseHTTPRequestHandler):
                     "audio": "/api/audio?id=" + aid,
                 }
             )
+
+        elif path == "/api/feedback_submit":
+            # 意见箱：允许游客提交（不强制登录，约 30% 用户会因要登录而放弃）
+            data = read_body(self)
+            category = str(data.get("category") or "suggestion").strip()
+            if category not in ("bug", "suggestion", "other"):
+                category = "other"
+            content = str(data.get("content") or "").strip()
+            if not content:
+                self.send_json({"error": "请写点你想说的"}, 400)
+                return
+            if len(content) > 1000:
+                self.send_json({"error": "最多 1000 个字，长话短说～"}, 400)
+                return
+            contact = str(data.get("contact") or "").strip()
+            if len(contact) > 120:
+                contact = contact[:120]
+            user = current_user(self)
+            saved = auth_db.add_feedback(_voter_key(self, user), category, content, contact)
+            self.send_json({"ok": True, "id": saved["id"]})
+
+        elif path == "/api/feedback/list":
+            if not _admin_ok(self):
+                self.send_json({"error": "口令不对"}, 401)
+                return
+            status = (urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("status") or [None])[0]
+            items = auth_db.list_feedback(limit=200, status=status)
+            self.send_json({"ok": True, "items": items})
+
+        elif path == "/api/feedback/status":
+            if not _admin_ok(self):
+                self.send_json({"error": "口令不对"}, 401)
+                return
+            data = read_body(self)
+            fid = str(data.get("id") or "").strip()
+            status = str(data.get("status") or "").strip()
+            if status not in ("open", "done"):
+                self.send_json({"error": "无效状态"}, 400)
+                return
+            if not auth_db.set_feedback_status(fid, status):
+                self.send_json({"error": "没找到这条反馈"}, 404)
+                return
+            self.send_json({"ok": True})
+
+        elif path == "/api/feedback/delete":
+            if not _admin_ok(self):
+                self.send_json({"error": "口令不对"}, 401)
+                return
+            data = read_body(self)
+            fid = str(data.get("id") or "").strip()
+            if not auth_db.delete_feedback(fid):
+                self.send_json({"error": "没找到这条反馈"}, 404)
+                return
+            self.send_json({"ok": True})
 
         else:
             self.send_json({"error": "not found"}, 404)

@@ -195,6 +195,22 @@ def init_db():
             PRIMARY KEY (owner_key, day)
         )
     """)
+    # 意见箱：用户反馈/建议。游客也能提（voter_key 标识），不强制登录。
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id         TEXT PRIMARY KEY,
+            voter_key  TEXT NOT NULL DEFAULT '',
+            category   TEXT NOT NULL DEFAULT 'suggestion',
+            content    TEXT NOT NULL,
+            contact    TEXT NOT NULL DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'open',
+            created_at REAL NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_feedback_created
+        ON feedback(created_at DESC)
+    """)
     conn.commit()
     conn.close()
 
@@ -1412,6 +1428,84 @@ def get_user_hub_data(user_id, voter_key):
             "fork_counts": fork_counts,
             "vote_counts": vote_counts,
         }
+    finally:
+        conn.close()
+
+
+def add_feedback(voter_key, category, content, contact):
+    """新增一条意见反馈，返回存好的记录。"""
+    conn = connect()
+    try:
+        fid = "fb_" + secrets.token_hex(6)
+        now = time.time()
+        conn.execute(
+            """
+            INSERT INTO feedback
+            (id, voter_key, category, content, contact, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'open', ?)
+            """,
+            (fid, voter_key or "", category, content, contact or "", now),
+        )
+        conn.commit()
+        return {
+            "id": fid,
+            "category": category,
+            "content": content,
+            "contact": contact or "",
+            "status": "open",
+            "created_at": now,
+        }
+    finally:
+        conn.close()
+
+
+def list_feedback(limit=100, status=None):
+    """按时间倒序列出反馈，管理页用。"""
+    conn = connect()
+    try:
+        sql = "SELECT id, voter_key, category, content, contact, status, created_at FROM feedback"
+        args = []
+        if status in ("open", "done"):
+            sql += " WHERE status=?"
+            args.append(status)
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        args.append(limit)
+        rows = conn.execute(sql, args).fetchall()
+        return [
+            {
+                "id": r[0],
+                "voter_key": r[1],
+                "category": r[2],
+                "content": r[3],
+                "contact": r[4],
+                "status": r[5],
+                "created_at": r[6],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def set_feedback_status(fid, status):
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "UPDATE feedback SET status=? WHERE id=?",
+            (status, fid),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_feedback(fid):
+    conn = connect()
+    try:
+        cur = conn.execute("DELETE FROM feedback WHERE id=?", (fid,))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 

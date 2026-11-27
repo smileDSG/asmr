@@ -915,6 +915,7 @@ body.playing .orb::after {
         <div class="now-label" id="nowLabel">今晚的声音</div>
         <div class="now-name" id="nowName">窗边夜雨</div>
         <div class="now-meta" id="nowMeta">无人声 · 真实录音</div>
+        <button type="button" class="context-fb" id="contextFb" style="display:none;margin-top:6px;font-size:11.5px;color:rgba(235,226,250,.55);background:none;border:none;border-bottom:1px solid rgba(233,183,131,.35);padding:2px 0;cursor:pointer">刚才没播成？告诉我们 ›</button>
       </div>
       <div class="queue-acts">
         <button type="button" class="q-pill" id="swapBtn">换一段 ↻</button>
@@ -975,6 +976,7 @@ body.playing .orb::after {
 
 <script src="auth_ui.js"></script>
 <script src="yexi_shell.js"></script>
+<script src="feedback_ui.js"></script>
 <script>
 var API = YEXI_API;
 initAuthBar("home.html");
@@ -1375,6 +1377,40 @@ function tickDwell() {
 }
 setInterval(tickDwell, 1000);
 
+/* 情境反馈：只在播放出错时浮出，且 7 天最多 2 次，别把「帮忙」变成骚扰。
+   调研依据：任务失败后 10–30 秒是提交意愿最高的时机；同一用户 7 天≤2 次。 */
+var CTX_FB_KEY = "yezi_ctx_fb_v1";
+function showContextFeedback() {
+  var el = document.getElementById("contextFb");
+  if (!el) return;
+  try {
+    var rec = JSON.parse(localStorage.getItem(CTX_FB_KEY) || "{}");
+    var now = Date.now();
+    if (rec.week && now - rec.week < 7 * 86400000 && rec.count >= 2) return;
+    if (!rec.week || now - rec.week >= 7 * 86400000) rec = { week: now, count: 0 };
+    rec.count += 1;
+    localStorage.setItem(CTX_FB_KEY, JSON.stringify(rec));
+  } catch (e) {}
+  el.style.display = "";
+}
+function hideContextFeedback() {
+  var el = document.getElementById("contextFb");
+  if (el) el.style.display = "none";
+}
+(function bindContextFeedback() {
+  var el = document.getElementById("contextFb");
+  if (!el) return;
+  el.onclick = function() {
+    if (typeof window.openFeedback === "function") {
+      window.openFeedback({
+        category: "bug",
+        content: "播放没能成功：正在听「" + (selected ? selected.name : "？") + "」。当时情况是："
+      });
+    }
+    hideContextFeedback();
+  };
+})();
+
 function playScene(s, forceRestart) {
   stopPreview(true);
   ensureAnalyser();
@@ -1389,6 +1425,7 @@ function playScene(s, forceRestart) {
         document.getElementById("nowMeta").textContent = (err && err.name === "NotAllowedError")
           ? "请再轻点一下播放按钮"
           : "音频加载失败，请稍后再试";
+        if (err && err.name !== "NotAllowedError") showContextFeedback();
       });
     } else {
       tickDwell();
@@ -1415,6 +1452,7 @@ function playScene(s, forceRestart) {
       var d = res.data || {};
       if (!res.ok || d.error || !d.audio) {
         document.getElementById("nowMeta").textContent = d.error || ("加载失败 (" + res.status + ")");
+        showContextFeedback();
         return;
       }
       loadedKey = key;
@@ -1427,6 +1465,7 @@ function playScene(s, forceRestart) {
         if (mySeq !== playSeq) return;
         listenTickLast = Date.now();
         document.getElementById("nowMeta").textContent = metaText();
+        hideContextFeedback();
         render();
         try {
           sessionStorage.setItem("yezi_play", JSON.stringify({ title: s.name, audio: d.audio, items: d.items || tracks }));
@@ -1439,13 +1478,15 @@ function playScene(s, forceRestart) {
       document.getElementById("nowMeta").textContent = (err && err.name === "NotAllowedError")
         ? "请再轻点一下播放按钮"
         : "音频加载失败，请稍后再试";
+      if (err && err.name !== "NotAllowedError") showContextFeedback();
     });
 }
-sceneAudio.addEventListener("play", function() { listenTickLast = Date.now(); render(); });
+sceneAudio.addEventListener("play", function() { listenTickLast = Date.now(); hideContextFeedback(); render(); });
 sceneAudio.addEventListener("pause", function() { tickDwell(); render(); });
 sceneAudio.addEventListener("error", function() {
   if (!sceneAudio.src) return;
   document.getElementById("nowMeta").textContent = "音频加载失败，请稍后再试";
+  showContextFeedback();
   render();
 });
 
