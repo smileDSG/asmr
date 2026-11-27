@@ -1,4 +1,4 @@
-// 夜息：站内「装 App」入口（首页页眉一个胶囊 + 我的页一行）
+// 夜息：站内「装 App」入口（只在首页页眉放一个胶囊）
 //
 // 为什么单独一个文件：
 //   游客在网页里要能一眼找到装 App 的地方，不用去猜 install.html 这个地址；
@@ -21,7 +21,7 @@
   // 是否正跑在夜息 App 的原生壳里
   function isInApp() {
     var cap = window.Capacitor;
-    if (!cap) return false;
+    if (!cap) return hasInAppMark();
     if (typeof cap.isNativePlatform === "function") {
       return cap.isNativePlatform() === true;
     }
@@ -30,6 +30,20 @@
       return cap.getPlatform() !== "web";
     }
     return false;
+  }
+
+  // 兜底判据：壳里加载的地址如果带 ?inapp=1，就记到本机存储里，之后每个页面都认得出。
+  // 这条不依赖 Capacitor 桥——万一某些机型的 WebView 不支持 document-start 注入，
+  // 桥进不来，靠这个标记照样能藏住入口。需要在 app/capacitor.config.json 的 server.url 上带参数。
+  function hasInAppMark() {
+    try {
+      if (/[?&]inapp=1(&|$)/.test(location.search)) {
+        localStorage.setItem("yexi_inapp", "1");
+      }
+      return localStorage.getItem("yexi_inapp") === "1";
+    } catch (e) {
+      return false;   // 浏览器禁了本地存储，当网页处理
+    }
   }
 
   function isWeChat() {
@@ -46,23 +60,12 @@
       ".y-app-entry{display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap;",
       "background:rgba(16,12,28,.44);border:1px solid rgba(var(--y-warm-rgb,233,183,131),.42);",
       "color:#f0e9f8;border-radius:999px;padding:7px 16px;font-size:13.5px;letter-spacing:.08em;",
-      // line-height 跟着页面正文（1.7）走，才能和旁边「听觉图鉴」「登录」一样高
-      "font-family:inherit;line-height:1.7;cursor:pointer;",
+      // line-height 调成和旁边「听觉图鉴」「登录」一样高（实测 1.5 → 36px 对齐）
+      "font-family:inherit;line-height:1.5;cursor:pointer;",
       "transition:background .35s ease,color .35s ease,border-color .35s ease}",
       ".y-app-entry:hover{background:rgba(var(--y-warm-rgb,233,183,131),.22);",
       "border-color:rgba(var(--y-warm-rgb,233,183,131),.62);color:#fff}",
       "@media (max-width:430px){.y-app-entry{padding:6px 12px;font-size:12.5px;letter-spacing:.04em}}",
-      // 我的页那一行（放在首屏权益条下面，不用滚动就能看到）
-      ".y-app-row-wrap{text-align:center;margin:2px 0 22px}",
-      ".y-app-entry-row{display:inline-block;padding:11px 22px;border-radius:999px;",
-      "background:rgba(var(--y-warm-rgb,233,183,131),.1);",
-      "border:1px solid rgba(var(--y-warm-rgb,233,183,131),.34);",
-      "color:var(--y-warm,#e9b783);font-size:13.5px;letter-spacing:.06em;text-decoration:none;",
-      "line-height:1.5;transition:background .3s ease,border-color .3s ease}",
-      ".y-app-entry-row:hover{background:rgba(var(--y-warm-rgb,233,183,131),.18);",
-      "border-color:rgba(var(--y-warm-rgb,233,183,131),.55)}",
-      ".y-app-entry-row small{display:block;font-size:11px;color:var(--y-text-muted,#a99fbb);",
-      "letter-spacing:.02em;margin-top:3px}",
       // 微信里那句引导
       ".y-app-tip{position:fixed;left:0;right:0;top:0;bottom:0;z-index:9999;",
       "background:rgba(6,4,10,.82);display:flex;align-items:flex-start;justify-content:center;",
@@ -102,8 +105,7 @@
   }
 
   // 首页页眉：和「听觉图鉴」并排的小胶囊。
-  // 只认首页那种页眉（class 里带 v2-top）；「我的」页页眉结构完全不同，
-  // 硬塞进去会挤到「登录」旁边，所以那边只留下面那一行。
+  // 只认首页那种页眉（class 里带 v2-top）；其它页页眉结构不同，不硬塞。
   function addHeaderEntry() {
     var top = document.querySelector(".v2-top");
     if (!top) return;
@@ -122,32 +124,6 @@
     }
   }
 
-  // 我的页：权益条下面加一行（在首屏内，不用滚到底部找）
-  function addProfileRow() {
-    var row = document.createElement("a");
-    row.className = "y-app-entry-row";
-    row.href = "install.html";
-    row.innerHTML = "把夜息装到手机上<small>装成 App 后锁屏也能一直放</small>";
-    row.addEventListener("click", onEntryClick);
-
-    var wrap = document.createElement("div");
-    wrap.className = "y-app-row-wrap";
-    wrap.appendChild(row);
-
-    var hero = document.querySelector("header.page-hero");
-    if (hero) {
-      if (document.querySelector(".y-app-row-wrap")) return;
-      hero.parentNode.insertBefore(wrap, hero.nextSibling);
-      return;
-    }
-    // 兜底：没有这个结构就放在意见反馈上面
-    var fb = document.getElementById("feedbackEntry");
-    if (fb && fb.parentNode) {
-      if (document.querySelector(".y-app-entry-row")) return;
-      fb.parentNode.insertBefore(wrap, fb);
-    }
-  }
-
   // 装了 App 的人不该再看到入口：直接什么都不画
   if (isInApp()) return;
 
@@ -155,7 +131,6 @@
 
   function boot() {
     addHeaderEntry();
-    addProfileRow();
   }
 
   if (document.readyState === "loading") {
