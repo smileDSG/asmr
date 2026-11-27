@@ -20,10 +20,13 @@ import json
 import os
 import re
 import secrets
+import threading
 import time
 import urllib.parse
 
 import auth_db
+
+_ORDER_LOCK = threading.Lock()
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE, "pay_config.json")
@@ -191,18 +194,30 @@ def purchase_create(user_id, product_key, sku_id=""):
 
 def _save_order(rec):
     """把一次下单的请求号存到本地，供以后查交易号。"""
+    tmp = None
     try:
-        os.makedirs(os.path.dirname(ORDERS_FILE), exist_ok=True)
-        orders = []
-        if os.path.isfile(ORDERS_FILE):
-            with open(ORDERS_FILE, "r", encoding="utf-8") as f:
-                orders = json.load(f)
-        orders.append(rec)
-        # 只留最近 200 条，够比赛用了
-        orders = orders[-200:]
-        with open(ORDERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(orders, f, ensure_ascii=False, indent=2)
+        with _ORDER_LOCK:
+            os.makedirs(os.path.dirname(ORDERS_FILE), exist_ok=True)
+            orders = []
+            if os.path.isfile(ORDERS_FILE):
+                with open(ORDERS_FILE, "r", encoding="utf-8") as f:
+                    orders = json.load(f)
+            orders.append(rec)
+            # 只留最近 200 条，够比赛用了
+            orders = orders[-200:]
+            tmp = os.path.join(
+                os.path.dirname(ORDERS_FILE),
+                f".nowpay_orders.{secrets.token_hex(4)}.tmp",
+            )
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(orders, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, ORDERS_FILE)
     except Exception as e:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
         print("[nowpay] 保存订单记录失败：" + str(e), flush=True)
 
 

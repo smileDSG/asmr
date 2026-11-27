@@ -997,6 +997,13 @@ var fallbackAudio = null;
 var usingFallback = false;
 var randDraftIdx = 0;
 
+// 后台生成任务：taskId 存 localStorage，页面跳转/重开都能接着查结果
+var BG_TASK_KEY = "yexi_bg_gen_task_v1";
+var bgTaskId = "";
+var bgPollTimer = null;
+var bgContext = null;
+var bgThinker = null;
+
 var TIMER_STEPS = [0, 15, 30, 60];
 var timerStepIdx = 0;
 var sleepTimerId = null;
@@ -1693,7 +1700,7 @@ function appendAiTurnCard(ver) {
   card.querySelector('[data-act="keep"]').onclick = function() { saveFeedbackGood(verIdx, this); };
   card.querySelector('[data-act="diy"]').onclick = function() {
     var code = yEncodeMix({ title: ver.title, tracks: ver.tracks });
-    location.href = code ? ("index.html#mix=" + encodeURIComponent(code)) : "index.html";
+    location.href = code ? ("diy.html#mix=" + encodeURIComponent(code)) : "diy.html";
   };
   card.querySelector('[data-act="player"]').onclick = function() { openFullPlayer(ver); };
 
@@ -1760,7 +1767,11 @@ function sendTurn(rawSay, forceCompose) {
   var curVer = getActiveVersion() || (versions.length > 0 ? versions[versions.length - 1] : null);
   var currentTracksPayload = curVer ? curVer.tracks : [];
 
-  yPost("/api/agent_chat", {
+  // 提交后台任务：服务器接着跑，页面跳转/关闭都不影响
+  bgContext = { say: say, forceCompose: !!forceCompose };
+  bgThinker = thinker;
+
+  yPost("/api/task/submit", {
     say: say,
     initial_prompt: initialPrompt,
     qa_round: qaRound,
@@ -1771,23 +1782,49 @@ function sendTurn(rawSay, forceCompose) {
   })
   .then(function(r) {
     if (r.status === 404) {
-      return fallbackLegacyTurn(say, currentTracksPayload);
+      // 老版本服务器没有任务接口：降级走同步接口
+      clearBgTask();
+      return yPost("/api/agent_chat", {
+        say: say,
+        initial_prompt: initialPrompt,
+        qa_round: qaRound,
+        force_compose: !!forceCompose,
+        current_tracks: currentTracksPayload,
+        history: chatHistory.slice(-6),
+        seconds: 30
+      }).then(function(r2) { return r2.json(); }).then(function(d2) { handleGenResult(d2); });
     }
-    // 先确认响应真的是 JSON，否则把原文片段显示出来，避免笼统的解析报错
-    var ctype = r.headers.get("content-type") || "";
-    if (ctype.indexOf("json") === -1) {
-      return r.text().then(function(txt) {
-        throw new Error("服务返回的不是 JSON（" + ctype + "）：" + String(txt || "").replace(/\s+/g, " ").slice(0, 120));
-      });
-    }
-    return r.json();
+    return r.json().then(function(s) {
+      if (!s.ok || !s.taskId) throw new Error(s.error || "提交任务失败");
+      bgTaskId = s.taskId;
+      try { localStorage.setItem(BG_TASK_KEY, bgTaskId); } catch (e) {}
+      pollBgTask();
+    });
   })
-  .then(function(d) {
-    thinker.stop();
+  .catch(function(e) {
+    if (bgThinker) bgThinker.stop();
     isSending = false;
+    genBtn.disabled = false;
     startQaBtn.disabled = false;
     skipQaBtn.disabled = false;
-    genBtn.disabled = false;
+    setStatus("连接本地服务失败（" + e.message + "）", true);
+  });
+}
+
+
+function handleGenResult(d) {
+  var say = bgContext ? bgContext.say : "";
+  // 恢复任务时本地没有原话，用服务端返回的最终提示词兜底
+  if (!say) say = d.final_prompt || d.title || "";
+  var forceCompose = bgContext ? bgContext.forceCompose : false;
+  var thinker = bgThinker;
+  if (thinker) thinker.stop();
+  isSending = false;
+  startQaBtn.disabled = false;
+  skipQaBtn.disabled = false;
+  genBtn.disabled = false;
+  clearBgTask();
+  setStatus("");
 
     if (!d || d.error) {
       if (d && d.action === "blocked") {
@@ -1823,7 +1860,8 @@ function sendTurn(rawSay, forceCompose) {
       return;
     }
 
-    fallbackAudio = new Audio(API + "/api/audio?t=" + Date.now());
+    var fbUrl = d.audio ? (API + d.audio + (d.audio.indexOf("?") === -1 ? "?" : "&") + "t=" + Date.now()) : (API + "/api/audio?t=" + Date.now());
+    fallbackAudio = new Audio(fbUrl);
     fallbackAudio.loop = true;
 
     var isAiPowered = typeof d.ai_powered === "boolean" ? d.ai_powered : (
@@ -1849,14 +1887,70 @@ function sendTurn(rawSay, forceCompose) {
 
     appendAiTurnCard(ver);
     playVersion(versions.length - 1);
+
+    // 出声才算一次：把这次扣减后的剩余次数告诉用户，形成闭环。
+    // 付费用户没有 quota 字段，不显示。
+    if (d.quota && typeof d.quota.left === "number") {
+      setStatus("今天还可生成 " + d.quota.left + " 次");
+      setTimeout(function() {
+        if (statusEl.textContent.indexOf("今天还可生成") === 0) setStatus("");
+      }, 4000);
+    }
+}
+
+function clearBgTask() {
+  bgTaskId = "";
+  bgContext = null;
+  bgThinker = null;
+  if (bgPollTimer) { clearTimeout(bgPollTimer); bgPollTimer = null; }
+  try { localStorage.removeItem(BG_TASK_KEY); } catch (e) {}
+}
+
+function pollBgTask() {
+  if (!bgTaskId) return;
+  yGet("/api/task/status?id=" + encodeURIComponent(bgTaskId))
+  .then(function(r) {
+    if (r.status === 404) {  // 任务过期/服务重启丢失
+      clearBgTask();
+      setStatus("生成任务已失效，请重新发送", true);
+      isSending = false;
+      genBtn.disabled = false;
+      startQaBtn.disabled = false;
+      skipQaBtn.disabled = false;
+      return;
+    }
+    return r.json().then(function(s) {
+      if (!s.ok) throw new Error(s.error || "查询失败");
+      if (s.state === "queued" || s.state === "running") {
+        // 还没好，过 1.5 秒再看
+        bgPollTimer = setTimeout(pollBgTask, 1500);
+        return;
+      }
+      if (s.state === "failed") {
+        // 失败也分类型：额度用完要弹付费墙、违规要出引导卡片，只有真失败才给通用提示。
+        // 后端把完整响应存在 result 里，交给原来的处理器统一处理语义。
+        var failedResult = s.result || {};
+        clearBgTask();
+        if (failedResult.action === "quota" || failedResult.action === "blocked") {
+          handleGenResult(failedResult);
+        } else {
+          setStatus((s.error || "生成失败") + "，请重试", true);
+          isSending = false;
+          genBtn.disabled = false;
+          startQaBtn.disabled = false;
+          skipQaBtn.disabled = false;
+        }
+        return;
+      }
+      // done：把结果交给原来的响应处理逻辑
+      var result = s.result || {};
+      clearBgTask();
+      handleGenResult(result);
+    });
   })
   .catch(function(e) {
-    thinker.stop();
-    isSending = false;
-    startQaBtn.disabled = false;
-    skipQaBtn.disabled = false;
-    genBtn.disabled = false;
-    setStatus("连接本地服务失败（" + e.message + "）", true);
+    // 网络抖动就重试，不清任务
+    bgPollTimer = setTimeout(pollBgTask, 2000);
   });
 }
 
@@ -2123,6 +2217,19 @@ renderPromptBuilder();
 syncBuilderChipsFromDraft();
 updatePlaybackUI();
 loadMemory();
+
+// 页面加载时：如果有未完成的任务，恢复轮询（生成在后台继续跑过了）
+try {
+  var savedTask = localStorage.getItem(BG_TASK_KEY);
+  if (savedTask) {
+    bgTaskId = savedTask;
+    bgContext = { say: "", forceCompose: false };
+    setStatus("正在取回后台生成结果…");
+    genBtn.disabled = true;
+    isSending = true;
+    pollBgTask();
+  }
+} catch (e) {}
 
 var params = new URLSearchParams(location.search);
 var fromQuery = params.get("say");

@@ -1136,7 +1136,7 @@
       <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
       <div class="name">夜息</div>
     </a>
-    <a href="index.html" class="pill-link">发一张配方</a>
+    <a href="diy.html" class="pill-link">发一张配方</a>
   </div>
 
   <header class="page-hero">
@@ -1406,7 +1406,9 @@ function normalizeUserPost(raw) {
     unlocked: raw.unlocked !== false,
     items_locked: !!raw.items_locked,
     track_count: raw.track_count || items.length || 0,
+    segment_count: raw.segment_count || (Array.isArray(raw.segments) ? raw.segments.length : 0),
     items: items,
+    segments: Array.isArray(raw.segments) ? raw.segments : [],
     created_at: raw.created_at || 0,
     comment_count: raw.comment_count || 0,
     isUserPost: true
@@ -1546,12 +1548,14 @@ function toggleEvalVote(rid, tag) {
           if (communityPosts[pi].id !== rid) continue;
           if (d.unlocked && Array.isArray(d.items)) {
             communityPosts[pi].items = d.items;
+            if (Array.isArray(d.segments)) communityPosts[pi].segments = d.segments;
             communityPosts[pi].items_locked = false;
             communityPosts[pi].unlocked = true;
             communityPosts[pi].starred_by_me = true;
             changed = true;
           } else if (delta === -1 && communityPosts[pi].remix_policy === "star_to_fork" && !communityPosts[pi].is_mine) {
             communityPosts[pi].items = [];
+            communityPosts[pi].segments = [];
             communityPosts[pi].items_locked = true;
             communityPosts[pi].unlocked = false;
             communityPosts[pi].starred_by_me = false;
@@ -1751,9 +1755,13 @@ function buildFeedItem(r) {
   var borrowCnt = getRecipeEvalCount(r.id, "borrow");
   var playing = activePreviewId === r.id;
   var official = !!r.isOfficial;
-  var badge = official
-    ? '<span class="badge-official">官方示范</span>'
-    : (r.isUserPost ? '<span class="badge-new">社区新作</span>' : '');
+  var segCnt = r.segment_count || (Array.isArray(r.segments) ? r.segments.length : 0);
+  var badgeText = official
+    ? "官方示范"
+    : (r.isUserPost ? ("社区新作" + (segCnt > 0 ? " · " + segCnt + "段拼接" : "")) : (segCnt > 0 ? segCnt + "段拼接" : ""));
+  var badge = badgeText
+    ? '<span class="' + (official ? "badge-official" : "badge-new") + '">' + badgeText + '</span>'
+    : "";
 
   // 真人身份行：头像 + 昵称 + 时间（官方也显示，但标出来并且点了没反应）
   var av = avatarOfRecipe(r);
@@ -2420,7 +2428,8 @@ function preview(r) {
     .then(function(res) { return res.json(); })
     .then(function(d) {
       if (d.error) { if (msg) msg.textContent = d.error; return; }
-      var audioUrl = usePlayApi ? (API + d.audio) : (API + "/api/preview_audio?t=" + Date.now());
+      var rawAudio = d.audio || "/api/preview_audio";
+      var audioUrl = API + rawAudio + (usePlayApi ? "" : ((rawAudio.indexOf("?") === -1 ? "?" : "&") + "t=" + Date.now()));
       if (!sharedPreviewAudio) sharedPreviewAudio = new Audio();
       sharedPreviewAudio.src = audioUrl;
       activePreviewAudio = sharedPreviewAudio;
@@ -2527,12 +2536,22 @@ function useIt(r) {
     if (msg) msg.textContent = "先「借我一晚」解锁配比，才能带进工坊改";
     return;
   }
+  if (Array.isArray(r.segments) && r.segments.length > 0) {
+    try {
+      sessionStorage.setItem("yexi_open_stitch", JSON.stringify({
+        title: r.title || "夜息拼接",
+        segments: r.segments
+      }));
+    } catch (e) {}
+    location.href = "diy.html?pane=stitch";
+    return;
+  }
   var code = yEncodeMix({ title: r.title, tracks: r.items });
   if (code) {
     var qs = "?remix_id=" + encodeURIComponent(r.id || "") +
       "&remix_title=" + encodeURIComponent(r.title || "") +
       "&remix_author=" + encodeURIComponent(r.author || "夜息");
-    location.href = "index.html" + qs + "#mix=" + encodeURIComponent(code);
+    location.href = "diy.html" + qs + "#mix=" + encodeURIComponent(code);
   } else {
     location.href = "agent.html?say=" + encodeURIComponent(r.say);
   }

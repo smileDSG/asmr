@@ -236,32 +236,47 @@ function yPayShowQr(d) {
     yPayClose2("yQrMask");
   };
 
-  // 每 3 秒查一次余额，查到 >0 就说明到账了
-  var tries = 0;
+  // 手机端直接自动唤起支付宝，同时保留手动按钮兜底
+  if (isMobile && d.pay_url) {
+    setTimeout(function () {
+      location.href = d.pay_url;
+    }, 350);
+  }
+
+  // 先查一次当前余额作为基准，避免原本有余额的用户加购时 3 秒被误判"到账"
+  var baseRemaining = 0;
   if (yQrTimer) clearInterval(yQrTimer);
-  yQrTimer = setInterval(function () {
-    tries += 1;
-    yGet("/api/nowpay/quota").then(function (r) { return r.json(); })
-      .then(function (q) {
-        if (q.remaining > 0) {
-          clearInterval(yQrTimer);
-          var s = document.getElementById("yQrStatus");
-          var f = document.getElementById("yQrFoot");
-          if (s) s.textContent = "付款成功，已到账 " + q.remaining + " 次";
-          if (f) f.textContent = "正在解锁…";
-          yPayCache = null;
-          setTimeout(function () {
-            yPayClose2("yQrMask");
-            location.reload();
-          }, 900);
-        } else if (tries >= 40) {
-          clearInterval(yQrTimer);
-          var s2 = document.getElementById("yQrStatus");
-          if (s2) s2.textContent = "还没查到付款，请确认是否已完成支付";
-        }
-      })
-      .catch(function () {});
-  }, 3000);
+  yGet("/api/nowpay/quota").then(function (r) { return r.json(); })
+    .then(function (q) {
+      if (q && typeof q.remaining === "number") baseRemaining = q.remaining;
+    })
+    .catch(function () {})
+    .then(function () {
+      var tries = 0;
+      yQrTimer = setInterval(function () {
+        tries += 1;
+        yGet("/api/nowpay/quota").then(function (r) { return r.json(); })
+          .then(function (q) {
+            if (q && typeof q.remaining === "number" && q.remaining > baseRemaining) {
+              clearInterval(yQrTimer);
+              var s = document.getElementById("yQrStatus");
+              var f = document.getElementById("yQrFoot");
+              if (s) s.textContent = "付款成功，已到账 " + q.remaining + " 次";
+              if (f) f.textContent = "正在解锁…";
+              yPayCache = null;
+              setTimeout(function () {
+                yPayClose2("yQrMask");
+                location.reload();
+              }, 900);
+            } else if (tries >= 40) {
+              clearInterval(yQrTimer);
+              var s2 = document.getElementById("yQrStatus");
+              if (s2) s2.textContent = "还没查到付款，请确认是否已完成支付";
+            }
+          })
+          .catch(function () {});
+      }, 3000);
+    });
 }
 
 var yQrTimer = null;

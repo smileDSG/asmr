@@ -66,7 +66,7 @@ PRODUCTS = {
     "trial3": {
         "id": "trial3",
         "name": "夜息 · 三次体验",
-        "short": "3 段音频（追问不扣）+ 全库素材",
+        "short": "3 段音频（追问不扣）+ 全库 30 天",
         "price_cents": 290,
         "kind": "full",
         "quota": 3,

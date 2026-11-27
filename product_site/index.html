@@ -1842,6 +1842,15 @@
   body.embedded .ph-presets { margin-top: 6px; }
   /* 嵌在 tab 壳里时抽屉别盖到声场节点，拉满也留出上面的声场 */
   body.embedded #mobileDrawer { max-height: 45dvh; }
+  /* 顶部创作路径点某一步时，让对应控件闪一下 */
+  .yexi-step-focus { animation: yexi-step-glow 1.6s ease-out 1; }
+  @keyframes yexi-step-glow {
+    0%, 100% { outline: 0 solid rgba(233,183,131,0); box-shadow: 0 0 0 rgba(233,183,131,0); }
+    20%, 60% { outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; box-shadow: 0 0 18px rgba(233,183,131,0.25); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .yexi-step-focus { animation: none; outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; }
+  }
 </style>
 </head>
 <body>
@@ -2154,11 +2163,58 @@ initAuthBar("index.html");
 if (!IS_EMBEDDED) initYexiTabbar("index.html");
 initAmbientStage("img/night-lake-stars.jpg", "#e9b783");
 
+// 创作路径：告诉外壳自己走到哪一步了
+function reportDiyStep(step) {
+  if (IS_EMBEDDED) {
+    try { parent.postMessage({ type: "yexi-step-done", step: step }, "*"); } catch (e) {}
+  }
+}
+
+// 创作路径：外壳引导时滚过去并高亮对应控件。
+// hold=true 时保持高亮，等用户真的做完这一步；不是闪一下就没。
+var guideHoldEl = null;
+function clearGuideFocus() {
+  if (guideHoldEl) { guideHoldEl.classList.remove("yexi-step-focus"); guideHoldEl = null; }
+}
+function focusDiyStep(step, hold) {
+  var id = "";
+  if (step === "base") id = "presetsPanel";
+  else if (step === "make") id = "soundStage";
+  else if (step === "save") id = "saveWorkBtn";
+  else if (step === "publish") id = "publishBtn";
+  clearGuideFocus();
+  var el = document.getElementById(id);
+  if (!el) return;
+  try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { el.scrollIntoView(); }
+  el.classList.remove("yexi-step-focus");
+  void el.offsetWidth;
+  el.classList.add("yexi-step-focus");
+  if (hold) {
+    guideHoldEl = el; // 保持住，直到父页面说清除
+  } else {
+    setTimeout(function() { el.classList.remove("yexi-step-focus"); }, 1700);
+  }
+}
+
 if (IS_EMBEDDED) {
-  // 切到另一个 tab 时暂停这边，避免两页同时出声
+  // 切到另一个 tab 时暂停这边，避免两页同时出声；点创作路径时跳到对应控件
   window.addEventListener("message", function(e) {
-    if (!e.data || e.data.type !== "yexi-pause") return;
-    try { if (typeof setPlaying === "function") setPlaying(false); } catch (err) {}
+    if (!e.data || typeof e.data !== "object") return;
+    if (e.data.type === "yexi-pause") {
+      try { if (typeof setPlaying === "function") setPlaying(false); } catch (err) {}
+    } else if (e.data.type === "yexi-goto-step") {
+      focusDiyStep(e.data.step, !!e.data.hold);
+    } else if (e.data.type === "yexi-guide-clear") {
+      clearGuideFocus();
+    } else if (e.data.type === "yexi-get-mix") {
+      try {
+        var payload = typeof currentItemsPayload === "function" ? currentItemsPayload() : [];
+        var tName = (typeof titleInputEl !== "undefined" && titleInputEl && titleInputEl.value.trim())
+          ? titleInputEl.value.trim()
+          : (typeof buildAutoTitle === "function" ? buildAutoTitle() : "夜息声景");
+        parent.postMessage({ type: "yexi-mix-reply", title: tName, tracks: payload }, "*");
+      } catch (err) {}
+    }
   });
   // 把内容高度同步给父页面，让 iframe 不出现内部滚动条
   function yPostHeight() {
@@ -2317,7 +2373,7 @@ if (YexiMixer && YexiMixer.isSupported()) {
         if (isPlaying) fallbackAudio.play().catch(function() {});
         return;
       }
-      showToast("加载「" + ySoundMeta(path).name + "」失败，请确认本地后端服务已启动");
+      showToast("加载「" + ySoundMeta(path).name + "」失败，请检查网络后重试");
     }
   });
 }
@@ -2831,6 +2887,7 @@ function renderStageNodes() {
           node.removeEventListener("pointercancel", onCancel);
           // 轻点（没拖动）才跳调参数；拖动时是在调远近，跳走会打断操作
           if (ev.type === "pointerup" && !didMove) focusTrackInTune(tracks[idx].path);
+          if (didMove) reportDiyStep("make");
         };
         var onCancel = function() {
           node.classList.remove("dragging");
@@ -2965,6 +3022,8 @@ function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint) {
   currentWorkId = workIdHint || "";
   activePresetId = presetIdHint || "";
   ensureSelectedTrackValid();
+  // 铺好声音了，第一步完成（包括进来时默认铺好的那套）
+  if (tracks.length > 0) reportDiyStep("base");
 
   if (typeof titleHint === "string" && titleHint.trim()) {
     titleInputEl.value = titleHint.trim();
@@ -2988,6 +3047,7 @@ function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint) {
 }
 
 function toggleLibrarySound(sound) {
+  reportDiyStep("make");
   if (hasTrack(sound.path)) {
     removeTrack(sound.path);
     return;
@@ -3187,6 +3247,7 @@ function renderTracksUI() {
       weightInput.oninput = function() {
         var v = parseInt(this.value, 10) || 5;
         tracks[idx].weight = v / 100;
+        reportDiyStep("make");
         clearActivePreset();
         syncTrackRowUI(idx);
         renderStageNodes();
@@ -3199,6 +3260,7 @@ function renderTracksUI() {
         panInput.oninput = function() {
           var p = parseInt(this.value, 10) || 0;
           tracks[idx].pan = p / 100;
+          reportDiyStep("make");
           clearActivePreset();
           syncTrackRowUI(idx);
           renderStageNodes();
@@ -3210,6 +3272,7 @@ function renderTracksUI() {
         densityInput.oninput = function() {
           var d = parseInt(this.value, 10) || 10;
           tracks[idx].density = clamp(d / 100, 0.1, 1.0);
+          reportDiyStep("make");
           clearActivePreset();
           syncTrackRowUI(idx);
           var btns = row.querySelectorAll(".density-btn");
@@ -3750,6 +3813,7 @@ document.getElementById("saveWorkBtn").onclick = function() {
     writeLocalWorks(savedWorks);
     renderSavedWorks();
     switchPanelTab("works");
+    reportDiyStep("save");
     showToast("已保存「" + title + "」到作品");
   })
   .catch(function() {
@@ -3765,6 +3829,7 @@ document.getElementById("saveWorkBtn").onclick = function() {
     writeLocalWorks(savedWorks);
     renderSavedWorks();
     switchPanelTab("works");
+    reportDiyStep("save");
     showToast("已暂存「" + title + "」到作品（重启后端可同步账号）");
   });
 };
@@ -3951,6 +4016,7 @@ document.getElementById("pubSubmitBtn").onclick = function() {
     titleInputEl.value = title;
     setPubStatus("", false);
     document.getElementById("pubSuccessRow").classList.add("show");
+    reportDiyStep("publish");
   })
   .catch(function(e) {
     btn.disabled = false;

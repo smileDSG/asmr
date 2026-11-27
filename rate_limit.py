@@ -15,10 +15,19 @@ _last_clean = 0.0
 # 每类端点：窗口秒数 / 窗口内最多几次
 # 生成类调 AI，最贵，卡最严；读类宽松；纯静态页面不设限（在 server 里跳过）
 RULES = {
-    "generate": (60, 8),     # /api/generate /api/agent_chat /api/preview /api/play 等
+    "generate": (60, 8),     # /api/generate /api/agent_chat /api/preview 等
     "auth": (60, 10),        # 登录/注册
     "write": (60, 30),       # 发帖/评论/投票/改资料
-    "read": (60, 180),       # 普通读接口
+    "read": (60, 180),       # 普通读接口（含 /api/play）
+    "stream": (60, 60),      # 音频流：正常播放够用，挡得住单 IP 狂拉
+}
+
+# 音频流接口：一次要传 10MB 级别的音频，比普通读接口贵得多，单独限流。
+STREAM_PATHS = {
+    "/api/play_audio",
+    "/api/asset",
+    "/api/audio",
+    "/api/preview_audio",
 }
 
 # 哪些路径算"生成类"（真的会调模型或合成音频，花钱花 CPU）
@@ -26,7 +35,6 @@ GENERATE_PATHS = {
     "/api/generate",
     "/api/agent_chat",
     "/api/preview",
-    "/api/play",
     "/api/download",
     "/api/export_commercial",
 }
@@ -57,6 +65,8 @@ WRITE_PATHS = {
 def category_of(path):
     if path in GENERATE_PATHS:
         return "generate"
+    if path in STREAM_PATHS:
+        return "stream"
     if path in AUTH_PATHS:
         return "auth"
     if path in WRITE_PATHS:

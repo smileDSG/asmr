@@ -8,28 +8,53 @@
 
 import json
 import os
+import re
+import secrets
+import threading
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 MEM_DIR = os.path.join(BASE, "memory")
+_FILE_LOCK = threading.Lock()
 
 
 class FileStore:
-    # 游客：存本地 JSON 文件
+    # 游客：存本地 JSON 文件；传入 namespace 时按客户端 ID 分目录隔离
+    def __init__(self, namespace=None):
+        safe_ns = ""
+        if namespace:
+            safe_ns = re.sub(r"[^A-Za-z0-9_-]", "", str(namespace))[:40]
+        self.dir = os.path.join(MEM_DIR, "guests", safe_ns) if safe_ns else MEM_DIR
+
     def read(self, name):
-        if not os.path.isdir(MEM_DIR):
-            os.makedirs(MEM_DIR)
-        path = os.path.join(MEM_DIR, name)
+        path = os.path.join(self.dir, name)
         if not os.path.exists(path):
             return {}
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except (ValueError, OSError):
+            return {}
 
     def write(self, name, data):
-        if not os.path.isdir(MEM_DIR):
-            os.makedirs(MEM_DIR)
-        path = os.path.join(MEM_DIR, name)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        with _FILE_LOCK:
+            if not os.path.isdir(self.dir):
+                os.makedirs(self.dir, exist_ok=True)
+            path = os.path.join(self.dir, name)
+            tmp_path = os.path.join(
+                self.dir, f".{os.path.basename(name)}.{secrets.token_hex(4)}.tmp"
+            )
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                os.replace(tmp_path, path)
+            except Exception:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+                raise
 
 
 class DbStore:

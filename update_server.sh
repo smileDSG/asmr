@@ -51,10 +51,13 @@ scp "$LOCAL_DIR/server.py" \
     "$LOCAL_DIR/feedback_translate.py" \
     "$LOCAL_DIR/memory_system.py" \
     "$LOCAL_DIR/input_guard.py" \
+    "$LOCAL_DIR/rate_limit.py" \
     "$LOCAL_DIR/素材执行层.py" \
     "$LOCAL_DIR/sound_catalog.py" \
     "$LOCAL_DIR/sound_catalog.json" \
     "$LOCAL_DIR/pay.py" \
+    "$LOCAL_DIR/nowpay.py" \
+    "$LOCAL_DIR/pay_window.py" \
     "$LOCAL_DIR/requirements.txt" \
     "${USER_NAME}@${SERVER_IP}:${APP_DIR}/"
 

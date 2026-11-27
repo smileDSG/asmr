@@ -19,21 +19,22 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE, "data")
 DB_PATH = os.path.join(DATA_DIR, "users.db")
 
-PBKDF2_ROUNDS = 600000      # OWASP 对 PBKDF2-HMAC-SHA256 的建议迭代数
-SALT_BYTES = 16             # 每用户随机盐
-TOKEN_BYTES = 32            # 会话 token 长度
-SESSION_SECONDS = 7 * 24 * 3600   # 会话 7 天
-MAX_FAILED = 5              # 连续失败 5 次锁定
-LOCK_SECONDS = 15 * 60      # 锁定 15 分钟
-MAX_PASSWORD_LEN = 128      # 限制过长密码，防 CPU 耗尽
+PBKDF2_ROUNDS = 600000  # OWASP 对 PBKDF2-HMAC-SHA256 的建议迭代数
+SALT_BYTES = 16  # 每用户随机盐
+TOKEN_BYTES = 32  # 会话 token 长度
+SESSION_SECONDS = 7 * 24 * 3600  # 会话 7 天
+MAX_FAILED = 5  # 连续失败 5 次锁定
+LOCK_SECONDS = 15 * 60  # 锁定 15 分钟
+MAX_PASSWORD_LEN = 128  # 限制过长密码，防 CPU 耗尽
 MIN_PASSWORD_LEN = 8
 
 
 def connect():
     if not os.path.isdir(DATA_DIR):
         os.makedirs(DATA_DIR)
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")   # 并发读写更稳
+    conn = sqlite3.connect(DB_PATH, timeout=15.0)
+    conn.execute("PRAGMA journal_mode=WAL")  # 并发读写更稳
+    conn.execute("PRAGMA busy_timeout=15000")
     return conn
 
 
@@ -51,11 +52,17 @@ def init_db():
     # 老库没有这些列，用 ALTER TABLE 补，已存在就跳过
     user_cols = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
     if "display_name" not in user_cols:
-        conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ''"
+        )
     if "avatar_glyph" not in user_cols:
-        conn.execute("ALTER TABLE users ADD COLUMN avatar_glyph INTEGER NOT NULL DEFAULT 0")
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN avatar_glyph INTEGER NOT NULL DEFAULT 0"
+        )
     if "avatar_tone" not in user_cols:
-        conn.execute("ALTER TABLE users ADD COLUMN avatar_tone INTEGER NOT NULL DEFAULT 0")
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN avatar_tone INTEGER NOT NULL DEFAULT 0"
+        )
     if "bio" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
     conn.execute("""
@@ -102,9 +109,17 @@ def init_db():
             version           INTEGER NOT NULL DEFAULT 1,
             delete_token      TEXT NOT NULL DEFAULT '',
             created_at        REAL NOT NULL,
-            updated_at        REAL NOT NULL
+            updated_at        REAL NOT NULL,
+            segments_json     TEXT NOT NULL DEFAULT '[]'
         )
     """)
+    post_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(community_posts)").fetchall()
+    }
+    if "segments_json" not in post_cols:
+        conn.execute(
+            "ALTER TABLE community_posts ADD COLUMN segments_json TEXT NOT NULL DEFAULT '[]'"
+        )
     conn.execute("""
         CREATE TABLE IF NOT EXISTS community_vote_counts (
             post_id TEXT NOT NULL,
@@ -190,9 +205,7 @@ def hash_password(password):
     digest = hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt, PBKDF2_ROUNDS
     )
-    return "pbkdf2_sha256$%d$%s$%s" % (
-        PBKDF2_ROUNDS, salt.hex(), digest.hex()
-    )
+    return "pbkdf2_sha256$%d$%s$%s" % (PBKDF2_ROUNDS, salt.hex(), digest.hex())
 
 
 def verify_password(password, stored):
@@ -236,7 +249,7 @@ def register(username, password):
     try:
         conn.execute(
             "INSERT INTO users(username, password_hash, created_at) VALUES(?,?,?)",
-            (username, hash_password(password), time.time())
+            (username, hash_password(password), time.time()),
         )
         conn.commit()
         return True, "注册成功"
@@ -248,8 +261,7 @@ def register(username, password):
 
 def is_locked(conn, username):
     row = conn.execute(
-        "SELECT failed, locked_until FROM login_attempts WHERE username=?",
-        (username,)
+        "SELECT failed, locked_until FROM login_attempts WHERE username=?", (username,)
     ).fetchone()
     if not row:
         return False
@@ -269,11 +281,14 @@ def note_failed(conn, username):
     ).fetchone()
     failed = (row[0] if row else 0) + 1
     locked_until = time.time() + LOCK_SECONDS if failed >= MAX_FAILED else 0
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO login_attempts(username, failed, locked_until) VALUES(?,?,?)
         ON CONFLICT(username) DO UPDATE SET failed=excluded.failed,
         locked_until=excluded.locked_until
-    """, (username, failed, locked_until))
+    """,
+        (username, failed, locked_until),
+    )
     conn.commit()
 
 
@@ -288,7 +303,7 @@ def login(username, password):
             return None, "尝试次数太多，请 15 分钟后再试"
         row = conn.execute(
             "SELECT id, username, password_hash FROM users WHERE username=?",
-            (username,)
+            (username,),
         ).fetchone()
         if not row or not verify_password(password or "", row[2]):
             note_failed(conn, username)
@@ -306,7 +321,7 @@ def create_session(user_id):
     conn = connect()
     conn.execute(
         "INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES(?,?,?,?)",
-        (token, user_id, now, now + SESSION_SECONDS)
+        (token, user_id, now, now + SESSION_SECONDS),
     )
     conn.commit()
     conn.close()
@@ -317,11 +332,14 @@ def user_from_token(token):
     if not token:
         return None
     conn = connect()
-    row = conn.execute("""
+    row = conn.execute(
+        """
         SELECT u.id, u.username FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.token=? AND s.expires_at > ?
-    """, (token, time.time())).fetchone()
+    """,
+        (token, time.time()),
+    ).fetchone()
     conn.close()
     if not row:
         return None
@@ -347,10 +365,13 @@ def get_profile(user_id):
     if not user_id:
         return None
     conn = connect()
-    row = conn.execute("""
+    row = conn.execute(
+        """
         SELECT id, username, display_name, avatar_glyph, avatar_tone, bio, created_at
         FROM users WHERE id=?
-    """, (user_id,)).fetchone()
+    """,
+        (user_id,),
+    ).fetchone()
     conn.close()
     if not row:
         return None
@@ -365,7 +386,9 @@ def get_profile(user_id):
     }
 
 
-def update_profile(user_id, display_name=None, avatar_glyph=None, avatar_tone=None, bio=None):
+def update_profile(
+    user_id, display_name=None, avatar_glyph=None, avatar_tone=None, bio=None
+):
     """只更新传进来的字段；返回更新后的 profile。"""
     if not user_id:
         return None, "请先登录"
@@ -410,9 +433,14 @@ def get_profiles_map(user_ids):
         return {}
     marks = ",".join("?" for _ in ids)
     conn = connect()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT id, username, display_name, avatar_glyph, avatar_tone, bio, created_at
-        FROM users WHERE id IN (""" + marks + ")", tuple(ids)).fetchall()
+        FROM users WHERE id IN ("""
+        + marks
+        + ")",
+        tuple(ids),
+    ).fetchall()
     conn.close()
     out = {}
     for r in rows:
@@ -431,25 +459,40 @@ def get_profiles_map(user_ids):
 # ---------- 订单与权益（支付） ----------
 # 金额一律用「分」存整数，不用浮点；时间用 time.time() 的秒数。
 
+
 def create_order(out_trade_no, user_id, product_id, subject, amount_cents, channel=""):
     conn = connect()
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO orders(
             out_trade_no, user_id, product_id, subject,
             amount_cents, status, channel, created_at
         ) VALUES(?,?,?,?,?,'created',?,?)
-    """, (out_trade_no, user_id, product_id, subject, amount_cents, channel, time.time()))
+    """,
+        (
+            out_trade_no,
+            user_id,
+            product_id,
+            subject,
+            amount_cents,
+            channel,
+            time.time(),
+        ),
+    )
     conn.commit()
     conn.close()
 
 
 def get_order(out_trade_no):
     conn = connect()
-    row = conn.execute("""
+    row = conn.execute(
+        """
         SELECT out_trade_no, user_id, product_id, subject, amount_cents,
                status, trade_no, channel, created_at, paid_at
         FROM orders WHERE out_trade_no=?
-    """, (out_trade_no,)).fetchone()
+    """,
+        (out_trade_no,),
+    ).fetchone()
     conn.close()
     if not row:
         return None
@@ -470,10 +513,13 @@ def get_order(out_trade_no):
 def mark_order_paid(out_trade_no, trade_no=""):
     # 只认 created -> paid 这一次变更。重复通知返回 False，避免重复发权益。
     conn = connect()
-    cur = conn.execute("""
+    cur = conn.execute(
+        """
         UPDATE orders SET status='paid', trade_no=?, paid_at=?
         WHERE out_trade_no=? AND status='created'
-    """, (trade_no, time.time(), out_trade_no))
+    """,
+        (trade_no, time.time(), out_trade_no),
+    )
     changed = cur.rowcount == 1
     conn.commit()
     conn.close()
@@ -486,13 +532,16 @@ def add_entitlement(user_id, kind, quota, expire_at=0):
     conn = connect()
     row = conn.execute(
         "SELECT quota, expire_at FROM entitlements WHERE user_id=? AND kind=?",
-        (user_id, kind)
+        (user_id, kind),
     ).fetchone()
     if not row:
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO entitlements(user_id, kind, quota, expire_at, updated_at)
             VALUES(?,?,?,?,?)
-        """, (user_id, kind, quota, expire_at, now))
+        """,
+            (user_id, kind, quota, expire_at, now),
+        )
     else:
         old_quota, old_expire = row[0], row[1]
         expired = old_expire != 0 and old_expire < now
@@ -505,10 +554,13 @@ def add_entitlement(user_id, kind, quota, expire_at=0):
                 new_expire = 0
             else:
                 new_expire = max(old_expire, expire_at)
-        conn.execute("""
+        conn.execute(
+            """
             UPDATE entitlements SET quota=?, expire_at=?, updated_at=?
             WHERE user_id=? AND kind=?
-        """, (new_quota, new_expire, now, user_id, kind))
+        """,
+            (new_quota, new_expire, now, user_id, kind),
+        )
     conn.commit()
     conn.close()
 
@@ -517,11 +569,14 @@ def consume_entitlement(user_id, kind, n=1):
     # 一条语句完成「检查 + 扣减」，并发下也不会扣成负数
     now = time.time()
     conn = connect()
-    cur = conn.execute("""
+    cur = conn.execute(
+        """
         UPDATE entitlements SET quota = quota - ?, updated_at = ?
         WHERE user_id=? AND kind=? AND quota >= ?
           AND (expire_at = 0 OR expire_at > ?)
-    """, (n, now, user_id, kind, n, now))
+    """,
+        (n, now, user_id, kind, n, now),
+    )
     ok = cur.rowcount == 1
     conn.commit()
     conn.close()
@@ -532,8 +587,7 @@ def list_entitlements(user_id):
     now = time.time()
     conn = connect()
     rows = conn.execute(
-        "SELECT kind, quota, expire_at FROM entitlements WHERE user_id=?",
-        (user_id,)
+        "SELECT kind, quota, expire_at FROM entitlements WHERE user_id=?", (user_id,)
     ).fetchall()
     conn.close()
     out = {}
@@ -552,8 +606,7 @@ def peek_daily_quota(owner_key, limit):
     day = time.strftime("%Y-%m-%d")
     conn = connect()
     row = conn.execute(
-        "SELECT used FROM daily_quota WHERE owner_key=? AND day=?",
-        (owner_key, day)
+        "SELECT used FROM daily_quota WHERE owner_key=? AND day=?", (owner_key, day)
     ).fetchone()
     conn.close()
     used = row[0] if row else 0
@@ -566,17 +619,16 @@ def take_daily_quota(owner_key, limit):
     conn = connect()
     conn.execute(
         "INSERT OR IGNORE INTO daily_quota(owner_key, day, used) VALUES(?,?,0)",
-        (owner_key, day)
+        (owner_key, day),
     )
     cur = conn.execute(
         "UPDATE daily_quota SET used = used + 1 "
         "WHERE owner_key=? AND day=? AND used < ?",
-        (owner_key, day, limit)
+        (owner_key, day, limit),
     )
     ok = cur.rowcount == 1
     row = conn.execute(
-        "SELECT used FROM daily_quota WHERE owner_key=? AND day=?",
-        (owner_key, day)
+        "SELECT used FROM daily_quota WHERE owner_key=? AND day=?", (owner_key, day)
     ).fetchone()
     conn.commit()
     conn.close()
@@ -586,12 +638,16 @@ def take_daily_quota(owner_key, limit):
 
 def save_memory(user_id, kind, data):
     import json
+
     conn = connect()
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO user_memory(user_id, kind, data, updated_at) VALUES(?,?,?,?)
         ON CONFLICT(user_id, kind) DO UPDATE SET data=excluded.data,
         updated_at=excluded.updated_at
-    """, (user_id, kind, json.dumps(data, ensure_ascii=False), time.time()))
+    """,
+        (user_id, kind, json.dumps(data, ensure_ascii=False), time.time()),
+    )
     conn.commit()
     conn.close()
 
@@ -599,8 +655,7 @@ def save_memory(user_id, kind, data):
 def load_memory(user_id, kind):
     conn = connect()
     row = conn.execute(
-        "SELECT data FROM user_memory WHERE user_id=? AND kind=?",
-        (user_id, kind)
+        "SELECT data FROM user_memory WHERE user_id=? AND kind=?", (user_id, kind)
     ).fetchone()
     conn.close()
     if not row:
@@ -624,19 +679,21 @@ def _round_step(val, step):
 def normalize_recipe_hash(items):
     """Build deterministic short fingerprint so near-identical remixes are detected."""
     normalized = []
-    for it in (items or []):
+    for it in items or []:
         if not isinstance(it, dict):
             continue
         key = _track_key(it)
         if not key:
             continue
-        normalized.append({
-            "path": key,
-            "weight": _round_step(it.get("weight", 0.0), 0.05),
-            "pan": round(float(it.get("pan", 0.0) or 0.0), 1),
-            "mode": "intermittent" if it.get("mode") == "intermittent" else "loop",
-            "density": round(float(it.get("density", 0.4) or 0.4), 1),
-        })
+        normalized.append(
+            {
+                "path": key,
+                "weight": _round_step(it.get("weight", 0.0), 0.05),
+                "pan": round(float(it.get("pan", 0.0) or 0.0), 1),
+                "mode": "intermittent" if it.get("mode") == "intermittent" else "loop",
+                "density": round(float(it.get("density", 0.4) or 0.4), 1),
+            }
+        )
     normalized.sort(key=lambda x: x["path"])
     raw = json.dumps(normalized, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
@@ -644,6 +701,7 @@ def normalize_recipe_hash(items):
 
 def compute_recipe_diff(parent_items, new_items, label_fn=None):
     """Compare parent vs new recipe items and return up to 5 concise Chinese diff strings."""
+
     def name_of(path_key):
         if callable(label_fn):
             lbl = label_fn(path_key)
@@ -653,7 +711,7 @@ def compute_recipe_diff(parent_items, new_items, label_fn=None):
 
     def to_map(items):
         out = {}
-        for it in (items or []):
+        for it in items or []:
             if not isinstance(it, dict):
                 continue
             k = _track_key(it)
@@ -687,7 +745,10 @@ def compute_recipe_diff(parent_items, new_items, label_fn=None):
             diffs.append(f"{lbl} 切换为{mode_txt}")
         if abs(n_it["pan"] - o_it["pan"]) >= 0.15:
             diffs.append(f"{lbl} 声像调整")
-        elif n_it["mode"] == "intermittent" and abs(n_it["density"] - o_it["density"]) >= 0.15:
+        elif (
+            n_it["mode"] == "intermittent"
+            and abs(n_it["density"] - o_it["density"]) >= 0.15
+        ):
             diffs.append(f"{lbl} 偶发频率调整")
 
     for k in old_map:
@@ -712,6 +773,10 @@ def _row_to_post(row):
         diff_summary = json.loads(row[11] or "[]")
     except Exception:
         diff_summary = []
+    try:
+        segments = json.loads(row[17] or "[]") if len(row) > 17 else []
+    except Exception:
+        segments = []
     return {
         "id": row[0],
         "user_id": row[1],
@@ -720,6 +785,7 @@ def _row_to_post(row):
         "story": row[4] or "",
         "group": row[5] or "自然",
         "items": items if isinstance(items, list) else [],
+        "segments": segments if isinstance(segments, list) else [],
         "remix_policy": row[7] if row[7] in VALID_REMIX_POLICIES else "star_to_fork",
         "parent_post_id": row[8] or "",
         "root_post_id": row[9] or "",
@@ -736,7 +802,7 @@ def _row_to_post(row):
 _POST_COLS = (
     "id, user_id, author, title, story, grp, items_json, remix_policy, "
     "parent_post_id, root_post_id, remix_of_json, diff_summary_json, "
-    "recipe_hash, version, delete_token, created_at, updated_at"
+    "recipe_hash, version, delete_token, created_at, updated_at, segments_json"
 )
 
 
@@ -744,6 +810,9 @@ def create_community_post(post_dict):
     now = float(post_dict.get("created_at") or time.time())
     updated = float(post_dict.get("updated_at") or now)
     items = post_dict.get("items") or []
+    segments = post_dict.get("segments") or []
+    if not isinstance(segments, list):
+        segments = []
     policy = post_dict.get("remix_policy") or "star_to_fork"
     if policy not in VALID_REMIX_POLICIES:
         policy = "star_to_fork"
@@ -758,8 +827,8 @@ def create_community_post(post_dict):
             INSERT INTO community_posts(
                 id, user_id, author, title, story, grp, items_json, remix_policy,
                 parent_post_id, root_post_id, remix_of_json, diff_summary_json,
-                recipe_hash, version, delete_token, created_at, updated_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                recipe_hash, version, delete_token, created_at, updated_at, segments_json
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 post_dict["id"],
@@ -779,6 +848,7 @@ def create_community_post(post_dict):
                 post_dict.get("delete_token") or "",
                 now,
                 updated,
+                json.dumps(segments, ensure_ascii=False),
             ),
         )
         conn.commit()
@@ -799,13 +869,35 @@ def get_community_post_raw(post_id):
     return _row_to_post(row)
 
 
-def list_community_posts_raw(limit=100):
+def list_community_posts_raw(limit=100, before_ts=None, before_id=None):
+    """按时间倒序列配方，支持 keyset 分页。
+
+    before_ts / before_id 成对给出时，只取严格排在 (before_ts, before_id) 之后的一批，
+    适合「翻到底再加载更多」。排序固定 created_at DESC, id DESC —— id 只用来在
+    时间戳并列时给出稳定次序，保证翻页不漏也不重。
+    """
+    try:
+        safe_limit = int(limit)
+    except (TypeError, ValueError):
+        safe_limit = 100
+    safe_limit = max(1, min(safe_limit, 200))
     conn = connect()
-    rows = conn.execute(
-        f"SELECT {_POST_COLS} FROM community_posts ORDER BY created_at DESC LIMIT ?",
-        (int(limit),),
-    ).fetchall()
-    conn.close()
+    try:
+        if before_ts is None or before_id is None:
+            rows = conn.execute(
+                f"SELECT {_POST_COLS} FROM community_posts "
+                "ORDER BY created_at DESC, id DESC LIMIT ?",
+                (safe_limit,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"SELECT {_POST_COLS} FROM community_posts "
+                "WHERE (created_at < ? OR (created_at = ? AND id < ?)) "
+                "ORDER BY created_at DESC, id DESC LIMIT ?",
+                (float(before_ts), float(before_ts), str(before_id), safe_limit),
+            ).fetchall()
+    finally:
+        conn.close()
     return [_row_to_post(r) for r in rows]
 
 
@@ -841,27 +933,76 @@ def get_fork_counts_map():
     return {k: len(v) for k, v in sets.items()}
 
 
-def list_comments(post_id, limit=100):
-    """按时间正序列出某配方的短评论。"""
+def list_comments(post_id, limit=20, before_ts=None, before_id=None):
+    """取某配方的短评论，支持 keyset 分页。
+
+    分页是从最新往回走的：先按 created_at DESC, id DESC 取一批，再翻回时间正序返回，
+    前端可以直接按顺序铺。before_ts / before_id 给出时只取严格更早的那批评论。
+    """
     if not post_id:
         return []
+    try:
+        safe_limit = int(limit)
+    except (TypeError, ValueError):
+        safe_limit = 20
+    safe_limit = max(1, min(safe_limit, 200))
     conn = connect()
-    rows = conn.execute(
-        """
-        SELECT id, post_id, user_id, author, body, created_at
-        FROM community_comments WHERE post_id=?
-        ORDER BY created_at ASC LIMIT ?
-        """,
-        (post_id, int(limit)),
-    ).fetchall()
-    conn.close()
+    try:
+        if before_ts is None or before_id is None:
+            rows = conn.execute(
+                """
+                SELECT id, post_id, user_id, author, body, created_at
+                FROM community_comments WHERE post_id=?
+                ORDER BY created_at DESC, id DESC LIMIT ?
+                """,
+                (post_id, safe_limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, post_id, user_id, author, body, created_at
+                FROM community_comments WHERE post_id=?
+                  AND (created_at < ? OR (created_at = ? AND id < ?))
+                ORDER BY created_at DESC, id DESC LIMIT ?
+                """,
+                (
+                    post_id,
+                    float(before_ts),
+                    float(before_ts),
+                    str(before_id),
+                    safe_limit,
+                ),
+            ).fetchall()
+    finally:
+        conn.close()
     out = []
     for r in rows:
-        out.append({
-            "id": r[0], "post_id": r[1], "user_id": r[2],
-            "author": r[3], "body": r[4], "created_at": r[5],
-        })
+        out.append(
+            {
+                "id": r[0],
+                "post_id": r[1],
+                "user_id": r[2],
+                "author": r[3],
+                "body": r[4],
+                "created_at": r[5],
+            }
+        )
+    out.reverse()  # 翻回时间正序
     return out
+
+
+def count_comments(post_id):
+    """某个配方一共多少条留言（分页时用来显示真实总数）。"""
+    if not post_id:
+        return 0
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM community_comments WHERE post_id=?", (post_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return int(row[0] if row else 0)
 
 
 def add_comment(post_id, user_id, author, body, allow_builtin=False):
@@ -886,8 +1027,12 @@ def add_comment(post_id, user_id, author, body, allow_builtin=False):
         )
         conn.commit()
         return {
-            "id": cid, "post_id": post_id, "user_id": user_id,
-            "author": author, "body": body, "created_at": now,
+            "id": cid,
+            "post_id": post_id,
+            "user_id": user_id,
+            "author": author,
+            "body": body,
+            "created_at": now,
         }
     finally:
         conn.close()
@@ -951,10 +1096,15 @@ def get_creator_summary(author):
             conn.close()
     works = []
     for r in rows:
-        works.append({
-            "id": r[0], "title": r[3], "author": r[2],
-            "grp": r[5], "created_at": r[15],
-        })
+        works.append(
+            {
+                "id": r[0],
+                "title": r[3],
+                "author": r[2],
+                "grp": r[5],
+                "created_at": r[15],
+            }
+        )
     return {
         "author": author,
         "since": first_ts,
@@ -1069,10 +1219,13 @@ def toggle_community_vote(post_id, tag, delta, voter_key=None):
     try:
         voted_on = False
         if voter_key:
-            exists = conn.execute(
-                "SELECT 1 FROM community_user_votes WHERE voter_key=? AND post_id=? AND tag=?",
-                (voter_key, post_id, tag),
-            ).fetchone() is not None
+            exists = (
+                conn.execute(
+                    "SELECT 1 FROM community_user_votes WHERE voter_key=? AND post_id=? AND tag=?",
+                    (voter_key, post_id, tag),
+                ).fetchone()
+                is not None
+            )
 
             if delta == 1:
                 voted_on = True
@@ -1137,7 +1290,9 @@ def migrate_legacy_community(posts_list, votes_dict):
                 if not isinstance(p, dict) or not p.get("id"):
                     continue
                 items = p.get("items") or []
-                remix_of = p.get("remix_of") if isinstance(p.get("remix_of"), dict) else None
+                remix_of = (
+                    p.get("remix_of") if isinstance(p.get("remix_of"), dict) else None
+                )
                 parent_id = str((remix_of or {}).get("id") or "")
                 now = float(p.get("created_at") or time.time())
                 conn.execute(
@@ -1156,7 +1311,9 @@ def migrate_legacy_community(posts_list, votes_dict):
                         str(p.get("story") or ""),
                         str(p.get("group") or "自然"),
                         json.dumps(items, ensure_ascii=False),
-                        p.get("remix_policy") if p.get("remix_policy") in VALID_REMIX_POLICIES else "star_to_fork",
+                        p.get("remix_policy")
+                        if p.get("remix_policy") in VALID_REMIX_POLICIES
+                        else "star_to_fork",
                         parent_id,
                         parent_id,
                         json.dumps(remix_of, ensure_ascii=False) if remix_of else "",
@@ -1169,7 +1326,9 @@ def migrate_legacy_community(posts_list, votes_dict):
                     ),
                 )
 
-        vote_cnt = conn.execute("SELECT COUNT(*) FROM community_vote_counts").fetchone()[0]
+        vote_cnt = conn.execute(
+            "SELECT COUNT(*) FROM community_vote_counts"
+        ).fetchone()[0]
         if vote_cnt == 0 and isinstance(votes_dict, dict):
             for pid, entry in votes_dict.items():
                 if not isinstance(entry, dict):

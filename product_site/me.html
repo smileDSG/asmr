@@ -373,7 +373,7 @@
       <div class="moon"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div>
       <div class="name">夜息</div>
     </a>
-    <a href="index.html" class="pill-link">去调一段</a>
+    <a href="diy.html" class="pill-link">去调一段</a>
   </div>
 
   <header class="page-hero">
@@ -385,7 +385,7 @@
       </div>
       <div class="profile-acts">
         <button type="button" class="ph-act" id="editProfileBtn" style="display:none">编辑资料</button>
-        <a class="ph-act" href="index.html">+ 新调一段</a>
+        <a class="ph-act" href="diy.html">+ 新调一段</a>
       </div>
     </div>
 
@@ -658,19 +658,29 @@ function playRecipe(playKey, opts) {
 }
 
 function openInDiy(recipe, asRemix) {
+  if (recipe && Array.isArray(recipe.segments) && recipe.segments.length > 0) {
+    try {
+      sessionStorage.setItem("yexi_open_stitch", JSON.stringify({
+        title: recipe.title || "夜息拼接",
+        segments: recipe.segments
+      }));
+    } catch (e) {}
+    location.href = "diy.html?pane=stitch";
+    return;
+  }
   var items = recipe.items || recipe.tracks || [];
   var code = yEncodeMix({ title: recipe.title || "夜息声景", tracks: items });
   if (!code) {
-    location.href = "index.html";
+    location.href = "diy.html";
     return;
   }
   if (asRemix && recipe.id) {
     var qs = "?remix_id=" + encodeURIComponent(recipe.id) +
       "&remix_title=" + encodeURIComponent(recipe.title || "") +
       "&remix_author=" + encodeURIComponent(recipe.author || "夜息");
-    location.href = "index.html" + qs + "#mix=" + encodeURIComponent(code);
+    location.href = "diy.html" + qs + "#mix=" + encodeURIComponent(code);
   } else {
-    location.href = "index.html#mix=" + encodeURIComponent(code);
+    location.href = "diy.html#mix=" + encodeURIComponent(code);
   }
 }
 
@@ -851,7 +861,7 @@ function renderMineTab(container) {
         '<p class="empty-guide-sub">把你调好的声音发到广场，也能借给同样睡不着的人</p>' +
         '<div class="empty-guide-acts">' +
           '<a class="empty-guide-primary" href="agent.html">去说一句话配一段 →</a>' +
-          '<a class="empty-guide-secondary" href="index.html">自己进工坊挑声音</a>' +
+          '<a class="empty-guide-secondary" href="diy.html">自己进工坊挑声音</a>' +
         '</div>' +
       '</div>';
   } else {
@@ -864,6 +874,8 @@ function renderMineTab(container) {
       var remixHtml = (p.remix_of && p.remix_of.title)
         ? '<span class="badge-pill soft">↻ 改编自 @' + yEscape(p.remix_of.author || "夜息") + '</span>'
         : '<span class="badge-pill">原创配方</span>';
+      var pSegCnt = p.segment_count || (Array.isArray(p.segments) ? p.segments.length : 0);
+      var segBadgeHtml = pSegCnt > 0 ? '<span class="badge-pill soft">时间线 · ' + pSegCnt + ' 段</span>' : '';
       var diffHtml = "";
       if (p.diff_summary && p.diff_summary.length) {
         diffHtml = '<div class="diff-row">';
@@ -880,6 +892,7 @@ function renderMineTab(container) {
               '<div class="item-title-row">' +
                 '<span class="item-title">' + yEscape(p.title) + '</span>' +
                 remixHtml +
+                segBadgeHtml +
               '</div>' +
               '<div class="item-meta">借走 ' + starCnt + ' 次 · 被改编 ' + forkCnt + ' 次</div>' +
               (p.story ? '<div class="item-story">' + yEscape(p.story) + '</div>' : '') +
@@ -911,7 +924,7 @@ function renderMineTab(container) {
         '<div class="empty-guide-title">还没有私人草稿</div>' +
         '<p class="empty-guide-sub">在工坊调好的声音存下来，随时回来接着听、接着改</p>' +
         '<div class="empty-guide-acts">' +
-          '<a class="empty-guide-primary" href="index.html">去工坊调一段 →</a>' +
+          '<a class="empty-guide-primary" href="diy.html">去工坊调一段 →</a>' +
           '<a class="empty-guide-secondary" href="agent.html">让 agent 先配一版</a>' +
         '</div>' +
       '</div>';
@@ -919,12 +932,14 @@ function renderMineTab(container) {
     for (var j = 0; j < customs.length; j++) {
       var c = customs[j];
       var cTracks = c.tracks || c.items || [];
+      var cSegs = Array.isArray(c.segments) ? c.segments : [];
+      var cBadge = cSegs.length > 0 ? ("时间线拼接 · " + cSegs.length + " 段") : "私人草稿";
       var cLead = ySoundMeta(cTracks.length ? cTracks[0].path : "");
       html +=
         '<div class="glass item-card">' +
           '<div class="item-head">' +
             '<div class="item-main">' +
-              '<div class="item-title-row"><span class="item-title">' + yEscape(c.title || "未命名草稿") + '</span><span class="badge-pill soft">私人草稿</span></div>' +
+              '<div class="item-title-row"><span class="item-title">' + yEscape(c.title || "未命名草稿") + '</span><span class="badge-pill soft">' + cBadge + '</span></div>' +
               '<div class="param-row">' + formatParamPills(cTracks) + '</div>' +
             '</div>' +
           '</div>' +
@@ -1409,7 +1424,7 @@ function renderLibraryHome() {
   for (var j = 0; j < btns.length; j++) {
     btns[j].onclick = function() {
       var key = this.getAttribute("data-key");
-      if (key === "create") { location.href = "index.html"; return; }
+      if (key === "create") { location.href = "diy.html"; return; }
       openListView(key);
     };
   }

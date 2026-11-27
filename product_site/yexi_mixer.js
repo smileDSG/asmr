@@ -383,13 +383,22 @@
 
   YexiMixer.prototype._disposeChannel = function(ch, fadeSec) {
     var self = this;
+    var dur = Math.max(0.05, Number(fadeSec) || 0.45);
     ch.disposed = true;
     self._clearChannelTimers(ch);
+    if (ch._delayTimer) {
+      clearTimeout(ch._delayTimer);
+      ch._delayTimer = null;
+    }
     self.onPulse(ch.path, false);
     if (!self.ctx) return;
     var now = self.ctx.currentTime;
     try {
-      ch.trackGain.gain.setTargetAtTime(0, now, Math.max(0.05, fadeSec * 0.28));
+      if (typeof ch.trackGain.gain.cancelScheduledValues === "function") {
+        ch.trackGain.gain.cancelScheduledValues(now);
+      }
+      ch.trackGain.gain.setValueAtTime(ch.trackGain.gain.value, now);
+      ch.trackGain.gain.linearRampToValueAtTime(0, now + dur);
     } catch (e) {}
     setTimeout(function() {
       for (var i = 0; i < ch.playingSources.length; i++) {
@@ -400,7 +409,7 @@
       if (ch.panner) {
         try { ch.panner.disconnect(); } catch (e) {}
       }
-    }, Math.round((fadeSec + 0.15) * 1000));
+    }, Math.round((dur + 0.25) * 1000));
   };
 
   YexiMixer.prototype._scheduleLoopSegment = function(ch, entry, startTime, isFirst) {
@@ -544,7 +553,9 @@
     if (ch.disposed || !self.isPlaying || ch.started) return;
     self.loadBuffer(ch.path).then(function(entry) {
       if (ch.disposed || !self.isPlaying) return;
-      self._applyChannelGain(ch, entry.calGain, 0.08);
+      var fadeIn = ch._pendingFadeInSec || 0;
+      ch._pendingFadeInSec = 0;
+      self._applyChannelGain(ch, entry.calGain, 0.08, fadeIn);
       if (!ch.started) {
         if (ch.mode === "intermittent") {
           self._startIntermittent(ch, entry);
@@ -555,7 +566,7 @@
     }).catch(function() {});
   };
 
-  YexiMixer.prototype._applyChannelGain = function(ch, calGain, timeConstant) {
+  YexiMixer.prototype._applyChannelGain = function(ch, calGain, timeConstant, rampSec) {
     if (!this.ctx || ch.disposed) return;
     var norm = this._computeNorm(this.currentTracks);
     var target = clamp((ch.weight / norm) * (calGain || 1.0), 0, 20.0);
@@ -564,11 +575,33 @@
       ch.trackGain.gain.cancelScheduledValues(now);
       ch.trackGain.gain.setValueAtTime(ch.trackGain.gain.value, now);
     } catch (e) {}
-    ch.trackGain.gain.setTargetAtTime(target, now, timeConstant || 0.06);
+    if (rampSec && rampSec > 0.2) {
+      ch.trackGain.gain.linearRampToValueAtTime(target, now + rampSec);
+    } else {
+      ch.trackGain.gain.setTargetAtTime(target, now, timeConstant || 0.06);
+    }
   };
 
-  YexiMixer.prototype.syncTracks = function(tracks) {
+  YexiMixer.prototype.syncTracks = function(tracks, opts) {
     var self = this;
+    var cfg = opts || {};
+    var trans = cfg.transition || "crossfade";
+    var baseFadeOut = cfg.fadeOutSec !== undefined ? Number(cfg.fadeOutSec) : 0.45;
+    var baseFadeIn = cfg.fadeInSec !== undefined ? Number(cfg.fadeInSec) : 0;
+    var fadeOutSec = baseFadeOut;
+    var fadeInSec = baseFadeIn;
+    var delayInMs = 0;
+
+    if (trans === "cut") {
+      fadeOutSec = 0.15;
+      fadeInSec = 0.15;
+    } else if (trans === "dip") {
+      var dipRef = Math.max(baseFadeOut, baseFadeIn, 2.0);
+      fadeOutSec = dipRef * 0.55;
+      fadeInSec = dipRef * 0.55;
+      delayInMs = Math.round(dipRef * 450);
+    }
+
     self.currentTracks = (tracks || []).slice();
     var nextMap = {};
     var i, tr, ch;
@@ -582,7 +615,7 @@
     // 淡出并移除不在列表里的轨道
     for (var oldPath in self.channels) {
       if (Object.prototype.hasOwnProperty.call(self.channels, oldPath) && !nextMap[oldPath]) {
-        self._disposeChannel(self.channels[oldPath], 0.45);
+        self._disposeChannel(self.channels[oldPath], fadeOutSec);
         delete self.channels[oldPath];
       }
     }
@@ -594,16 +627,29 @@
       ch = self.channels[tr.path];
       if (!ch) {
         ch = self._createChannel(tr);
+        ch._pendingFadeInSec = fadeInSec;
         self.channels[tr.path] = ch;
-        self.loadBuffer(tr.path).then((function(channelRef) {
-          return function(entry) {
+        var startNewChannel = function(channelRef, inSec) {
+          self.loadBuffer(channelRef.path).then(function(entry) {
             if (channelRef.disposed) return;
-            self._applyChannelGain(channelRef, entry.calGain, 0.14);
+            var useIn = inSec > 0 ? inSec : (channelRef._pendingFadeInSec || 0);
+            channelRef._pendingFadeInSec = 0;
+            self._applyChannelGain(channelRef, entry.calGain, 0.14, useIn);
             if (self.isPlaying && !channelRef.started) {
               self._startChannelIfReady(channelRef);
             }
-          };
-        })(ch)).catch(function() {});
+          }).catch(function() {});
+        };
+        if (delayInMs > 0) {
+          ch._delayTimer = setTimeout((function(channelRef, inSec) {
+            return function() {
+              channelRef._delayTimer = null;
+              if (!channelRef.disposed) startNewChannel(channelRef, inSec);
+            };
+          })(ch, fadeInSec), delayInMs);
+        } else {
+          startNewChannel(ch, fadeInSec);
+        }
       } else {
         var modeChanged = ch.mode !== (tr.mode === "intermittent" ? "intermittent" : "loop");
         var oldDensity = ch.density;
@@ -617,7 +663,8 @@
         }
         var entry = self.buffers[tr.path];
         if (entry) {
-          self._applyChannelGain(ch, entry.calGain, 0.06);
+          var sharedRamp = fadeInSec > 0.4 ? Math.max(0.4, fadeInSec * 0.6) : 0;
+          self._applyChannelGain(ch, entry.calGain, 0.06, sharedRamp);
         }
 
         if (modeChanged && self.isPlaying) {
@@ -810,6 +857,207 @@
               lSrc.stop(t + bufDur + 0.04);
               t += step;
               first = false;
+            }
+          }
+        }
+      }
+
+      return offline.startRendering().then(function(rendered) {
+        return audioBufferToWavBlob(rendered);
+      });
+    });
+  };
+
+  YexiMixer.prototype.exportTimelineWav = function(segments, masterVol, options) {
+    var self = this;
+    var segs = (segments || []).slice();
+    var opts = options || {};
+    var maxTotalSec = clamp(parseInt(opts.maxTotalSec, 10) || 300, 10, 300);
+    var previewSegSec = Number(opts.previewSegSec) || 0;
+    var sr = 44100;
+    if (segs.length === 0) {
+      return Promise.reject(new Error("当前没有可导出的段落"));
+    }
+
+    var OfflineCtx = global.OfflineAudioContext || global.webkitOfflineAudioContext;
+    if (!OfflineCtx) {
+      return Promise.reject(new Error("当前浏览器不支持离线 WAV 导出"));
+    }
+
+    var allTracks = [];
+    var seenPath = {};
+    var rawDurs = [];
+    var sumRaw = 0;
+    var si, ti;
+    for (si = 0; si < segs.length; si++) {
+      var segTracks = segs[si].tracks || [];
+      for (ti = 0; ti < segTracks.length; ti++) {
+        if (segTracks[ti] && segTracks[ti].path && !seenPath[segTracks[ti].path]) {
+          seenPath[segTracks[ti].path] = true;
+          allTracks.push(segTracks[ti]);
+        }
+      }
+      var d = previewSegSec > 0 ? previewSegSec : Math.max(5, Number(segs[si].durationSec) || ((Number(segs[si].minutes) || 3) * 60));
+      rawDurs.push(d);
+      sumRaw += d;
+    }
+    if (allTracks.length === 0) {
+      return Promise.reject(new Error("当前没有可导出的声轨"));
+    }
+
+    // 若未开启精华试听模式且总长超过 maxTotalSec，则按比例缩放到 maxTotalSec 以内
+    var scaleRatio = (previewSegSec <= 0 && sumRaw > maxTotalSec) ? (maxTotalSec / sumRaw) : 1.0;
+    var placements = [];
+    var cursorSec = 0;
+    for (si = 0; si < segs.length; si++) {
+      var seg = segs[si];
+      var segDur = Math.max(4, rawDurs[si] * scaleRatio);
+      var trans = si === 0 ? "cut" : (seg.transition || "crossfade");
+      var reqFade = clamp(Number(seg.fadeSec) || 4, 0.2, 12);
+      var startSec = cursorSec;
+      var inFade = 0.3;
+      var outFade = 0.3;
+      if (si > 0) {
+        var prevP = placements[si - 1];
+        if (trans === "crossfade") {
+          var ov = Math.min(reqFade, prevP.dur * 0.4, segDur * 0.4);
+          startSec = Math.max(0, prevP.end - ov);
+          prevP.outFade = Math.max(prevP.outFade, ov);
+          inFade = ov;
+        } else if (trans === "dip") {
+          var dipFade = Math.min(reqFade * 0.5, prevP.dur * 0.35, segDur * 0.35);
+          prevP.outFade = Math.max(prevP.outFade, dipFade);
+          inFade = dipFade;
+          startSec = prevP.end + 0.35;
+        } else {
+          prevP.outFade = Math.max(prevP.outFade, 0.12);
+          inFade = 0.12;
+          startSec = prevP.end;
+        }
+      }
+      var endSec = startSec + segDur;
+      placements.push({
+        tracks: seg.tracks || [],
+        start: startSec,
+        end: endSec,
+        dur: segDur,
+        inFade: inFade,
+        outFade: outFade
+      });
+      cursorSec = endSec;
+    }
+
+    var totalSec = Math.min(maxTotalSec + 5, Math.max(4, cursorSec));
+    return self.preloadTracks(allTracks).then(function() {
+      var offline = new OfflineCtx(2, Math.ceil(totalSec * sr), sr);
+      var master = offline.createGain();
+      var mv = clamp(parseFloat(masterVol) || 0.85, 0, 1);
+      master.gain.setValueAtTime(0, 0);
+      master.gain.linearRampToValueAtTime(mv, Math.min(0.6, totalSec * 0.1));
+      master.gain.setValueAtTime(mv, Math.max(0.6, totalSec - 0.8));
+      master.gain.linearRampToValueAtTime(0, totalSec);
+      master.connect(offline.destination);
+
+      for (var pi = 0; pi < placements.length; pi++) {
+        var pl = placements[pi];
+        var segStart = pl.start;
+        var segEnd = Math.min(totalSec, pl.end);
+        var segDur = segEnd - segStart;
+        if (segDur <= 0.2 || pl.tracks.length === 0) continue;
+
+        var segGain = offline.createGain();
+        var fi = Math.min(pl.inFade, segDur * 0.45);
+        var fo = Math.min(pl.outFade, segDur * 0.45);
+        segGain.gain.setValueAtTime(0, segStart);
+        segGain.gain.setValueCurveAtTime(SIN_IN, segStart, Math.max(0.05, fi));
+        segGain.gain.setValueAtTime(1, segStart + Math.max(0.05, fi));
+        if (segEnd - fo > segStart + fi) {
+          segGain.gain.setValueAtTime(1, segEnd - fo);
+        }
+        segGain.gain.setValueCurveAtTime(COS_OUT, Math.max(segStart + 0.05, segEnd - fo), Math.max(0.05, fo));
+        segGain.connect(master);
+
+        var norm = self._computeNorm(pl.tracks);
+        for (var i = 0; i < pl.tracks.length; i++) {
+          var tr = pl.tracks[i];
+          var entry = self.buffers[tr.path];
+          if (!entry || !tr.weight) continue;
+
+          var buffer = entry.buffer;
+          var bufDur = buffer.duration;
+          var trackGain = offline.createGain();
+          trackGain.gain.setValueAtTime(clamp((tr.weight / norm) * entry.calGain, 0, 20.0), segStart);
+
+          if (typeof offline.createStereoPanner === "function") {
+            var panner = offline.createStereoPanner();
+            panner.pan.setValueAtTime(clamp(parseFloat(tr.pan) || 0, -1, 1), segStart);
+            trackGain.connect(panner);
+            panner.connect(segGain);
+          } else {
+            trackGain.connect(segGain);
+          }
+
+          if (tr.mode === "intermittent") {
+            var pos = segStart + 0.4;
+            var buckets = entry.activeBuckets && entry.activeBuckets.length ? entry.activeBuckets : [0];
+            var range = gapRangeForDensity(tr.density);
+            var seedIdx = i + pi * 7;
+            while (pos < segEnd - 1.2) {
+              var burstDur = Math.min(Math.max(2.0, bufDur), 6.0 + ((seedIdx * 1.7) % 4.0));
+              var actualDur = Math.min(burstDur, segEnd - pos);
+              if (actualDur < 1.2) break;
+              var offset = buckets[seedIdx % buckets.length] || 0;
+              if (offset >= bufDur - 0.5) offset = 0;
+
+              var bSrc = offline.createBufferSource();
+              bSrc.buffer = buffer;
+              if (offset + actualDur > bufDur) bSrc.loop = true;
+              var bGain = offline.createGain();
+              var bfi = Math.min(1.8, actualDur * 0.32);
+              var bfo = Math.min(2.2, actualDur * 0.36);
+              bGain.gain.value = 0;
+              bGain.gain.setValueCurveAtTime(HANN_IN, pos, bfi);
+              bGain.gain.setValueCurveAtTime(HANN_OUT, pos + actualDur - bfo, bfo);
+              bSrc.connect(bGain);
+              bGain.connect(trackGain);
+              bSrc.start(pos, offset, actualDur + 0.02);
+              bSrc.stop(pos + actualDur + 0.04);
+
+              var gap = range.min + ((seedIdx * 3.13) % Math.max(1, range.max - range.min));
+              pos += actualDur + gap;
+              seedIdx += 1;
+            }
+          } else {
+            if (bufDur <= 0.2) {
+              var s0 = offline.createBufferSource();
+              s0.buffer = buffer;
+              s0.loop = true;
+              s0.connect(trackGain);
+              s0.start(segStart);
+              s0.stop(segEnd + 0.05);
+            } else {
+              var xfade = Math.min(2.0, Math.max(0.35, bufDur * 0.12));
+              var step = Math.max(0.2, bufDur - xfade);
+              var t = segStart;
+              var first = true;
+              while (t < segEnd) {
+                var lSrc = offline.createBufferSource();
+                lSrc.buffer = buffer;
+                var lGain = offline.createGain();
+                if (first) {
+                  lGain.gain.setValueAtTime(1, t);
+                } else {
+                  lGain.gain.value = 0;
+                  lGain.gain.setValueCurveAtTime(SIN_IN, t, xfade);
+                }
+                lGain.gain.setValueCurveAtTime(COS_OUT, t + step, xfade);
+                lSrc.connect(lGain);
+                lGain.connect(trackGain);
+                lSrc.start(t, 0, Math.min(bufDur + 0.02, segEnd - t + 0.2));
+                lSrc.stop(Math.min(t + bufDur + 0.04, segEnd + 0.2));
+                t += step;
+                first = false;
+              }
             }
           }
         }

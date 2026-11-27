@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>夜息 · 意见箱管理</title>
+<style>
+:root{--warm-rgb:233,183,131;--serif:"Songti SC","Noto Serif SC",serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(120% 80% at 18% 0%,rgba(var(--warm-rgb),.08),transparent 60%),#0a0812;color:#f8f5fd;font-family:-apple-system,"PingFang SC",sans-serif;padding:28px 18px 60px}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-family:var(--serif);font-weight:300;font-size:26px;letter-spacing:.06em;margin:0 0 6px}
+.sub{font-size:12.5px;color:rgba(235,226,250,.55);margin:0 0 24px;line-height:1.7}
+.panel{background:rgba(255,255,255,.035);border:1px solid rgba(var(--warm-rgb),.2);border-radius:16px;padding:18px;margin-bottom:18px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+input,select,button{font-family:inherit;font-size:14px}
+input,select{background:rgba(255,255,255,.05);border:1px solid rgba(var(--warm-rgb),.25);border-radius:10px;padding:10px 12px;color:#f8f5fd;outline:none}
+input:focus,select:focus{border-color:rgba(var(--warm-rgb),.6)}
+input[type=password]{flex:1;min-width:180px}
+button{background:rgba(var(--warm-rgb),.18);border:1px solid rgba(var(--warm-rgb),.4);border-radius:10px;padding:10px 16px;color:#fff;cursor:pointer}
+button:hover{background:rgba(var(--warm-rgb),.28)}
+button.ghost{background:transparent;border-color:rgba(235,226,250,.2);color:rgba(235,226,250,.7)}
+button.sm{padding:6px 10px;font-size:12px}
+.hint{font-size:12px;color:rgba(235,226,250,.5);margin-top:10px;line-height:1.6}
+.item{background:rgba(255,255,255,.035);border:1px solid rgba(235,226,250,.1);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+.item.done{opacity:.55}
+.item-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
+.badge{font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(var(--warm-rgb),.16);color:#f3d9b8;border:1px solid rgba(var(--warm-rgb),.3)}
+.badge.suggestion{background:rgba(120,170,240,.14);color:#bcd6f7;border-color:rgba(120,170,240,.3)}
+.badge.other{background:rgba(200,200,220,.12);color:#d5d5e2;border-color:rgba(200,200,220,.25)}
+.time{font-size:11.5px;color:rgba(235,226,250,.45);margin-left:auto}
+.body{font-size:14.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;margin-bottom:8px}
+.contact{font-size:12px;color:rgba(var(--warm-rgb),.85);margin-bottom:10px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.empty{text-align:center;color:rgba(235,226,250,.5);padding:40px 0;font-size:14px}
+.err{color:#f3a6a6;font-size:12.5px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>意见箱</h1>
+  <p class="sub">用户说的问题和建议都在这里。人工过一遍每条反馈，就是理解用户最好的方式。</p>
+
+  <div class="panel" id="loginPanel">
+    <div class="row">
+      <input type="password" id="adminToken" placeholder="管理口令" />
+      <button id="unlockBtn">查看反馈</button>
+    </div>
+    <div class="hint">口令由服务端环境变量 YEXI_ADMIN_TOKEN 设置，本机默认是 yexi-dev-admin。</div>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <div id="listPanel" style="display:none">
+    <div class="panel row">
+      <select id="statusFilter">
+        <option value="">全部</option>
+        <option value="open">待处理</option>
+        <option value="done">已处理</option>
+      </select>
+      <button id="refreshBtn" class="ghost">刷新</button>
+      <span class="hint" id="count" style="margin:0 0 0 auto"></span>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var token = "";
+  var API = "";  // 同源，直接用相对路径
+
+  function q(id){ return document.getElementById(id); }
+
+  function post(path, body){
+    return fetch(API + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Admin-Token": token },
+      body: JSON.stringify(body || {})
+    }).then(function(r){ return r.json(); });
+  }
+
+  function fmt(ts){
+    var d = new Date(ts * 1000);
+    function p(n){ return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  var CATS = { bug: "出问题了", suggestion: "有个建议", other: "其他" };
+
+  function render(items){
+    var box = q("list");
+    q("count").textContent = "共 " + items.length + " 条";
+    if (!items.length) { box.innerHTML = '<div class="empty">还没有反馈</div>'; return; }
+    var html = "";
+    for (var i=0; i<items.length; i++){
+      var it = items[i];
+      var cls = it.status === "done" ? " item done" : " item";
+      html += '<div class="' + cls + '">';
+      html += '<div class="item-head"><span class="badge ' + it.category + '">' + (CATS[it.category]||"其他") + '</span>';
+      html += '<span class="badge" style="background:none;border-color:rgba(235,226,250,.2)">' + (it.status === "done" ? "已处理" : "待处理") + '</span>';
+      html += '<span class="time">' + fmt(it.created_at) + '</span></div>';
+      html += '<div class="body">' + escapeHtml(it.content) + '</div>';
+      if (it.contact) html += '<div class="contact">联系方式：' + escapeHtml(it.contact) + '</div>';
+      html += '<div class="acts">';
+      if (it.status === "open") {
+        html += '<button class="sm" data-act="done" data-id="' + it.id + '">标记已处理</button>';
+      } else {
+        html += '<button class="sm ghost" data-act="open" data-id="' + it.id + '">改回待处理</button>';
+      }
+      html += '<button class="sm ghost" data-act="delete" data-id="' + it.id + '">删除</button>';
+      html += '</div></div>';
+    }
+    box.innerHTML = html;
+    var btns = box.querySelectorAll("button[data-act]");
+    for (var j=0; j<btns.length; j++){
+      (function(b){
+        b.onclick = function(){
+          var act = b.getAttribute("data-act"), id = b.getAttribute("data-id");
+          if (act === "delete" && !confirm("确定删除这条反馈？")) return;
+          var path = act === "delete" ? "/api/feedback/delete" : "/api/feedback/status";
+          var payload = act === "delete" ? { id: id } : { id: id, status: act };
+          post(path, payload).then(function(d){ if (d && d.ok) load(); else alert((d&&d.error)||"操作失败"); });
+        };
+      })(btns[j]);
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function load(){
+    var st = q("statusFilter").value;
+    post("/api/feedback/list" + (st ? "?status=" + st : ""), {})
+      .then(function(d){
+        if (d && d.ok) render(d.items || []);
+        else if (d && d.code === 401) showLogin();
+        else alert((d&&d.error)||"读取失败");
+      })
+      .catch(function(){ alert("读取失败，检查网络"); });
+  }
+
+  function showLogin(){ q("loginPanel").style.display=""; q("listPanel").style.display="none"; }
+
+  q("unlockBtn").onclick = function(){
+    token = q("adminToken").value.trim();
+    if (!token) { q("loginErr").textContent="请输入口令"; return; }
+    q("loginErr").textContent="";
+    post("/api/feedback/list", {}).then(function(d){
+      if (d && d.ok) {
+        q("loginPanel").style.display="none";
+        q("listPanel").style.display="";
+        render(d.items || []);
+      } else {
+        q("loginErr").textContent = (d&&d.error)||"口令不对";
+      }
+    }).catch(function(){ q("loginErr").textContent="连接失败"; });
+  };
+
+  q("refreshBtn").onclick = load;
+  q("statusFilter").onchange = load;
+})();
+</script>
+</body>
+</html>

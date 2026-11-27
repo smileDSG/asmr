@@ -121,3 +121,7 @@ product_site/_pay_qr.png
 
 # 即刻收下单记录（含请求号，用于查交易号）
 data/nowpay_orders.json
+
+# 浏览器自动化测试产物与临时截图，不进仓库
+tmp/
+paste-images/

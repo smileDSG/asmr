@@ -10,6 +10,7 @@ import os
 import random
 import re
 import secrets
+import threading
 import time
 import urllib.parse
 
@@ -22,6 +23,7 @@ import feedback_translate as ft
 import memory_system as memory
 import auth_db
 import rate_limit
+import pay_window
 import input_guard
 import pay
 import nowpay
@@ -81,6 +83,10 @@ def serve_static(handler, path):
     if not full.startswith(os.path.abspath(SITE_DIR) + os.sep):
         handler.send_json({"error": "forbidden"}, 403)
         return
+    if clean_path == "/favicon.ico" and not os.path.isfile(full):
+        icon_fallback = os.path.join(SITE_DIR, "pwa-icon-192.png")
+        if os.path.isfile(icon_fallback):
+            full = icon_fallback
     if not os.path.isfile(full):
         handler.send_json({"error": "not found"}, 404)
         return
@@ -147,6 +153,72 @@ def serve_static(handler, path):
     handler.wfile.write(body)
 
 
+def _stream_audio_file(handler, fpath, ctype):
+    """流式发送音频文件并支持 Range 分片（限制开放式 Range 单次最大 512KB，避免弱网/代理长连接超时）。"""
+    total = os.path.getsize(fpath)
+    if total <= 0:
+        handler.send_json({"error": "音频不存在"}, 404)
+        return
+
+    CHUNK = 256 * 1024
+    OPEN_RANGE_MAX = 512 * 1024
+    start, end = 0, total - 1
+    is_partial = False
+
+    rng = handler.headers.get("Range", "")
+    if rng.startswith("bytes=") and "," not in rng:
+        spec = rng[6:].strip()
+        parts = spec.split("-", 1)
+        if len(parts) == 2:
+            try:
+                if parts[0] == "":
+                    suffix = int(parts[1])
+                    if suffix <= 0:
+                        raise ValueError("empty suffix")
+                    start = max(0, total - suffix)
+                    end = total - 1
+                elif parts[1] == "":
+                    start = int(parts[0])
+                    end = min(total - 1, start + OPEN_RANGE_MAX - 1)
+                else:
+                    start = int(parts[0])
+                    end = min(int(parts[1]), total - 1)
+                if not (0 <= start <= end < total):
+                    handler.send_response(416)
+                    handler.send_cors_headers()
+                    handler.send_header("Content-Range", f"bytes */{total}")
+                    handler.end_headers()
+                    return
+                is_partial = True
+            except ValueError:
+                start, end = 0, total - 1
+                is_partial = False
+
+    length = end - start + 1
+    handler.send_response(206 if is_partial else 200)
+    handler.send_header("Content-Type", ctype)
+    handler.send_cors_headers()
+    handler.send_header("Accept-Ranges", "bytes")
+    handler.send_header("Cache-Control", "public, max-age=86400")
+    if is_partial:
+        handler.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+    handler.send_header("Content-Length", str(length))
+    handler.end_headers()
+
+    with open(fpath, "rb") as f:
+        f.seek(start)
+        remain = length
+        while remain > 0:
+            chunk = f.read(min(CHUNK, remain))
+            if not chunk:
+                break
+            try:
+                handler.wfile.write(chunk)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                break
+            remain -= len(chunk)
+
+
 def read_body(handler):
     length = int(handler.headers.get("Content-Length", "0"))
     raw = handler.rfile.read(length).decode("utf-8")
@@ -200,39 +272,28 @@ def self_send_need_login(handler, what):
     )
 
 
-def get_user_memory(user):
-    # 登录用户从数据库读记忆；游客读本地 JSON
-    store = _recipe_store(user)
+def get_user_memory(user, handler=None):
+    # 登录用户从数据库读记忆；游客按客户端 ID 读隔离的本地 JSON
+    store = _recipe_store(user, handler)
     ep = store.read("ear_profile.json")
     ear_profile = ep if isinstance(ep, dict) and ep.get("archetype_id") else None
-    if user:
-        # 键名要和 memory_system 写入时一致，都带 .json，否则读出来永远是空
-        return {
-            "preferences": auth_db.load_memory(user["id"], "preferences.json").get(
-                "counts", {}
-            ),
-            "good_count": len(
-                auth_db.load_memory(user["id"], "good_recipes.json").get("recipes", [])
-            ),
-            "bad_count": len(
-                auth_db.load_memory(user["id"], "bad_cases.json").get("cases", [])
-            ),
-            "ear_profile": ear_profile,
-        }
-    pref = memory.read_file("preferences.json")
-    good = memory.read_file("good_recipes.json")
-    bad = memory.read_file("bad_cases.json")
+    pref = store.read("preferences.json")
+    good = store.read("good_recipes.json")
+    bad = store.read("bad_cases.json")
     return {
-        "preferences": pref.get("counts", {}),
-        "good_count": len(good.get("recipes", [])),
-        "bad_count": len(bad.get("cases", [])),
+        "preferences": pref.get("counts", {}) if isinstance(pref, dict) else {},
+        "good_count": len(good.get("recipes", [])) if isinstance(good, dict) else 0,
+        "bad_count": len(bad.get("cases", [])) if isinstance(bad, dict) else 0,
         "ear_profile": ear_profile,
     }
 
 
-def _good_recipes_store(user):
-    """AI 配声收藏存在 good_recipes.json；登录用户走数据库，游客走本机。"""
-    return memory.DbStore(user["id"]) if user else memory.FileStore()
+def _good_recipes_store(user, handler=None):
+    """AI 配声收藏存在 good_recipes.json；登录用户走数据库，游客按客户端 ID 隔离。"""
+    if user:
+        return memory.DbStore(user["id"])
+    cid = _client_id(handler)
+    return memory.FileStore(namespace=cid) if cid else memory.FileStore()
 
 
 def _normalize_good_items(items):
@@ -264,10 +325,10 @@ def _normalize_good_items(items):
     return out
 
 
-def _list_good_recipes(user, limit=20):
+def _list_good_recipes(user, limit=20, handler=None):
     """把 AI 配声里收藏过的配方列出来，供"我的"页展示。
     每条带一个稳定 key（内容哈希），用于删除。"""
-    store = _good_recipes_store(user)
+    store = _good_recipes_store(user, handler)
     obj = store.read("good_recipes.json")
     recipes = obj.get("recipes", []) if isinstance(obj, dict) else []
     if not isinstance(recipes, list):
@@ -326,9 +387,9 @@ def _extract_track_names(items):
     return names
 
 
-def _get_user_agent_context(user):
+def _get_user_agent_context(user, handler=None):
     # 为多轮 Agent 提取耳朵档案、口味统计、满意配方与历史避雷（均带 .json 后缀）
-    store = _recipe_store(user)
+    store = _recipe_store(user, handler)
     ep = store.read("ear_profile.json")
     pref = store.read("preferences.json")
     bad = store.read("bad_cases.json")
@@ -625,10 +686,99 @@ def find_relpath(name):
 # ---- 稳定播放：按配方内容落盘，URL 不随别的试听改变，供跨页面/场景卡使用 ----
 PLAY_DIR = os.path.join(OUT_DIR, "play")
 PLAY_SECONDS = 60  # 场景卡/播放页用 60 秒循环基底，前端 loop 播放
+_PLAY_LOCK = threading.Lock()
+
+# ---- 网页轻量循环缓存：大素材自动裁剪到 60s 轻量 MP3 供 DIY 公网秒开，不碰原母带 ----
+WEB_ASSET_DIR = os.path.join(OUT_DIR, "web_assets")
+WEB_ASSET_THRESHOLD = 1400 * 1024
+WEB_ASSET_SECONDS = 60
+_WEB_ASSET_LOCK = threading.Lock()
+
+
+def _get_web_asset_path(rel, orig_path):
+    try:
+        st = os.stat(orig_path)
+    except OSError:
+        return orig_path
+    if st.st_size <= WEB_ASSET_THRESHOLD:
+        return orig_path
+    digest = hashlib.md5(
+        f"w1|{rel}|{int(st.st_mtime)}|{st.st_size}".encode("utf-8")
+    ).hexdigest()[:16]
+    cached = os.path.join(WEB_ASSET_DIR, digest + ".mp3")
+    if os.path.isfile(cached) and os.path.getsize(cached) > 0:
+        return cached
+    with _WEB_ASSET_LOCK:
+        if os.path.isfile(cached) and os.path.getsize(cached) > 0:
+            return cached
+        os.makedirs(WEB_ASSET_DIR, exist_ok=True)
+        tmp = os.path.join(WEB_ASSET_DIR, f".{digest}.{secrets.token_hex(4)}.tmp")
+        try:
+            import numpy as np
+
+            data, sr = executor.read_audio(orig_path)
+            max_frames = int(sr * WEB_ASSET_SECONDS)
+            seg = data[:max_frames].copy() if len(data) > max_frames else data.copy()
+            fi = min(int(sr * 0.15), len(seg) // 4)
+            if fi > 0:
+                seg[:fi] *= np.linspace(0.0, 1.0, fi, dtype="float32")[:, None]
+                seg[-fi:] *= np.linspace(1.0, 0.0, fi, dtype="float32")[:, None]
+            fmt = executor.write_mp3(tmp, seg, sr)
+            if fmt == "mp3" and os.path.isfile(tmp) and os.path.getsize(tmp) < int(st.st_size * 0.85):
+                os.replace(tmp, cached)
+                return cached
+        except Exception:
+            pass
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    return orig_path
+
+
+def _find_cached_play(digest):
+    for ext in (".mp3", ".wav"):
+        cand_name = digest + ext
+        cand_path = os.path.join(PLAY_DIR, cand_name)
+        if os.path.isfile(cand_path) and os.path.getsize(cand_path) > 0:
+            return cand_name, cand_path
+    return None
+
+
+def _prune_play_cache(max_files=200, max_bytes=300 * 1024 * 1024):
+    """按最久未改时间清理 PLAY_DIR 中的旧缓存音频，防止云盘被撑满。"""
+    try:
+        entries = []
+        total_size = 0
+        for fn in os.listdir(PLAY_DIR):
+            if fn.startswith(".") or not fn.lower().endswith((".mp3", ".wav")):
+                continue
+            fp = os.path.join(PLAY_DIR, fn)
+            if not os.path.isfile(fp):
+                continue
+            st = os.stat(fp)
+            entries.append((st.st_mtime, st.st_size, fp))
+            total_size += st.st_size
+        if len(entries) <= max_files and total_size <= max_bytes:
+            return
+        entries.sort(key=lambda x: x[0])
+        count = len(entries)
+        for _, sz, fp in entries:
+            if count <= max_files and total_size <= max_bytes:
+                break
+            try:
+                os.remove(fp)
+                count -= 1
+                total_size -= sz
+            except OSError:
+                pass
+    except OSError:
+        pass
 
 
 def play_file(items, seconds=PLAY_SECONDS):
-    # 配方按内容取哈希做文件名：同样的配比复用同一个文件
+    # 配方按内容取哈希做文件名：同样的配比复用同一个文件（优先输出 MP3，体积小 90%）
     os.makedirs(PLAY_DIR, exist_ok=True)
     parts = []
     for raw in items:
@@ -645,13 +795,33 @@ def play_file(items, seconds=PLAY_SECONDS):
                 "%s:%.3f:%.2f:%s:%.2f"
                 % (base, spec["weight"], spec["pan"], spec["mode"], spec["density"])
             )
-    key = "v2|" + "|".join(parts)
-    name = hashlib.md5(key.encode("utf-8")).hexdigest()[:16] + ".wav"
-    path = os.path.join(PLAY_DIR, name)
-    if not os.path.exists(path):
+    key = f"v3|{int(seconds)}|" + "|".join(parts)
+    digest = hashlib.md5(key.encode("utf-8")).hexdigest()[:16]
+
+    cached = _find_cached_play(digest)
+    if cached:
+        return cached
+
+    with _PLAY_LOCK:
+        cached = _find_cached_play(digest)
+        if cached:
+            return cached
         mix, sr = render(items, seconds)
-        executor.write_wav(path, mix, sr)
-    return name, path
+        tmp_path = os.path.join(PLAY_DIR, f".{digest}.{secrets.token_hex(4)}.tmp")
+        try:
+            fmt = executor.write_mp3(tmp_path, mix, sr)
+            name = f"{digest}.{fmt}"
+            path = os.path.join(PLAY_DIR, name)
+            os.replace(tmp_path, path)
+            _prune_play_cache()
+            return name, path
+        except Exception:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            raise
 
 
 def map_client_items(raw_items):
@@ -700,8 +870,68 @@ def map_client_tracks(raw_items, allowed=None):
     return mapped
 
 
-def _recipe_store(user):
-    return memory.DbStore(user["id"]) if user else memory.FileStore()
+def _clean_segments(raw_segments):
+    """校验时间线拼接的段落列表（最多 8 段，含转场方式/时长与白名单声轨）。"""
+    clean_segments = []
+    if not isinstance(raw_segments, list):
+        return clean_segments
+    for seg in raw_segments[:8]:
+        if not isinstance(seg, dict):
+            continue
+        seg_raw_tracks = seg.get("tracks")
+        if seg_raw_tracks is None:
+            seg_raw_tracks = seg.get("items", [])
+        seg_tracks = map_client_tracks(seg_raw_tracks)
+        if not seg_tracks:
+            continue
+        seg_trans = str(seg.get("transition") or "crossfade").strip()
+        if seg_trans not in ("crossfade", "dip", "cut"):
+            seg_trans = "crossfade"
+        try:
+            seg_mins = max(1, min(30, int(round(float(seg.get("minutes", 3))))))
+        except (TypeError, ValueError):
+            seg_mins = 3
+        try:
+            seg_fade = round(max(0.5, min(12.0, float(seg.get("fadeSec", 4)))), 1)
+        except (TypeError, ValueError):
+            seg_fade = 4.0
+        seg_name = str(seg.get("name") or "夜息段落").strip()[:24] or "夜息段落"
+        clean_segments.append(
+            {
+                "id": str(seg.get("id") or "").strip()[:32] or secrets.token_hex(4),
+                "name": seg_name,
+                "minutes": seg_mins,
+                "transition": seg_trans,
+                "fadeSec": seg_fade,
+                "tracks": [
+                    {
+                        "path": os.path.basename(t["rel"]),
+                        "weight": round(t["weight"], 3),
+                        "pan": round(t["pan"], 3),
+                        "mode": t["mode"],
+                        "density": round(t["density"], 3),
+                    }
+                    for t in seg_tracks
+                ],
+            }
+        )
+    return clean_segments
+
+
+def _client_id(handler):
+    if not handler:
+        return ""
+    cid = (handler.headers.get("X-Yexi-Client") or "").strip()
+    if cid and re.match(r"^[A-Za-z0-9_-]{4,40}$", cid):
+        return cid
+    return ""
+
+
+def _recipe_store(user, handler=None):
+    if user:
+        return memory.DbStore(user["id"])
+    cid = _client_id(handler)
+    return memory.FileStore(namespace=cid) if cid else memory.FileStore()
 
 
 ALLOWED_EVAL_TAGS = ("steady", "warm", "crisp", "deep", "borrow")
@@ -976,9 +1206,13 @@ def _access(handler):
     if not full and nowpay.ENABLED and nowpay.products_config():
         info = _nowpay_quota(buyer)
         if info.get("available") and int(info.get("remaining", 0)) > 0:
-            full = True
-            ent = dict(ent)
-            ent["_nowpay_buyer"] = buyer
+            # 有余额不等于有全库：还要过 30 天时限（首次付款日起算）
+            if pay_window.mark_and_check(buyer):
+                full = True
+                ent = dict(ent)
+                ent["_nowpay_buyer"] = buyer
+            else:
+                print("[pay_window] 买家 " + str(buyer) + " 全库已过30天，次数仍保留", flush=True)
     return full, owner, ent
 
 
@@ -1077,6 +1311,7 @@ def _format_public_post(
             "avatar_tone": int(ap.get("avatar_tone") or 0),
         }
 
+    segs = post.get("segments") if isinstance(post.get("segments"), list) else []
     out = {
         "id": pid,
         "title": post.get("title") or "我的夜息声景",
@@ -1098,11 +1333,13 @@ def _format_public_post(
         "starred_by_me": starred_by_me,
         "unlocked": unlocked,
         "track_count": len(items_raw),
+        "segment_count": len(segs),
         # 配比没解锁时，连"打底的是哪段素材"也不给，只给封面图和主色（够渲染卡片）
         "lead_path": lead_path if unlocked else "",
         "cover_img": (lead_meta or {}).get("img") or "",
         "cover_accent": (lead_meta or {}).get("accent") or "",
         "items": items_raw if unlocked else [],
+        "segments": segs if unlocked else [],
         "items_locked": not unlocked,
     }
     return out
@@ -1130,8 +1367,134 @@ def _infer_post_group(tracks):
     return "雨声" if "雨" in name else "自然"
 
 
-# 每个会话的当前状态（演示版：只存一份，够单机用）
-session = {"intent": None, "items": [], "say": ""}
+# 按用户/客户端隔离的会话与临时音频缓存，防止并发串台
+_STATE_LOCK = threading.Lock()
+_SESSIONS = {}
+_AUDIO_CACHE = {}
+
+# ===== 后台生成任务（页面跳转后生成继续跑，回来按 taskId 取结果）=====
+# 服务器只有 1.6GB 内存，单次生成峰值约 500MB，同时最多跑 2 个才安全。
+TASK_MAX_CONCURRENT = 2
+TASK_TTL = 3600  # 任务结果保留 1 小时
+_task_lock = threading.Lock()
+_tasks = {}                  # taskId -> {state, result, error, ts, owner}
+_task_slots = threading.BoundedSemaphore(TASK_MAX_CONCURRENT)
+
+
+def _new_task(owner):
+    tid = secrets.token_hex(12)
+    with _task_lock:
+        # 顺手清理过期任务，防止字典无限涨
+        now = time.time()
+        for k in list(_tasks.keys()):
+            if now - _tasks[k].get("ts", 0) > TASK_TTL:
+                _tasks.pop(k, None)
+        _tasks[tid] = {"state": "queued", "result": None, "error": "", "ts": now, "owner": owner}
+    return tid
+
+
+def _set_task(tid, **kw):
+    with _task_lock:
+        if tid in _tasks:
+            _tasks[tid].update(kw)
+            _tasks[tid]["ts"] = time.time()
+
+
+def _get_task(tid):
+    with _task_lock:
+        t = _tasks.get(tid)
+        return dict(t) if t else None
+
+
+class _CaptureHandler:
+    """假 handler：只保留 agent_chat 逻辑需要的 headers / client_address，
+    把 send_json 的输出捕获进任务结果，而不是写回已经关闭的连接。"""
+    def __init__(self, real_handler):
+        self.headers = real_handler.headers
+        self.client_address = real_handler.client_address
+        self.captured = []
+
+    def send_json(self, obj, code=200):
+        self.captured.append((obj, code))
+
+
+def _run_task(tid, data, capture):
+    """后台线程入口：复用与同步接口完全相同的生成逻辑。"""
+    got_slot = False
+    try:
+        _task_slots.acquire()
+        got_slot = True
+        _set_task(tid, state="running")
+        run_agent_chat(capture, data, capture.send_json)
+        if capture.captured:
+            obj, code = capture.captured[-1]
+            if code >= 400 or obj.get("error") or obj.get("ok") is False:
+                _set_task(tid, state="failed", result=obj, error=str(obj.get("error") or obj.get("message") or "生成失败"))
+            else:
+                _set_task(tid, state="done", result=obj)
+        else:
+            _set_task(tid, state="failed", error="生成没有返回结果")
+    except Exception as ex:
+        import traceback
+        traceback.print_exc()
+        _set_task(tid, state="failed", error=str(ex)[:300])
+    finally:
+        if got_slot:
+            _task_slots.release()
+
+
+def _session_key(handler, user=None):
+    if user:
+        return f"u:{user['id']}"
+    cid = _client_id(handler)
+    if cid:
+        return f"c:{cid}"
+    return f"ip:{rate_limit.client_ip(handler)}"
+
+
+def _get_session(handler, user=None):
+    skey = _session_key(handler, user)
+    with _STATE_LOCK:
+        cur = _SESSIONS.get(skey)
+        if not cur:
+            return {"intent": None, "items": [], "say": "", "last_audio_id": "", "preview_audio_id": ""}
+        return dict(cur)
+
+
+def _set_session(handler, user=None, **kwargs):
+    skey = _session_key(handler, user)
+    with _STATE_LOCK:
+        cur = _SESSIONS.setdefault(
+            skey,
+            {"intent": None, "items": [], "say": "", "last_audio_id": "", "preview_audio_id": ""},
+        )
+        cur.update(kwargs)
+        cur["ts"] = time.time()
+        if len(_SESSIONS) > 500:
+            oldest = sorted(_SESSIONS.items(), key=lambda kv: kv[1].get("ts", 0))[:100]
+            for k, _ in oldest:
+                _SESSIONS.pop(k, None)
+
+
+def _put_temp_audio(mix, sr):
+    aid = secrets.token_hex(8)
+    with _STATE_LOCK:
+        _AUDIO_CACHE[aid] = (mix, sr, time.time())
+        if len(_AUDIO_CACHE) > 40:
+            oldest = sorted(_AUDIO_CACHE.items(), key=lambda kv: kv[1][2])[:10]
+            for k, _ in oldest:
+                _AUDIO_CACHE.pop(k, None)
+    return aid
+
+
+def _get_temp_audio(aid):
+    if not aid:
+        return None
+    with _STATE_LOCK:
+        entry = _AUDIO_CACHE.get(aid)
+        if not entry:
+            return None
+        return entry[0], entry[1]
 
 
 # CORS 白名单：只有这些来源能跨域调 API。
@@ -1141,6 +1504,197 @@ CORS_ALLOWED_ORIGINS = {
     "http://localhost:8080",
     "http://127.0.0.1:8080",
 }
+
+
+
+
+def run_agent_chat(handler, data, emit):
+    say = str(data.get("say") or "").strip()[:300]
+    if not say:
+        emit({"error": "说说你此刻想要什么声音吧"}, 400)
+        return
+
+    # 边界门禁：只让声音需求进模型，越界问题直接给固定引导，不花模型调用
+    has_context = (
+        bool(data.get("current_tracks"))
+        or bool(data.get("history"))
+        or bool(data.get("initial_prompt"))
+    )
+    allowed, guard_reason = input_guard.check(say, has_context=has_context)
+    if not allowed:
+        print("[guard] 拦截 " + guard_reason + "：" + say[:40], flush=True)
+        reply, suggestions = input_guard.refusal(guard_reason)
+        emit(
+            {
+                "ok": False,
+                "action": "blocked",
+                "reply": reply,
+                "suggestions": suggestions,
+            }
+        )
+        return
+
+    # 免费额度：每天 N 次，用完就地拦下；解锁全库后不限
+    full_access, quota_owner, ent = _access(handler)
+    free_rels = None
+    if not full_access:
+        peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+        if peek["left"] <= 0:
+            _quota_exhausted(handler, peek)
+            return
+        free_rels = sound_catalog.relpaths_for(False)
+
+    try:
+        seconds = max(5, min(60, int(data.get("seconds", 30) or 30)))
+    except (TypeError, ValueError):
+        seconds = 30
+
+    clean_current = map_client_tracks(data.get("current_tracks") or [])
+    current_for_brain = [
+        {
+            "path": os.path.basename(t["rel"]),
+            "weight": round(t["weight"], 2),
+            "pan": round(t["pan"], 2),
+            "mode": t["mode"],
+            "density": round(t["density"], 2),
+        }
+        for t in clean_current
+    ]
+
+    raw_hist = data.get("history")
+    clean_hist = []
+    if isinstance(raw_hist, list):
+        for h in raw_hist[-6:]:
+            if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
+                txt = str(h.get("content") or "").strip()[:300]
+                if txt:
+                    clean_hist.append({"role": h["role"], "content": txt})
+
+    initial_prompt = str(data.get("initial_prompt") or "").strip()[:300]
+    try:
+        qa_round = max(0, min(5, int(data.get("qa_round", 0) or 0)))
+    except (TypeError, ValueError):
+        qa_round = 0
+    force_compose = bool(data.get("force_compose", False))
+
+    ctx = _get_user_agent_context(current_user(handler), handler)
+    used_profile = ""
+    if isinstance(ctx.get("ear_profile"), dict):
+        used_profile = str(ctx["ear_profile"].get("archetype_name") or "")
+
+    design, source = understanding_brain.design_soundscape(
+        say,
+        current_tracks=current_for_brain,
+        history=clean_hist,
+        user_context=ctx,
+        qa_round=qa_round,
+        force_compose=force_compose,
+        initial_prompt=initial_prompt,
+    )
+
+    ai_powered = source in ("Qwen3.8-Flash", "本地模型")
+
+    if design.get("action") == "ask":
+        emit(
+            {
+                "ok": True,
+                "action": "ask",
+                "source": source,
+                "ai_powered": ai_powered,
+                "reply": design.get("reply", ""),
+                "question": design.get("question", ""),
+                "options": design.get("options", []),
+                "collected": design.get("collected", {}),
+                "intent": design.get("intent", {}),
+                "reasoning": design.get("reasoning", []),
+                "tracks": [],
+                "used_profile": used_profile,
+            }
+        )
+        return
+
+    role_notes = {}
+    for raw_t in design.get("tracks") or []:
+        if isinstance(raw_t, dict) and raw_t.get("path"):
+            role_notes[os.path.basename(str(raw_t["path"]))] = str(
+                raw_t.get("role_note") or ""
+            )
+
+    mapped_tracks = map_client_tracks(design.get("tracks") or [])
+    if not mapped_tracks:
+        fallback_rel = find_relpath("母带_城市夜雨_CC0.mp3")
+        if fallback_rel:
+            mapped_tracks = [
+                _normalize_track_spec({"rel": fallback_rel, "weight": 0.72})
+            ]
+    quota_info = None
+    if free_rels is not None:
+        # 免费用户：把配方里越权的付费素材换掉。
+        # 额度留到音频真正渲染出来之后再扣（出声才算一次）。
+        mapped_tracks = _downgrade_tracks(
+            mapped_tracks, design.get("intent") or {}, free_rels
+        )
+
+    mix, sr = render(mapped_tracks, seconds)
+    aid = _put_temp_audio(mix, sr)
+
+    # 出声才算一次：音频真的生成出来了，现在才扣免费额度。
+    if free_rels is not None:
+        ok_take, quota_info = auth_db.take_daily_quota(
+            quota_owner, FREE_DAILY_GENERATE
+        )
+        if not ok_take:
+            # 并发临界：render 这两秒里最后一次额度被别人抢先用了。
+            # 音频已经生成，按"出声才算"的规矩放行这次，只记日志，不再拦用户。
+            print("[quota] 出声后额度被并发占满，本次放行", flush=True)
+            quota_info = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+
+    # 即刻收用户：音频真生成出来了，才核销一次次数
+    _nowpay_consume(ent)
+
+    _set_session(
+        handler,
+        current_user(handler),
+        intent=design["intent"],
+        items=[(t["rel"], t["weight"]) for t in mapped_tracks],
+        say=design.get("final_prompt") or say,
+        last_audio_id=aid,
+    )
+
+    resp_tracks = []
+    for t in mapped_tracks:
+        base = os.path.basename(t["rel"])
+        resp_tracks.append(
+            {
+                "path": base,
+                "weight": round(t["weight"], 2),
+                "pan": round(t["pan"], 2),
+                "mode": t["mode"],
+                "density": round(t["density"], 2),
+                "role_note": role_notes.get(base, ""),
+            }
+        )
+
+    emit(
+        {
+            "ok": True,
+            "action": "compose",
+            "source": source,
+            "ai_powered": ai_powered,
+            "title": design["title"],
+            "reply": design["reply"],
+            "final_prompt": design.get("final_prompt", ""),
+            "collected": design.get("collected", {}),
+            "intent": design["intent"],
+            "reasoning": design["reasoning"],
+            "tracks": resp_tracks,
+            "followups": design["followups"],
+            "used_profile": used_profile,
+            "audio": "/api/audio?id=" + aid,
+            "full_access": full_access,
+            "quota": quota_info,
+        }
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1207,6 +1761,8 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if path == "/api/pay/notify":
             return True
+        if path in ("/api/asset", "/api/play_audio", "/api/audio", "/api/preview_audio"):
+            return True
         ok, cat, left = rate_limit.check(path, self)
         if not ok:
             self.send_json(
@@ -1251,6 +1807,25 @@ class Handler(BaseHTTPRequestHandler):
         print("[GET] " + path, flush=True)
         if not self.check_rate_limit(path):
             return
+        if path == "/api/task/status":
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            tid = qs.get("id", [""])[0]
+            if not tid:
+                self.send_json({"error": "缺少任务 id"}, 400)
+                return
+            t = _get_task(tid)
+            if not t:
+                self.send_json({"error": "任务不存在或已过期"}, 404)
+                return
+            self.send_json({
+                "ok": True,
+                "taskId": tid,
+                "state": t["state"],
+                "result": t["result"],
+                "error": t["error"],
+            })
+            return
+
         if path == "/api/pay/products":
             np_info = _nowpay_products_info()
             if nowpay.ENABLED and np_info["enabled"]:
@@ -1322,7 +1897,21 @@ class Handler(BaseHTTPRequestHandler):
             if not user:
                 self.send_json({"need_login": True, "entitlements": {}}, 401)
                 return
-            self.send_json({"entitlements": auth_db.list_entitlements(user["id"])})
+            ent = auth_db.list_entitlements(user["id"])
+            # 即刻收用户的全库权益不写在本地表里，这里把它并进去一起显示，
+            # 否则"我的"页会误显示未解锁。
+            if nowpay.ENABLED and nowpay.products_config() and not ent.get("full", {}).get("active"):
+                buyer = str(user["id"])
+                info = _nowpay_quota(buyer)
+                if info.get("available") and int(info.get("remaining", 0)) > 0:
+                    if pay_window.mark_and_check(buyer):
+                        exp = pay_window.expire_at_of(buyer)
+                        ent["full"] = {
+                            "quota": int(info["remaining"]),
+                            "expire_at": exp,
+                            "active": True,
+                        }
+            self.send_json({"entitlements": ent})
         elif path == "/api/pay/return":
             # 同步跳回只用来展示结果，真实状态一律以库里为准
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -1384,11 +1973,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "profile": auth_db.get_profile(user["id"])})
 
         elif path == "/api/memory":
-            self.send_json(get_user_memory(current_user(self)))
+            self.send_json(get_user_memory(current_user(self), self))
         elif path == "/api/ear_profile":
             if not require_login(self, "开启听觉图鉴"):
                 return
-            prof = _recipe_store(current_user(self)).read("ear_profile.json")
+            prof = _recipe_store(current_user(self), self).read("ear_profile.json")
             valid = (
                 prof if isinstance(prof, dict) and prof.get("archetype_id") else None
             )
@@ -1621,7 +2210,7 @@ class Handler(BaseHTTPRequestHandler):
                         )
                     )
 
-            store = _recipe_store(user)
+            store = _recipe_store(user, self)
             custom_obj = store.read("custom_recipes.json")
             custom_recipes = (
                 custom_obj.get("recipes", []) if isinstance(custom_obj, dict) else []
@@ -1632,7 +2221,7 @@ class Handler(BaseHTTPRequestHandler):
             valid_ep = ep if isinstance(ep, dict) and ep.get("archetype_id") else None
 
             # AI 配声里点过「收藏配方」的，列出来放进"我的"页
-            ai_recipes = _list_good_recipes(user, limit=20)
+            ai_recipes = _list_good_recipes(user, limit=20, handler=self)
 
             self.send_json(
                 {
@@ -1646,11 +2235,11 @@ class Handler(BaseHTTPRequestHandler):
                     "ai_recipes": ai_recipes,
                     "ear_profile": valid_ep,
                     "profile": auth_db.get_profile(user["id"]) if user else None,
-                    "memory": get_user_memory(user),
+                    "memory": get_user_memory(user, self),
                 }
             )
         elif path == "/api/recipes":
-            store = _recipe_store(current_user(self))
+            store = _recipe_store(current_user(self), self)
             data_obj = store.read("custom_recipes.json")
             recipes = data_obj.get("recipes", []) if isinstance(data_obj, dict) else []
             if not isinstance(recipes, list):
@@ -1658,7 +2247,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"recipes": recipes})
         elif path == "/api/good_recipes":
             # agent 里点过「收藏配方」的满意配方，给 DIY 页「AI 帮你配」展示
-            store = _recipe_store(current_user(self))
+            store = _recipe_store(current_user(self), self)
             data_obj = store.read("good_recipes.json")
             raw = data_obj.get("recipes", []) if isinstance(data_obj, dict) else []
             goods = []
@@ -1704,16 +2293,26 @@ class Handler(BaseHTTPRequestHandler):
                     )
             self.send_json({"recipes": goods})
         elif path == "/api/audio":
-            if not hasattr(self.server, "last_audio"):
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            aid = (qs.get("id", [""])[0] or "").strip()
+            if not aid:
+                aid = _get_session(self, current_user(self)).get("last_audio_id", "")
+            entry = _get_temp_audio(aid)
+            if not entry:
                 self.send_json({"error": "还没有音频"}, 404)
                 return
-            mix, sr = self.server.last_audio
+            mix, sr = entry
             self.send_audio(mix, sr)
         elif path == "/api/preview_audio":
-            if not hasattr(self.server, "preview_audio"):
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            aid = (qs.get("id", [""])[0] or "").strip()
+            if not aid:
+                aid = _get_session(self, current_user(self)).get("preview_audio_id", "")
+            entry = _get_temp_audio(aid)
+            if not entry:
                 self.send_json({"error": "还没有试听音频"}, 404)
                 return
-            mix, sr = self.server.preview_audio
+            mix, sr = entry
             self.send_audio(mix, sr)
         elif path == "/api/asset":
             # 供前端多轨实时混音器直接拉取 CC0 原声素材（只允许库内白名单文件）
@@ -1733,59 +2332,15 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(fpath):
                 self.send_json({"error": "素材文件缺失"}, 404)
                 return
-            with open(fpath, "rb") as f:
-                body = f.read()
-            total = len(body)
-            ext = os.path.splitext(rel)[1].lower()
+            raw_flag = (qs.get("raw", [""])[0] or "").strip()
+            serve_path = fpath if raw_flag == "1" else _get_web_asset_path(rel, fpath)
+            ext = os.path.splitext(serve_path)[1].lower()
             ctype = (
                 "audio/wav"
                 if ext == ".wav"
                 else ("audio/ogg" if ext == ".ogg" else "audio/mpeg")
             )
-            rng = self.headers.get("Range", "")
-            if rng.startswith("bytes=") and "," not in rng:
-                spec = rng[6:].strip()
-                parts = spec.split("-", 1)
-                if len(parts) == 2:
-                    try:
-                        if parts[0] == "":
-                            suffix = int(parts[1])
-                            start = max(0, total - suffix)
-                            end = total - 1
-                        else:
-                            start = int(parts[0])
-                            end = int(parts[1]) if parts[1] != "" else total - 1
-                        end = min(end, total - 1)
-                        if 0 <= start <= end < total:
-                            chunk = body[start : end + 1]
-                            self.send_response(206)
-                            self.send_header("Content-Type", ctype)
-                            self.send_cors_headers()
-                            self.send_header("Accept-Ranges", "bytes")
-                            self.send_header("Cache-Control", "public, max-age=86400")
-                            self.send_header(
-                                "Content-Range", f"bytes {start}-{end}/{total}"
-                            )
-                            self.send_header("Content-Length", str(len(chunk)))
-                            self.end_headers()
-                            self.wfile.write(chunk)
-                            return
-                        else:
-                            self.send_response(416)
-                            self.send_cors_headers()
-                            self.send_header("Content-Range", f"bytes */{total}")
-                            self.end_headers()
-                            return
-                    except ValueError:
-                        pass
-            self.send_response(200)
-            self.send_header("Content-Type", ctype)
-            self.send_cors_headers()
-            self.send_header("Accept-Ranges", "bytes")
-            self.send_header("Cache-Control", "public, max-age=86400")
-            self.send_header("Content-Length", str(total))
-            self.end_headers()
-            self.wfile.write(body)
+            _stream_audio_file(self, serve_path, ctype)
         elif path == "/api/play_audio":
             # 稳定播放文件：按名字取，支持 Range 请求（拖动/循环更稳）
             if _hotlink_blocked(self):
@@ -1800,15 +2355,13 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(fpath):
                 self.send_json({"error": "音频不存在"}, 404)
                 return
-            with open(fpath, "rb") as f:
-                body = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", "audio/wav")
-            self.send_cors_headers()
-            self.send_header("Accept-Ranges", "bytes")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            ext = os.path.splitext(name)[1].lower()
+            ctype = (
+                "audio/mpeg"
+                if ext == ".mp3"
+                else ("audio/ogg" if ext == ".ogg" else "audio/wav")
+            )
+            _stream_audio_file(self, fpath, ctype)
         else:
             # 非 API 路径交给静态文件服务：前端页面、图片、js/css 都从这里出
             serve_static(self, path)
@@ -1982,7 +2535,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "请先登录"}, 401)
                 return
             db_store = memory.DbStore(user["id"])
-            file_store = memory.FileStore()
+            cid = _client_id(self)
+            file_store = memory.FileStore(namespace=cid) if cid else memory.FileStore()
             # 四类记忆分别合并
             for name, key in [
                 ("preferences.json", "counts"),
@@ -2030,182 +2584,25 @@ class Handler(BaseHTTPRequestHandler):
                 file_store.write("ear_profile.json", {})
             self.send_json({"ok": True, "message": "档案已迁移到账号"})
 
-        elif path == "/api/agent_chat":
+        elif path == "/api/task/submit":
             data = read_body(self)
             say = str(data.get("say") or "").strip()[:300]
             if not say:
                 self.send_json({"error": "说说你此刻想要什么声音吧"}, 400)
                 return
+            user = current_user(self)
+            owner = "u:" + str(user["id"]) if user else "c:" + _client_id(self)
+            tid = _new_task(owner)
+            capture = _CaptureHandler(self)
+            th = threading.Thread(target=_run_task, args=(tid, data, capture), daemon=True)
+            th.start()
+            self.send_json({"ok": True, "taskId": tid, "state": "queued"})
+            return
 
-            # 边界门禁：只让声音需求进模型，越界问题直接给固定引导，不花模型调用
-            has_context = (
-                bool(data.get("current_tracks"))
-                or bool(data.get("history"))
-                or bool(data.get("initial_prompt"))
-            )
-            allowed, guard_reason = input_guard.check(say, has_context=has_context)
-            if not allowed:
-                print("[guard] 拦截 " + guard_reason + "：" + say[:40], flush=True)
-                reply, suggestions = input_guard.refusal(guard_reason)
-                self.send_json(
-                    {
-                        "ok": False,
-                        "action": "blocked",
-                        "reply": reply,
-                        "suggestions": suggestions,
-                    }
-                )
-                return
-
-            # 免费额度：每天 N 次，用完就地拦下；解锁全库后不限
-            full_access, quota_owner, ent = _access(self)
-            free_rels = None
-            if not full_access:
-                peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
-                if peek["left"] <= 0:
-                    _quota_exhausted(self, peek)
-                    return
-                free_rels = sound_catalog.relpaths_for(False)
-
-            try:
-                seconds = max(5, min(60, int(data.get("seconds", 30) or 30)))
-            except (TypeError, ValueError):
-                seconds = 30
-
-            clean_current = map_client_tracks(data.get("current_tracks") or [])
-            current_for_brain = [
-                {
-                    "path": os.path.basename(t["rel"]),
-                    "weight": round(t["weight"], 2),
-                    "pan": round(t["pan"], 2),
-                    "mode": t["mode"],
-                    "density": round(t["density"], 2),
-                }
-                for t in clean_current
-            ]
-
-            raw_hist = data.get("history")
-            clean_hist = []
-            if isinstance(raw_hist, list):
-                for h in raw_hist[-6:]:
-                    if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
-                        txt = str(h.get("content") or "").strip()[:300]
-                        if txt:
-                            clean_hist.append({"role": h["role"], "content": txt})
-
-            initial_prompt = str(data.get("initial_prompt") or "").strip()[:300]
-            try:
-                qa_round = max(0, min(5, int(data.get("qa_round", 0) or 0)))
-            except (TypeError, ValueError):
-                qa_round = 0
-            force_compose = bool(data.get("force_compose", False))
-
-            ctx = _get_user_agent_context(current_user(self))
-            used_profile = ""
-            if isinstance(ctx.get("ear_profile"), dict):
-                used_profile = str(ctx["ear_profile"].get("archetype_name") or "")
-
-            design, source = understanding_brain.design_soundscape(
-                say,
-                current_tracks=current_for_brain,
-                history=clean_hist,
-                user_context=ctx,
-                qa_round=qa_round,
-                force_compose=force_compose,
-                initial_prompt=initial_prompt,
-            )
-
-            ai_powered = source in ("Qwen3.8-Flash", "本地模型")
-
-            if design.get("action") == "ask":
-                self.send_json(
-                    {
-                        "ok": True,
-                        "action": "ask",
-                        "source": source,
-                        "ai_powered": ai_powered,
-                        "reply": design.get("reply", ""),
-                        "question": design.get("question", ""),
-                        "options": design.get("options", []),
-                        "collected": design.get("collected", {}),
-                        "intent": design.get("intent", {}),
-                        "reasoning": design.get("reasoning", []),
-                        "tracks": [],
-                        "used_profile": used_profile,
-                    }
-                )
-                return
-
-            role_notes = {}
-            for raw_t in design.get("tracks") or []:
-                if isinstance(raw_t, dict) and raw_t.get("path"):
-                    role_notes[os.path.basename(str(raw_t["path"]))] = str(
-                        raw_t.get("role_note") or ""
-                    )
-
-            mapped_tracks = map_client_tracks(design.get("tracks") or [])
-            if not mapped_tracks:
-                fallback_rel = find_relpath("母带_城市夜雨_CC0.mp3")
-                if fallback_rel:
-                    mapped_tracks = [
-                        _normalize_track_spec({"rel": fallback_rel, "weight": 0.72})
-                    ]
-            quota_info = None
-            if free_rels is not None:
-                # 免费用户：把配方里越权的付费素材换掉，然后才扣一次额度
-                mapped_tracks = _downgrade_tracks(
-                    mapped_tracks, design.get("intent") or {}, free_rels
-                )
-                ok_take, quota_info = auth_db.take_daily_quota(
-                    quota_owner, FREE_DAILY_GENERATE
-                )
-                if not ok_take:
-                    _quota_exhausted(self, quota_info)
-                    return
-
-            mix, sr = render(mapped_tracks, seconds)
-            self.server.last_audio = (mix, sr)
-            # 即刻收用户：音频真生成出来了，才核销一次次数
-            _nowpay_consume(ent)
-
-            session["intent"] = design["intent"]
-            session["items"] = [(t["rel"], t["weight"]) for t in mapped_tracks]
-            session["say"] = design.get("final_prompt") or say
-
-            resp_tracks = []
-            for t in mapped_tracks:
-                base = os.path.basename(t["rel"])
-                resp_tracks.append(
-                    {
-                        "path": base,
-                        "weight": round(t["weight"], 2),
-                        "pan": round(t["pan"], 2),
-                        "mode": t["mode"],
-                        "density": round(t["density"], 2),
-                        "role_note": role_notes.get(base, ""),
-                    }
-                )
-
-            self.send_json(
-                {
-                    "ok": True,
-                    "action": "compose",
-                    "source": source,
-                    "ai_powered": ai_powered,
-                    "title": design["title"],
-                    "reply": design["reply"],
-                    "final_prompt": design.get("final_prompt", ""),
-                    "collected": design.get("collected", {}),
-                    "intent": design["intent"],
-                    "reasoning": design["reasoning"],
-                    "tracks": resp_tracks,
-                    "followups": design["followups"],
-                    "used_profile": used_profile,
-                    "audio": "/api/audio",
-                    "full_access": full_access,
-                    "quota": quota_info,
-                }
-            )
+        elif path == "/api/agent_chat":
+            # 同步接口保留：老前端/其它调用方照旧可用，逻辑与新任务共用同一份
+            data = read_body(self)
+            run_agent_chat(self, data, self.send_json)
 
         elif path == "/api/generate":
             data = read_body(self)
@@ -2249,10 +2646,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not ok_take:
                     _quota_exhausted(self, quota_info)
                     return
-            session["intent"] = intent
-            session["items"] = items
-            session["say"] = say
             mix, sr = render(items, seconds)
+            aid = _put_temp_audio(mix, sr)
+            _set_session(
+                self,
+                current_user(self),
+                intent=intent,
+                items=items,
+                say=say,
+                last_audio_id=aid,
+            )
             # 即刻收用户：音频真生成出来了，才核销一次次数
             _nowpay_consume(ent)
 
@@ -2271,11 +2674,9 @@ class Handler(BaseHTTPRequestHandler):
                         for p, w in items
                         if w > 0
                     ],
-                    "audio": "/api/audio",
+                    "audio": "/api/audio?id=" + aid,
                 }
             )
-            # 把当前音频缓存到内存，供 /api/audio 取
-            self.server.last_audio = (mix, sr)
 
         elif path == "/api/preview":
             # 社区配方试听：直接给配比（或 post_id），不调 Qwen
@@ -2291,8 +2692,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "配方里没有可用素材"}, 400)
                 return
             mix, sr = render(items, seconds)
-            self.server.preview_audio = (mix, sr)
-            self.send_json({"ok": True, "audio": "/api/preview_audio"})
+            aid = _put_temp_audio(mix, sr)
+            _set_session(self, current_user(self), preview_audio_id=aid)
+            self.send_json({"ok": True, "audio": "/api/preview_audio?id=" + aid})
 
         elif path == "/api/play":
             # 场景卡/播放页：按预设配方（或 post_id）直接出声，不调 Qwen、不依赖 key
@@ -2332,18 +2734,33 @@ class Handler(BaseHTTPRequestHandler):
 
         elif path == "/api/recipes":
             data = read_body(self)
+            clean_segments = _clean_segments(data.get("segments"))
+
             raw_tracks = data.get("tracks")
             if raw_tracks is None:
                 raw_tracks = data.get("items", [])
             tracks = map_client_tracks(raw_tracks)
-            if not tracks:
+            if not tracks and clean_segments:
+                clean_tracks = [dict(t) for t in clean_segments[0]["tracks"]]
+            elif not tracks:
                 self.send_json({"error": "配方里没有可用素材"}, 400)
                 return
+            else:
+                clean_tracks = [
+                    {
+                        "path": os.path.basename(t["rel"]),
+                        "weight": round(t["weight"], 3),
+                        "pan": round(t["pan"], 3),
+                        "mode": t["mode"],
+                        "density": round(t["density"], 3),
+                    }
+                    for t in tracks
+                ]
             title = (
                 str(data.get("title") or "我的夜息配方").strip()[:40] or "我的夜息配方"
             )
             rid = str(data.get("id") or "").strip()[:32]
-            store = _recipe_store(current_user(self))
+            store = _recipe_store(current_user(self), self)
             data_obj = store.read("custom_recipes.json")
             recipes = (
                 list(data_obj.get("recipes", []))
@@ -2351,16 +2768,6 @@ class Handler(BaseHTTPRequestHandler):
                 and isinstance(data_obj.get("recipes"), list)
                 else []
             )
-            clean_tracks = [
-                {
-                    "path": os.path.basename(t["rel"]),
-                    "weight": round(t["weight"], 3),
-                    "pan": round(t["pan"], 3),
-                    "mode": t["mode"],
-                    "density": round(t["density"], 3),
-                }
-                for t in tracks
-            ]
             now = int(time.time())
             saved = None
             if rid:
@@ -2373,6 +2780,8 @@ class Handler(BaseHTTPRequestHandler):
                             "created_at": old.get("created_at", now),
                             "updated_at": now,
                         }
+                        if clean_segments:
+                            saved["segments"] = clean_segments
                         recipes[idx] = saved
                         break
             if saved is None:
@@ -2384,6 +2793,8 @@ class Handler(BaseHTTPRequestHandler):
                     "created_at": now,
                     "updated_at": now,
                 }
+                if clean_segments:
+                    saved["segments"] = clean_segments
                 recipes.insert(0, saved)
             recipes = recipes[:50]
             store.write("custom_recipes.json", {"recipes": recipes})
@@ -2392,7 +2803,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/recipes/delete":
             data = read_body(self)
             rid = str(data.get("id") or "").strip()
-            store = _recipe_store(current_user(self))
+            store = _recipe_store(current_user(self), self)
             data_obj = store.read("custom_recipes.json")
             old_list = data_obj.get("recipes", []) if isinstance(data_obj, dict) else []
             recipes = [
@@ -2404,7 +2815,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/good_recipes/delete":
             data = read_body(self)
             want_key = str(data.get("key") or "").strip()
-            store = _good_recipes_store(current_user(self))
+            store = _good_recipes_store(current_user(self), self)
             obj = store.read("good_recipes.json")
             old_list = obj.get("recipes", []) if isinstance(obj, dict) else []
             if not isinstance(old_list, list):
@@ -2514,16 +2925,27 @@ class Handler(BaseHTTPRequestHandler):
                     if post.get("remix_policy") in ("open", "star_to_fork") or is_mine:
                         resp["unlocked"] = True
                         resp["items"] = post.get("items") or []
+                        if post.get("segments"):
+                            resp["segments"] = post.get("segments")
             self.send_json(resp)
 
         elif path == "/api/community_posts":
             if not require_login(self, "把配方发到广场"):
                 return
             data = read_body(self)
+            clean_segments = _clean_segments(data.get("segments"))
             raw_tracks = data.get("tracks")
             if raw_tracks is None:
                 raw_tracks = data.get("items", [])
             tracks = map_client_tracks(raw_tracks)
+            if not tracks and clean_segments:
+                seen_rel = set()
+                for seg in clean_segments:
+                    for st in seg.get("tracks", []):
+                        rel = find_relpath(st.get("path", ""))
+                        if rel and rel not in seen_rel:
+                            seen_rel.add(rel)
+                            tracks.append(_normalize_track_spec({**st, "rel": rel}))
             if not tracks:
                 self.send_json({"error": "配方里没有可用素材"}, 400)
                 return
@@ -2656,6 +3078,7 @@ class Handler(BaseHTTPRequestHandler):
                     "recipe_hash": auth_db.normalize_recipe_hash(clean_tracks),
                     "version": 1,
                     "items": clean_tracks,
+                    "segments": clean_segments,
                     "created_at": now,
                     "updated_at": now,
                     "delete_token": delete_token,
@@ -2863,7 +3286,7 @@ class Handler(BaseHTTPRequestHandler):
                 "updated_at": int(time.time()),
             }
 
-            store = _recipe_store(current_user(self))
+            store = _recipe_store(current_user(self), self)
             store.write("ear_profile.json", profile)
             memory.save_preferences(clean_intent, store)
             self.send_json({"ok": True, "ear_profile": profile})
@@ -2919,14 +3342,15 @@ class Handler(BaseHTTPRequestHandler):
             data = read_body(self)
             fb = data.get("feedback", "")
             seconds = int(data.get("seconds", 30))
-            items = session["items"]
-            intent = session["intent"] or {}
 
-            # 登录用户存自己的库，游客存本机；记忆按人隔离
+            # 登录用户存自己的库，游客按客户端 ID 隔离；记忆和临时会话按人隔离
             user = current_user(self)
-            store = memory.DbStore(user["id"]) if user else memory.FileStore()
+            sess = _get_session(self, user)
+            items = sess.get("items") or []
+            intent = sess.get("intent") or {}
+            store = _recipe_store(user, self)
 
-            say_text = session["say"] or str(data.get("say", ""))
+            say_text = sess.get("say") or str(data.get("say", ""))
 
             if fb in ("满意", "", "like"):
                 mapped = map_client_items(data.get("items"))
@@ -2948,9 +3372,9 @@ class Handler(BaseHTTPRequestHandler):
                 say_text, fb, [[p, round(w, 3)] for p, w in items], store
             )
             new_items, notes = ft.apply_feedback(fb, items)
-            session["items"] = new_items
             mix, sr = render(new_items, seconds)
-            self.server.last_audio = (mix, sr)
+            aid = _put_temp_audio(mix, sr)
+            _set_session(self, user, items=new_items, last_audio_id=aid)
 
             self.send_json(
                 {
@@ -2961,7 +3385,7 @@ class Handler(BaseHTTPRequestHandler):
                         for p, w in new_items
                         if w > 0
                     ],
-                    "audio": "/api/audio",
+                    "audio": "/api/audio?id=" + aid,
                 }
             )
 
@@ -2976,6 +3400,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(PLAY_DIR, exist_ok=True)
+    os.makedirs(WEB_ASSET_DIR, exist_ok=True)
     # 支付配置自检：缺 key 时喊出来，但不阻断听声服务
     pay.startup_check()
     # 部署平台要求监听 0.0.0.0，本机开发这样也能访问

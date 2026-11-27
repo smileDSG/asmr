@@ -17,9 +17,9 @@ DEPLOY = os.path.join(ROOT, "deploy")
 # 需要同步的单文件（代码 + 配置 + 说明）
 FILES = [
     "server.py", "auth_db.py", "qwen_client.py", "understanding_brain.py",
-    "feedback_translate.py", "memory_system.py", "input_guard.py",
+    "feedback_translate.py", "memory_system.py", "input_guard.py", "rate_limit.py",
     "素材执行层.py", "sound_catalog.py", "sound_catalog.json",
-    "pay.py", "requirements.txt",
+    "pay.py", "nowpay.py", "pay_window.py", "requirements.txt",
 ]
 
 # 前端目录：只同步这个目录里的正式页面

@@ -106,6 +106,27 @@
 (function () {
   var el = document.getElementById("mUrl");
   if (el) el.textContent = location.host + "/m.html";
+  var dlBtn = document.getElementById("dlBtn");
+  var dlMeta = document.getElementById("dlMeta");
+  if (dlBtn) {
+    dlBtn.onclick = function (e) {
+      e.preventDefault();
+      var href = dlBtn.getAttribute("href");
+      fetch(href, { method: "HEAD" })
+        .then(function (r) {
+          if (r.ok) {
+            location.href = href;
+          } else if (dlMeta) {
+            dlMeta.textContent = "安卓安装包正在准备中，可先用下方浏览器添加到主屏幕";
+          }
+        })
+        .catch(function () {
+          if (dlMeta) {
+            dlMeta.textContent = "安卓安装包正在准备中，可先用下方浏览器添加到主屏幕";
+          }
+        });
+    };
+  }
 })();
 </script>
 </body>
