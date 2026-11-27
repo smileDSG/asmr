@@ -47,6 +47,8 @@ sound_*.wav
 deploy/
 _backup_ui/
 _tmp/
+# ops.sh backup 拉回本机的数据库副本：含真实账号和订单，绝不能进仓库
+_backup_db/
 candidates_v5/
 __pycache__/
 *.pyc
