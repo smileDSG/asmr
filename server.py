@@ -110,7 +110,7 @@ def serve_static(handler, path):
             return
     # 图片自动转 WebP（内容协商）：浏览器说支持 image/webp 且磁盘上有同名 .webp，
     # 就发 WebP，体积比 JPG 省 40% 左右；不支持的浏览器照拿原 JPG，不用改一行前端代码。
-    # 转换脚本见 make_webp.py，改过原图后重跑一次即可。
+    # 转换脚本见 legacy/scripts/make_webp.py，改过原图后重跑一次即可。
     accept_encoding = handler.headers.get("Accept-Encoding", "")
     accept_type = handler.headers.get("Accept", "")
     want_webp = "image/webp" in accept_type and full.lower().endswith(

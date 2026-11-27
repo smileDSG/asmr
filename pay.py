@@ -23,7 +23,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE, "pay_config.json")
 
 # 安全默认：sandbox（没配支付宝 key 就付不了，但绝不会白送权益）。
-# 本地路演要白嫖演示，必须显式设 YEXI_PAY_MODE=mock（见 start-local.bat）。
+# 本地路演要白嫖演示，必须显式设 YEXI_PAY_MODE=mock（见 legacy/scripts/start-local.bat）。
 # 线上由部署脚本写 /etc/yexi.env 设 YEXI_PAY_MODE=prod，下面会读。
 def _read_env_file(path):
     """从 env 文件读一个 key——不依赖 systemd 是否配置了 EnvironmentFile。"""
