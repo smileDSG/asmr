@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · DIY 声景工坊</title>
-<link rel="stylesheet" href="theme.css?v=12">
+<link rel="stylesheet" href="theme.css?v=13">
 <style>
   @media (min-width: 780px) {
     .studio-grid {
@@ -544,8 +544,8 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    margin-bottom: 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 16px;
   }
   .panel-tab {
     position: relative;
@@ -556,9 +556,9 @@
     border: none;
     background: transparent;
     color: var(--y-text-muted);
-    font-size: 14.5px;
+    font-size: 15.5px;
     font-weight: 500;
-    padding: 10px 6px 12px;
+    padding: 10px 4px 12px;
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
@@ -604,7 +604,7 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
   .layer-pill {
     display: flex;
@@ -612,12 +612,12 @@
     align-items: center;
     justify-content: center;
     gap: 3px;
-    padding: 8px 8px;
+    padding: 10px 8px;
     border-radius: 12px;
     border: none;
-    background: rgba(255, 255, 255, 0.045);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--y-text-sub);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
@@ -632,10 +632,11 @@
   }
   .layer-pill-sub {
     display: block;
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 400;
     color: var(--y-text-muted);
     line-height: 1.25;
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -646,8 +647,8 @@
     color: #fff;
   }
   .layer-pill.on {
-    background: rgba(var(--y-warm-rgb), 0.18);
-    color: #fff7eb;
+    background: rgba(var(--y-warm-rgb), 0.16);
+    color: #fce5c8;
     font-weight: 500;
   }
   .layer-pill.on .layer-pill-sub {
@@ -679,9 +680,9 @@
 
   /* AI 帮你配：agent 收藏的配方，点击整组载入继续手改 */
   .ai-picks {
-    margin-bottom: 16px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    margin-bottom: 14px;
+    padding-bottom: 4px;
+    border-bottom: none;
   }
   .ai-picks-head {
     display: flex;
@@ -707,30 +708,31 @@
   .ai-picks-link:hover { color: var(--y-warm); }
   .ai-pick-list {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     overflow-x: auto;
     padding-bottom: 2px;
+    scrollbar-width: none;
   }
+  .ai-pick-list::-webkit-scrollbar { display: none; }
   .ai-pick {
     flex: 0 0 auto;
-    max-width: 190px;
-    padding: 9px 11px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.025);
+    max-width: 196px;
+    padding: 11px 13px;
+    border: none;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.042);
     cursor: pointer;
     text-align: left;
     font-family: inherit;
     color: var(--y-text);
-    transition: border-color 0.3s ease, background 0.3s ease;
+    transition: background 0.25s ease;
   }
   .ai-pick:hover {
-    border-color: rgba(233, 183, 131, 0.4);
-    background: rgba(233, 183, 131, 0.06);
+    background: rgba(233, 183, 131, 0.14);
   }
   .ai-pick-name {
     display: block;
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--y-text);
     white-space: nowrap;
     overflow: hidden;
@@ -738,7 +740,7 @@
   }
   .ai-pick-sub {
     display: block;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--y-text-muted);
     margin-top: 3px;
     white-space: nowrap;
@@ -752,63 +754,70 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px 10px;
-    margin: 2px 0 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 8px;
+    margin: 4px 0 14px;
+    padding-bottom: 0;
+    border-bottom: none;
   }
   .lib-filter-chips {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 8px;
+    max-width: 100%;
   }
+  .lib-filter-chips::-webkit-scrollbar { display: none; }
   .lib-filter-chip {
-    font-size: 13px;
+    flex: 0 0 auto;
+    font-size: 13.5px;
     color: var(--y-text-muted);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: transparent;
+    border: none;
     border-radius: 999px;
-    padding: 4px 11px;
+    padding: 6px 13px;
     cursor: pointer;
     font-family: inherit;
-    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    transition: color 0.2s ease, background 0.2s ease;
   }
   .lib-filter-chip:hover {
-    border-color: rgba(242, 189, 128, 0.45);
+    background: rgba(255, 255, 255, 0.06);
     color: var(--y-text);
   }
   .lib-filter-chip.on {
     color: var(--y-warm);
-    background: rgba(242, 189, 128, 0.12);
-    border-color: rgba(242, 189, 128, 0.5);
+    background: rgba(255, 255, 255, 0.08);
   }
   .lib-summary-line {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 2px;
+    border-top: none;
   }
   .lib-pager-info {
     font-size: 13px;
     color: var(--y-text-muted);
     font-variant-numeric: tabular-nums;
   }
-  .lib-pager-btns { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .lib-pager-btns { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .lib-pager-btn {
-    font-size: 12px;
-    color: var(--y-text);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    padding: 5px 12px;
+    font-size: 13px;
+    color: var(--y-text-sub);
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    border-radius: 999px;
+    padding: 7px 16px;
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
+    transition: background 0.2s ease, color 0.2s ease;
   }
   .lib-pager-btn:hover:not(:disabled) {
-    border-color: var(--y-warm);
+    background: rgba(233, 183, 131, 0.16);
     color: var(--y-warm);
   }
   .lib-pager-btn:disabled { opacity: 0.3; cursor: default; }
@@ -816,28 +825,26 @@
   .lib-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 22px;
+    gap: 12px;
   }
   .lib-item {
     min-width: 0;
     position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 0 11px;
-    border-radius: 0;
-    background: none;
+    gap: 8px;
+    padding: 14px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.042);
     border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     cursor: pointer;
     text-align: left;
     font-family: inherit;
     color: var(--y-text);
-    transition: border-color 0.45s ease;
+    transition: background 0.2s ease, color 0.2s ease;
   }
   .lib-item:hover {
-    background: none;
-    border-bottom-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
   }
   .lib-item .li-ico {
     display: none;
@@ -849,57 +856,58 @@
   .lib-item .li-name {
     display: block;
     font-size: 14.5px;
-    font-weight: 400;
-    letter-spacing: 0.04em;
+    font-weight: 500;
+    letter-spacing: 0.03em;
     color: var(--y-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: color 0.45s ease;
+    transition: color 0.25s ease;
   }
   .lib-item .li-state {
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 12px;
+    line-height: 1.4;
     color: var(--y-text-muted);
-    margin-top: 2px;
+    margin-top: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* 需要解锁全库的素材：压暗一点，右上角挂个「全库」小标 */
+  /* 需要解锁全库的素材：柔暗处理，右侧轻量「全库」提示 */
   .lib-item.locked {
-    opacity: 0.62;
+    opacity: 0.48;
+    background: rgba(255, 255, 255, 0.025);
   }
   .lib-item.locked:hover {
-    opacity: 0.85;
+    opacity: 0.72;
   }
   .lib-item .li-lock {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    font-size: 11px;
+    position: static;
+    flex: 0 0 auto;
+    font-size: 12px;
     line-height: 1;
-    padding: 4px 7px;
-    border-radius: 6px;
-    color: #1a1208;
-    background: var(--y-accent);
-    letter-spacing: 0.06em;
+    padding: 0;
+    border-radius: 0;
+    color: rgba(233, 183, 131, 0.68);
+    background: none;
+    letter-spacing: 0.04em;
   }
   .lib-item.on {
-    background: none;
+    background: rgba(233, 183, 131, 0.17);
     box-shadow: none;
   }
   .lib-item.on .li-name {
-    color: var(--y-warm);
+    color: #fff7ec;
   }
   .lib-item.on .li-state {
-    color: rgba(233, 183, 131, 0.62);
+    color: rgba(255, 240, 220, 0.72);
   }
   .li-check {
     display: none;
     color: var(--y-warm);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 400;
+    line-height: 1;
     flex: 0 0 auto;
   }
   .lib-item.on .li-check {
@@ -910,10 +918,10 @@
   @media (max-width: 440px) {
     .lib-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0 14px;
+      gap: 12px;
     }
     .lib-item .li-name {
-      font-size: 14px;
+      font-size: 14.5px;
     }
     .lib-item .li-state {
       font-size: 12px;
@@ -923,9 +931,9 @@
 
   /* 底部当前已选托盘 */
   .active-tray {
-    margin-top: 18px;
-    padding-top: 15px;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
   }
   .tray-head {
     display: flex;
@@ -965,7 +973,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 6px 10px 6px 12px;
+    padding: 7px 12px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.05);
     border: none;
@@ -979,10 +987,7 @@
     color: #fff;
   }
   .tray-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: 0 0 7px;
+    display: none;
   }
   .tray-x {
     background: transparent;
@@ -1696,18 +1701,18 @@
       position: fixed;
       left: 10px;
       right: 10px;
-      bottom: 76px;
+      bottom: 80px;
       z-index: 45;
-      max-height: 55dvh;
+      max-height: min(74dvh, calc(100dvh - 96px));
       overflow: hidden;
-      padding: 0 16px 14px;
-      border-radius: 18px 18px 14px 14px;
-      background: rgba(16, 11, 26, 0.97);
+      padding: 0 20px calc(16px + env(safe-area-inset-bottom, 0px));
+      border-radius: 22px 22px 16px 16px;
+      background: rgba(15, 11, 25, 0.96);
       -webkit-backdrop-filter: blur(20px);
       backdrop-filter: blur(20px);
-      box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.62);
+      box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06);
       /* --drawer-visible：抽屉露出来的高度，由拉条拖动决定 */
-      --drawer-visible: 56px;
+      --drawer-visible: 54px;
       transform: translateY(calc(100% - var(--drawer-visible)));
       transition: transform 0.38s var(--y-ease);
       will-change: transform;
@@ -1721,13 +1726,13 @@
       align-items: center;
       gap: 10px;
       width: 100%;
-      height: 56px;
+      height: 54px;
       padding: 0 2px;
       background: none;
       border: none;
-      color: var(--y-text-sub);
+      color: var(--y-text);
       font-family: inherit;
-      font-size: 13px;
+      font-size: 14.5px;
       letter-spacing: 0.06em;
       cursor: grab;
       touch-action: none;
@@ -1745,10 +1750,7 @@
       background: rgba(255, 255, 255, 0.34);
     }
     .dh-hint {
-      flex: 0 0 auto;
-      font-size: 11px;
-      letter-spacing: 0;
-      color: var(--y-text-muted);
+      display: none;
     }
     .dh-label {
       flex: 1;
@@ -1764,12 +1766,13 @@
       transform: rotate(180deg);
     }
     #mobileDrawer .panel-tabs {
-      padding-top: 4px;
+      padding-top: 0;
     }
     #mobileDrawer .panel-view {
-      max-height: calc(55dvh - 150px);
+      max-height: calc(min(74dvh, calc(100dvh - 96px)) - 122px);
       overflow-y: auto;
       overscroll-behavior: contain;
+      padding: 4px 0 22px;
     }
     /* 抽屉浮在页面上，主区域底部留点空免得最后一块被压住 */
     .studio-grid {
@@ -1794,16 +1797,9 @@
       display: none;
     }
 
-    /* 层说明压成一行，别在抽屉里占三行 */
+    /* 按钮里的副标题已经说明各层含义，手机端隐去重复长说明留出更多空间 */
     #mobileDrawer .layer-guide {
-      margin-bottom: 10px;
-    }
-    #mobileDrawer .layer-guide-text {
-      font-size: 11.5px;
-      display: -webkit-box;
-      -webkit-line-clamp: 1;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      display: none;
     }
 
     /* AI 帮你配默认折起，只留一行标题；点标题展开 */
@@ -1840,16 +1836,27 @@
   body.embedded .page-hero > .ph-row,
   body.embedded .page-hero > .ph-sub { display: none !important; }
   body.embedded .ph-presets { margin-top: 6px; }
-  /* 嵌在 tab 壳里时抽屉别盖到声场节点，拉满也留出上面的声场 */
-  body.embedded #mobileDrawer { max-height: 45dvh; }
-  /* 顶部创作路径点某一步时，让对应控件闪一下 */
+  /* 嵌在 tab 壳里时抽屉和独立页保持同样舒展高度 */
+  body.embedded #mobileDrawer { max-height: min(74dvh, calc(100dvh - 96px)); }
+  body.embedded #mobileDrawer .panel-view { max-height: calc(min(74dvh, calc(100dvh - 96px)) - 122px); }
+  /* 点步骤条=闪一下；引导 hold=一直呼吸，直到这一步做完 */
   .yexi-step-focus { animation: yexi-step-glow 1.6s ease-out 1; }
+  .yexi-step-hold {
+    outline: 2px solid rgba(255,211,154,0.9) !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 22px rgba(255,190,120,0.55) !important;
+    animation: yexi-step-breathe 1.8s ease-in-out infinite !important;
+  }
   @keyframes yexi-step-glow {
     0%, 100% { outline: 0 solid rgba(233,183,131,0); box-shadow: 0 0 0 rgba(233,183,131,0); }
     20%, 60% { outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; box-shadow: 0 0 18px rgba(233,183,131,0.25); }
   }
+  @keyframes yexi-step-breathe {
+    0%, 100% { box-shadow: 0 0 14px rgba(255,190,120,0.35); }
+    50% { box-shadow: 0 0 30px rgba(255,190,120,0.8); }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .yexi-step-focus { animation: none; outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; }
+    .yexi-step-focus, .yexi-step-hold { animation: none; outline: 2px solid rgba(255,211,154,0.9); outline-offset: 3px; }
   }
   /* 带着我做：这一步只允许指定控件可点，其它控件变暗且不响应 */
   body.guide-locked button:not(.guide-allowed),
@@ -1990,7 +1997,6 @@
           <div class="layer-tabs" id="layerTabs">
             <button type="button" class="layer-pill on" data-layer="bed">
               <span class="layer-pill-head">
-                <span class="layer-dot" style="background:#9f87f5"></span>
                 <span>底幕</span>
                 <span class="layer-count" id="layerCnt_bed"></span>
               </span>
@@ -1998,7 +2004,6 @@
             </button>
             <button type="button" class="layer-pill" data-layer="texture">
               <span class="layer-pill-head">
-                <span class="layer-dot" style="background:#5ec4a8"></span>
                 <span>纹理</span>
                 <span class="layer-count" id="layerCnt_texture"></span>
               </span>
@@ -2006,7 +2011,6 @@
             </button>
             <button type="button" class="layer-pill" data-layer="accent">
               <span class="layer-pill-head">
-                <span class="layer-dot" style="background:#eab464"></span>
                 <span>点缀</span>
                 <span class="layer-count" id="layerCnt_accent"></span>
               </span>
@@ -2159,7 +2163,7 @@
 <div class="tabbar"></div>
 
 <script src="auth_ui.js"></script>
-<script src="pay_ui.js?v=2"></script>
+<script src="pay_ui.js?v=5"></script>
 <script src="yexi_shell.js"></script>
 <script src="yexi_catalog.js?v=44"></script>
 <script src="yexi_mixer.js?v=13"></script>
@@ -2183,7 +2187,11 @@ function reportDiyStep(step) {
 // hold=true 时保持高亮，等用户真的做完这一步；不是闪一下就没。
 var guideHoldEl = null;
 function clearGuideFocus() {
-  if (guideHoldEl) { guideHoldEl.classList.remove("yexi-step-focus"); guideHoldEl = null; }
+  if (guideHoldEl) {
+    guideHoldEl.classList.remove("yexi-step-focus");
+    guideHoldEl.classList.remove("yexi-step-hold");
+    guideHoldEl = null;
+  }
 }
 
 // 当前引导步骤；用来判断「从声音库挑声音」算铺底还是算微调
@@ -2197,11 +2205,8 @@ function guideLockStep(step) {
   for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
   var list = [];
   if (step === "base") {
-    // 第 1 页：先讲抽屉。只拉开一次，不能 click 把手（会二次触发 onclick 又收回去）
-    if (window.yexiDrawer) window.yexiDrawer.open();
     list = document.querySelectorAll(".lib-item:not(.locked), #drawerHandle, .panel-tab, #mobileDrawer .panel-view, #mobileDrawer button, #mobileDrawer input");
   } else if (step === "baseTpl") {
-    // 第 2 页：讲模板。抽屉强制收起，但把手仍允许用户自己拉
     list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn, #drawerHandle");
   } else if (step === "make") {
     list = document.querySelectorAll(".stage-node, .panel-view input[type=range], .panel-view .seg-btn, .panel-view .density-btn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
@@ -2210,10 +2215,14 @@ function guideLockStep(step) {
   } else if (step === "publish") {
     list = document.querySelectorAll("#publishBtn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
   }
-  // 把手任何时候都要能上下拉，不然用户调着调着就卡住
-  var handle = document.getElementById("drawerHandle");
-  if (handle && Array.prototype.indexOf.call(list, handle) < 0) list = Array.prototype.slice.call(list).concat([handle]);
-  for (var j = 0; j < list.length; j++) list[j].classList.add("guide-allowed");
+  // 播放键、总音量和抽屉把手在任何引导步都必须放行，保证能边听边调
+  var alwaysIds = ["playBtn", "masterVol", "drawerHandle"];
+  var arr = Array.prototype.slice.call(list);
+  for (var a = 0; a < alwaysIds.length; a++) {
+    var alwaysEl = document.getElementById(alwaysIds[a]);
+    if (alwaysEl && arr.indexOf(alwaysEl) < 0) arr.push(alwaysEl);
+  }
+  for (var j = 0; j < arr.length; j++) arr[j].classList.add("guide-allowed");
 }
 function guideUnlockAll() {
   guideStepNow = "";
@@ -2223,7 +2232,7 @@ function guideUnlockAll() {
 }
 function focusDiyStep(step, hold) {
   var id = "";
-  if (step === "base") id = "drawerHandle";
+  if (step === "base") id = (window.innerWidth <= 619) ? "drawerHandle" : "mobileDrawer";
   else if (step === "baseTpl") id = "presetsPanel";
   else if (step === "make") id = "soundStage";
   else if (step === "save") id = "saveWorkBtn";
@@ -2233,10 +2242,13 @@ function focusDiyStep(step, hold) {
   if (!el) return;
   try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { el.scrollIntoView(); }
   el.classList.remove("yexi-step-focus");
+  el.classList.remove("yexi-step-hold");
   void el.offsetWidth;
   el.classList.add("yexi-step-focus");
   if (hold) {
-    guideHoldEl = el; // 保持住，直到父页面说清除
+    // 引导中持续呼吸，不能只靠一次性动画——播完就没等于没高亮
+    el.classList.add("yexi-step-hold");
+    guideHoldEl = el;
   } else {
     setTimeout(function() { el.classList.remove("yexi-step-focus"); }, 1700);
   }
@@ -2259,10 +2271,6 @@ if (IS_EMBEDDED) {
       guideUnlockAll();
     } else if (e.data.type === "yexi-drawer-close") {
       if (window.yexiDrawer) window.yexiDrawer.close();
-    } else if (e.data.type === "yexi-drawer-open") {
-      if (window.yexiDrawer) window.yexiDrawer.open();
-    } else if (e.data.type === "yexi-drawer-tune") {
-      if (window.yexiDrawer) window.yexiDrawer.openTune();
     } else if (e.data.type === "yexi-get-mix") {
       try {
         var payload = typeof currentItemsPayload === "function" ? currentItemsPayload() : [];
@@ -2749,11 +2757,8 @@ function focusTrackInTune(path) {
   syncStageSelectionClass();
   renderTracksUI();
 
-  // 手机上抽屉若收着，升起来才看得见调参数
-  var handle = document.getElementById("drawerHandle");
-  if (handle && window.innerWidth <= 619 && handle.getAttribute("aria-expanded") !== "true") {
-    handle.click();
-  }
+  // 用户点了具体的声音，才把抽屉升到半开：看得见调参，声场也还留着
+  if (window.innerWidth <= 619 && window.yexiDrawer) window.yexiDrawer.half();
   // 滚到对应那条轨（renderTracksUI 会给选中轨加 expanded 类）
   setTimeout(function() {
     var box = document.getElementById("activeTracks");
@@ -3606,7 +3611,7 @@ function renderLayeredLibrary() {
           ? '<span class="li-lock">全库</span>'
           : '<span class="li-check" aria-hidden="true">✓</span>');
       if (locked) {
-        btn.onclick = function() { yexiPayWall("day3"); };
+        btn.onclick = function() { yexiPayWall("trial3"); };
       } else {
         btn.onclick = function() { toggleLibrarySound(s); };
       }
@@ -4248,7 +4253,7 @@ document.getElementById("exportLoopBtn").onclick = function() {
   .then(function(res) {
     if (res.status === 402) {
       return res.json().then(function(d) {
-        yexiPayWall(d.product_id || "day3");
+        yexiPayWall(d.product_id || "trial3");
         throw new Error("need_pay");
       });
     }
@@ -4544,7 +4549,7 @@ window.addEventListener("hashchange", function() {
 var drawerHandleBtn = document.getElementById("drawerHandle");
 var mobileDrawerBox = document.getElementById("mobileDrawer");
 if (drawerHandleBtn && mobileDrawerBox) {
-  var DRAWER_PEEK = 56;        // 收起时露出的把手高度
+  var DRAWER_PEEK = 54;        // 收起时露出的把手高度
   var drawerVisible = DRAWER_PEEK;
   var drawerDrag = null;       // 拖动中：{ y, from }
   var drawerMoved = false;     // 这次是不是真拖了（避免松手又触发 click）
@@ -4582,16 +4587,12 @@ if (drawerHandleBtn && mobileDrawerBox) {
     drawerSet(best);
   }
   drawerPaint();
-  // 给外框引导用：讲模板前强制收起，讲创作时直接弹出到调参数
+  // 抽屉档位：露把手 / 半开（主要操作）/ 全开（翻作品）。
+  // 只有用户主动点把手或点声音节点才调用，系统不在步骤切换时自动弹。
   window.yexiDrawer = {
     close: function() { drawerSet(DRAWER_PEEK); },
-    // 只升高抽屉，不换面板：铺底第 1 页还要留在「选声音」
-    open: function() { drawerSet(drawerMax()); },
-    // 创作步骤用：升抽屉并切到「调参数」
-    openTune: function() {
-      switchPanelTab("tune");
-      drawerSet(drawerMax());
-    }
+    half: function() { drawerSet(drawerStops()[1]); },
+    open: function() { drawerSet(drawerMax()); }
   };
 
   drawerHandleBtn.addEventListener("pointerdown", function(e) {
@@ -4681,9 +4682,8 @@ if (new URLSearchParams(location.search).get("say")) {
     if (d && d.logged_in && d.username) loggedUsername = d.username;
   }).catch(function() {});
 
-  if (!applyMixFromHash() && YEXI_STUDIO_PRESETS && YEXI_STUDIO_PRESETS.length > 0) {
-    loadTracks(YEXI_STUDIO_PRESETS[0].tracks, false, YEXI_STUDIO_PRESETS[0].title, "", YEXI_STUDIO_PRESETS[0].id);
-  }
+  // 做底层也从空白声场开始：不自动套第一套模板，等用户自己挑声音或选模板
+  applyMixFromHash();
 }
 </script>
 </body>

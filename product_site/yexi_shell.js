@@ -66,3 +66,68 @@ function initYexiTabbar(activePage) {
     }
   }
 }
+
+(function () {
+  if (typeof window === "undefined" || window.__yexiErrHooked) return;
+  window.__yexiErrHooked = true;
+
+  var sentCount = 0;
+  var seen = {};
+
+  function report(kind, message, source, line, col, stack) {
+    var msg = String(message || "").replace(/^\s+|\s+$/g, "");
+    if (!msg || msg === "Script error." || msg.indexOf("ResizeObserver") !== -1) return;
+    if (sentCount >= 5) return;
+
+    var page = (window.location && window.location.pathname) || "/";
+    var sig = page + "|" + msg.slice(0, 120) + "|" + String(line || 0);
+    if (seen[sig]) return;
+    seen[sig] = true;
+    sentCount += 1;
+
+    var body = JSON.stringify({
+      kind: kind || "error",
+      page: page.slice(0, 120),
+      message: msg.slice(0, 300),
+      source: String(source || "").slice(0, 200),
+      line: Number(line) || 0,
+      col: Number(col) || 0,
+      stack: String(stack || "").slice(0, 500)
+    });
+
+    try {
+      if (navigator && typeof navigator.sendBeacon === "function") {
+        var blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon("/api/client_error", blob)) return;
+      }
+      if (typeof fetch === "function") {
+        fetch("/api/client_error", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: body,
+          keepalive: true
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  window.addEventListener("error", function (ev) {
+    if (!ev) return;
+    var stack = ev.error && ev.error.stack ? ev.error.stack : "";
+    report("error", ev.message || "JS Error", ev.filename || "", ev.lineno || 0, ev.colno || 0, stack);
+  });
+
+  window.addEventListener("unhandledrejection", function (ev) {
+    if (!ev) return;
+    var reason = ev.reason;
+    var msg = "Unhandled promise rejection";
+    var stack = "";
+    if (typeof reason === "string") {
+      msg = reason;
+    } else if (reason && typeof reason === "object") {
+      msg = reason.message || String(reason);
+      stack = reason.stack || "";
+    }
+    report("unhandledrejection", msg, "", 0, 0, stack);
+  });
+})();

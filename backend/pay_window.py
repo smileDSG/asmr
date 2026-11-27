@@ -7,6 +7,7 @@
 # 存储：data/nowpay_first_paid.json（本地文件，前端拿不到，不能伪造）
 # 失败时保守放行（宁可多给几天，不能让付了钱的人用不了）
 
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import secrets
@@ -18,6 +19,11 @@ DATA_DIR = os.path.join(BASE, "data")
 STORE = os.path.join(DATA_DIR, "nowpay_first_paid.json")
 DAYS = 30
 _LOCK = threading.Lock()
+_TZ_CN = timezone(timedelta(hours=8))
+
+
+def _today_str():
+    return datetime.now(_TZ_CN).strftime("%Y-%m-%d")
 
 
 def _load():
@@ -62,13 +68,30 @@ def expire_at_of(buyer):
         return 0
 
 
+def is_active(buyer):
+    """只读检查买家是否已记录且在 30 天全库有效期内（不写入新记录）。"""
+    if not buyer:
+        return False
+    with _LOCK:
+        first = _load().get(str(buyer))
+    if not first:
+        return False
+    today = _today_str()
+    try:
+        t0 = time.mktime(time.strptime(first, "%Y-%m-%d"))
+        t1 = time.mktime(time.strptime(today, "%Y-%m-%d"))
+        return (t1 - t0) < DAYS * 86400
+    except Exception:
+        return True
+
+
 def mark_and_check(buyer):
     """买家有余额时调用。返回 True=还在30天内（给全库），False=过期。
     第一次调用会记下当天日期；已有记录则取最早那次。
     """
     if not buyer:
         return False
-    today = time.strftime("%Y-%m-%d")
+    today = _today_str()
     with _LOCK:
         data = _load()
         first = data.get(str(buyer))

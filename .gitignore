@@ -8,7 +8,8 @@ stability_key.txt
 data/*.db
 data/*.db-wal
 data/*.db-shm
-memory/*.json
+# 用户听感档案/社区数据：整个目录（含 guests 子目录）都是运行时数据，绝不入库
+memory/
 
 # 支付：商户配置和私钥，泄露等于把收款账户交出去
 pay_config.json

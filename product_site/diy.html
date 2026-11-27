@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · DIY</title>
-<link rel="stylesheet" href="theme.css?v=12">
+<link rel="stylesheet" href="theme.css?v=13">
 <style>
   /* app 式布局：tab 壳固定顶部，内容区占满剩余屏幕自己滚。
      这样嵌入视图里的 fixed 抽屉才是贴屏幕底，而不是贴一张很高的 iframe 底。 */
@@ -21,10 +21,10 @@
     flex: 0 0 auto;
     position: relative;
     z-index: 5;
-    background: rgba(7, 5, 13, 0.72);
+    background: linear-gradient(180deg, rgba(7, 5, 13, 0.88) 0%, rgba(7, 5, 13, 0.62) 100%);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    border-bottom: none;
   }
   .diy-top .wrap-wide { padding-bottom: 12px; }
 
@@ -34,8 +34,8 @@
     padding: 4px;
     max-width: 100%;
     border-radius: 999px;
-    background: rgba(255,255,255,0.045);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255, 255, 255, 0.055);
+    border: none;
   }
   .diy-seg-btn {
     min-width: 104px;
@@ -51,8 +51,8 @@
     transition: background 0.3s ease, color 0.3s ease;
   }
   .diy-seg-btn.on {
-    background: rgba(233,183,131,0.14);
-    color: var(--y-warm);
+    background: rgba(233, 183, 131, 0.16);
+    color: #fce5c8;
   }
   /* 引导要用户点「做拼接」时，把真 tab 高亮出来（不是假按钮） */
   .diy-seg-btn.yexi-step-focus {
@@ -63,152 +63,192 @@
     box-shadow: 0 0 18px rgba(255,190,120,0.5);
     animation: diy-step-breathe 2s ease-in-out infinite;
   }
+  .diy-caption-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
   .diy-caption {
     margin: 10px 0 2px;
     font-size: 12px;
     line-height: 1.6;
     color: var(--y-text-muted);
   }
+  /* 完成或收起后：顶部新手条退场，说明行右侧留一个很轻的「看教程」入口 */
+  .diy-help-btn {
+    flex: 0 0 auto;
+    margin-top: 8px;
+    padding: 4px 11px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--y-text-sub);
+    font-family: inherit;
+    font-size: 10.5px;
+    cursor: pointer;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  .diy-help-btn:hover {
+    background: rgba(233, 183, 131, 0.15);
+    color: var(--y-warm);
+  }
+  .diy-help-btn.hide { display: none; }
+  body.guide-active .diy-help-btn,
+  body:not(.tutorial-done) .diy-help-btn { display: none; }
 
-  /* 创作路径：四步常驻，点一步就跳到对应控件；不是教程，不挡内容 */
-  .diy-path {
+  /* 首次进入未完成/未收起时：仅占一行的轻提示条 */
+  .diy-intro-bar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 10px;
-    overflow-x: auto;
-    scrollbar-width: none;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border: 1px solid rgba(255, 198, 130, 0.28);
+    border-radius: 10px;
+    background: rgba(233, 183, 131, 0.08);
+    font-size: 11.5px;
+    line-height: 1.4;
   }
-  .diy-path::-webkit-scrollbar { display: none; }
-  .diy-step {
+  .diy-intro-bar.hide { display: none; }
+  body.guide-active .diy-intro-bar,
+  body.tutorial-done .diy-intro-bar { display: none; }
+  .diy-intro-text {
+    color: #e9dcc7;
+    min-width: 0;
+  }
+  .diy-intro-acts {
     flex: 0 0 auto;
-    position: relative;
-    overflow: hidden;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 10px;
+  }
+  .diy-intro-start {
+    padding: 4px 11px;
+    border: 1px solid rgba(255, 198, 130, 0.58);
     border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: transparent;
-    color: var(--y-text-muted);
+    background: rgba(233, 183, 131, 0.18);
+    color: #ffd39a;
     font-family: inherit;
-    font-size: 11.5px;
+    font-size: 11px;
+    cursor: pointer;
     white-space: nowrap;
+  }
+  .diy-intro-start:hover {
+    background: rgba(233, 183, 131, 0.28);
+  }
+  .diy-intro-dismiss {
+    border: 0;
+    background: transparent;
+    color: #8f8a9c;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 4px;
     cursor: pointer;
   }
-  .diy-step .n {
-    display: inline-flex;
+
+  /* 引导条：贴在说明行下面，不遮播放器、不弹窗、不锁页面 */
+  .diy-guide-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 9px 11px;
+    border: 1px solid rgba(255, 198, 130, 0.45);
+    border-radius: 10px;
+    background: rgba(233, 183, 131, 0.12);
+    font-size: 11.5px;
+    line-height: 1.55;
+  }
+  .diy-guide-bar.hide { display: none; }
+  .diy-guide-bar .g-head {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.2);
-    font-size: 10px;
+    gap: 8px;
+    width: 100%;
   }
-  /* 当前步：暖色实心 + 明显外发光，肉眼一眼能看到 */
-  .diy-step.on {
-    border: 1.5px solid #ffd39a;
-    color: #ffe0b4;
-    background: rgba(233,183,131,0.24);
-    box-shadow: 0 0 18px rgba(255,190,120,0.45);
-    animation: diy-step-breathe 2s ease-in-out infinite;
+  .diy-guide-bar .g-step {
+    color: #ffd39a;
+    flex: 0 0 auto;
+    font-weight: 600;
   }
-  .diy-step.on .n {
-    border-color: #ffd39a;
-    background: rgba(255,198,130,0.32);
+  .diy-guide-bar .g-title {
+    color: #fce5c8;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 0;
+  }
+  .diy-guide-bar .g-seen {
+    flex: 0 0 auto;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(94, 196, 168, 0.45);
+    background: rgba(94, 196, 168, 0.18);
+    color: #b9e6d6;
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+  .diy-guide-bar .g-seen.hide { display: none; }
+  .diy-guide-bar .g-close {
+    margin-left: auto;
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: #8f8a9c;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+  }
+  .diy-guide-bar .g-text {
+    color: #e9dcc7;
+    width: 100%;
+  }
+  .diy-guide-bar .g-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 2px;
+  }
+  .diy-guide-bar .g-prev {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: var(--y-text-sub);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 3px 4px;
+  }
+  .diy-guide-bar .g-prev.hide { display: none; }
+  .diy-guide-bar .g-next-btn {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 198, 130, 0.6);
+    border-radius: 999px;
+    background: rgba(255, 198, 130, 0.16);
+    color: #ffd39a;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 3px 12px;
+    cursor: pointer;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+  }
+  .diy-guide-bar .g-next-btn.ready {
+    background: rgba(255, 198, 130, 0.3);
+    box-shadow: 0 0 12px rgba(255, 190, 120, 0.35);
     color: #ffe6c6;
-    font-weight: 700;
   }
   @keyframes diy-step-breathe {
     0%, 100% { box-shadow: 0 0 12px rgba(255,190,120,0.35); }
     50% { box-shadow: 0 0 28px rgba(255,190,120,0.8); }
   }
-  .diy-step.done { color: #b9e6d6; border-color: rgba(94,196,168,0.45); }
-  .diy-step.done .n { border-color: #5ec4a8; color: #5ec4a8; background: rgba(94,196,168,0.16); }
-  /* 完成的步骤显示对勾，不靠数字猜进度 */
-  .diy-step.done .n { font-size: 0; }
-  .diy-step.done .n::after { content: "✓"; font-size: 11px; font-weight: 700; }
-  /* 刚做完那一步：一次明显的暖光扫过，不是彩带、不是弹窗 */
-  .diy-step.flash::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: linear-gradient(100deg, transparent 10%, rgba(255,230,190,0.85) 50%, transparent 90%);
-    animation: diy-step-glint 1.1s ease-out 1;
-  }
-  @keyframes diy-step-glint {
-    from { transform: translateX(-120%); }
-    to { transform: translateX(120%); }
-  }
-  .diy-path.finished .diy-step.done {
-    color: #ffd39a;
-    border-color: rgba(255,198,130,0.6);
-    background: rgba(233,183,131,0.12);
-  }
-  .diy-step-arrow { flex: 0 0 auto; font-size: 10px; color: var(--y-text-muted); }
-  .diy-path-hint {
-    margin: 6px 0 0;
-    font-size: 11px;
-    color: var(--y-text-muted);
-    line-height: 1.5;
-  }
-  .diy-path-hint.finished { color: #ffd39a; }
-  /* 测试按钮：看一遍高光 / 重置进度 */
-  .diy-path-tests { display: flex; gap: 14px; margin-top: 5px; }
-  .diy-path-test {
-    padding: 0;
-    border: 0;
-    border-bottom: 1px dashed rgba(255,255,255,0.18);
-    background: transparent;
-    color: var(--y-text-muted);
-    font-family: inherit;
-    font-size: 10.5px;
-    line-height: 1.5;
-    cursor: pointer;
-  }
-  .diy-path-test.primary { color: #ffd39a; border-bottom-color: rgba(255,198,130,0.6); }
-  .diy-path-test:disabled { opacity: 0.45; cursor: default; }
-  /* 引导条：贴着路径下面，讲这一步做什么；不遮播放器、不弹窗 */
-  .diy-guide-bar {
-    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
-    margin-top: 8px; padding: 8px 10px;
-    border: 1px solid rgba(255,198,130,0.45);
-    border-radius: 8px;
-    background: rgba(233,183,131,0.12);
-    font-size: 11.5px; line-height: 1.5;
-  }
-  .diy-guide-bar.hide { display: none; }
-  .diy-guide-bar .g-step { color: #ffd39a; flex: 0 0 auto; font-weight: 400; }
-  .diy-guide-bar .g-text { flex: 1 1 calc(100% - 40px); color: #e9dcc7; }
-  /* 按钮单独一行，别挤在文字里 */
-  .diy-guide-bar .g-actions {
-    flex: 0 0 100%;
-    display: flex; justify-content: flex-end; align-items: center; gap: 10px;
-    margin-top: 4px;
-  }
-  .diy-guide-bar .g-done {
-    flex: 0 0 auto;
-    border: 1px solid rgba(255,198,130,0.6);
-    border-radius: 999px;
-    background: rgba(255,198,130,0.16);
-    color: #ffd39a; font-family: inherit; font-size: 11px;
-    padding: 3px 10px; cursor: pointer;
-  }
-  .diy-guide-bar .g-next, .diy-guide-bar .g-close {
-    flex: 0 0 auto; border: 0; background: transparent;
-    color: #ffd39a; font-family: inherit; font-size: 11px; cursor: pointer;
-    padding: 0 2px;
-  }
-  .diy-guide-bar .g-done.hide, .diy-guide-bar .g-next.hide { display: none; }
-  .diy-guide-bar .g-close { color: #8f8a9c; font-size: 15px; }
-  body.guide-locked .diy-panes { cursor: not-allowed; }
   @media (prefers-reduced-motion: reduce) {
-    .diy-step.on { animation: none; box-shadow: 0 0 18px rgba(255,190,120,0.6); }
-    .diy-step.flash::before { animation: none; background: none; }
+    .diy-seg-btn.yexi-step-focus { animation: none; box-shadow: 0 0 18px rgba(255,190,120,0.6); }
   }
 
   .diy-panes {
@@ -248,37 +288,36 @@
       <button type="button" class="diy-seg-btn on" data-pane="mix" role="tab" aria-selected="true" aria-controls="paneMix">做底层</button>
       <button type="button" class="diy-seg-btn" data-pane="stitch" role="tab" aria-selected="false" aria-controls="paneStitch">做拼接</button>
     </div>
-    <p class="diy-caption" id="diyCaption">叠几层声音，拖出远近左右。</p>
-    <div class="diy-path" id="diyPath" role="list" aria-label="创作路径">
-      <button type="button" class="diy-step on" data-step="base" role="listitem"><span class="n">1</span>铺底</button>
-      <span class="diy-step-arrow">›</span>
-      <button type="button" class="diy-step" data-step="make" role="listitem"><span class="n">2</span>创作</button>
-      <span class="diy-step-arrow">›</span>
-      <button type="button" class="diy-step" data-step="save" role="listitem"><span class="n">3</span>保存</button>
-      <span class="diy-step-arrow">›</span>
-      <button type="button" class="diy-step" data-step="publish" role="listitem"><span class="n">4</span>发广场</button>
+    <div class="diy-caption-row">
+      <p class="diy-caption" id="diyCaption">叠几层声音，拖出远近左右。</p>
+      <button type="button" class="diy-help-btn hide" id="diyHelpBtn">看教程</button>
     </div>
-    <p class="diy-path-hint" id="diyPathHint">先选一套，或者直接用已经给你铺好的。点任一步，直接跳到那里。</p>
-    <div class="diy-path-tests">
-      <button type="button" class="diy-path-test primary" id="diyGuideBtn">▶ 带着我做</button>
-      <button type="button" class="diy-path-test" id="diyExplainBtn">高亮讲解</button>
-      <button type="button" class="diy-path-test" id="diyResetBtn">重置进度</button>
+    <div class="diy-intro-bar" id="diyIntroBar">
+      <span class="diy-intro-text">第一次来？6 步带你从铺底走到拼接</span>
+      <span class="diy-intro-acts">
+        <button type="button" class="diy-intro-start" id="diyGuideBtn">开始教程</button>
+        <button type="button" class="diy-intro-dismiss" id="diyDismissBtn" aria-label="暂不需要">×</button>
+      </span>
     </div>
     <div class="diy-guide-bar hide" id="diyGuideBar" role="status" aria-live="polite">
-      <span class="g-step" id="guideStepNo">1 / 4</span>
-      <span class="g-text" id="guideText"></span>
-      <span class="g-actions">
-        <button type="button" class="g-done hide" id="guideDone">我完成了</button>
-        <button type="button" class="g-next hide" id="guideNext">下一步 ›</button>
+      <div class="g-head">
+        <span class="g-step" id="guideStepNo">1 / 6</span>
+        <span class="g-title" id="guideTitle"></span>
+        <span class="g-seen hide" id="guideSeen">✓ 已试过</span>
         <button type="button" class="g-close" id="guideClose" aria-label="退出引导">×</button>
-      </span>
+      </div>
+      <div class="g-text" id="guideText"></div>
+      <div class="g-actions">
+        <button type="button" class="g-prev hide" id="guidePrev">‹ 上一步</button>
+        <button type="button" class="g-next-btn" id="guideNext">下一步 ›</button>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="diy-panes" id="diyPanes">
-  <iframe id="paneMix" class="diy-pane on" src="index.html?embed=1" title="做底层" aria-hidden="false"></iframe>
-  <iframe id="paneStitch" class="diy-pane" src="stitch.html?embed=1" title="做拼接" aria-hidden="true"></iframe>
+  <iframe id="paneMix" class="diy-pane on" src="index.html?embed=1&v=4" title="做底层" aria-hidden="false"></iframe>
+  <iframe id="paneStitch" class="diy-pane" src="stitch.html?embed=1&v=4" title="做拼接" aria-hidden="true"></iframe>
 </div>
 
 <div class="tabbar"></div>
@@ -337,9 +376,15 @@ for (var b = 0; b < segBtns.length; b++) {
 
 paneMix.addEventListener("load", function() {
   try { paneMix.contentWindow.postMessage({ type: "yexi-measure" }, "*"); } catch (e) {}
+  if (guideActive && GUIDE_STEPS[guideIndex] && GUIDE_STEPS[guideIndex].pane === "mix") {
+    guideShow();
+  }
 });
 paneStitch.addEventListener("load", function() {
   try { paneStitch.contentWindow.postMessage({ type: "yexi-measure" }, "*"); } catch (e) {}
+  if (guideActive && GUIDE_STEPS[guideIndex] && GUIDE_STEPS[guideIndex].pane === "stitch") {
+    guideShow();
+  }
 });
 
 // ?pane=stitch 可直接落在做拼接；其余参数和 #mix= 透传给「做底层」子页面
@@ -347,322 +392,239 @@ var diyParams = new URLSearchParams(location.search);
 var wanted = diyParams.get("pane");
 diyParams.delete("pane");
 diyParams.set("embed", "1");
+diyParams.set("v", "4");
 var mixSrc = "index.html?" + diyParams.toString() + (location.hash || "");
 if (paneMix.getAttribute("src") !== mixSrc) {
   paneMix.src = mixSrc;
 }
 if (wanted === "stitch") switchPane("stitch");
 
-// ===== 创作路径引导：四步常驻，点一下跳到对应控件 =====
+// ===== 6 步线性引导：先「做底层」闭环，再「做拼接」延展；不弹窗、不锁页面 =====
 var STEP_KEY = "yexi_diy_path_v1";
-var STEPS = [
-  { key: "base", hint: "先选一套，或者直接用已经给你铺好的。", pane: null },
-  { key: "make", hint: "改一改：拖声音的远近，或拖段落的长短。", pane: null },
-  { key: "save", hint: "存到「我的作品」，下次回来还能听。", pane: "mix" },
-  { key: "publish", hint: "想给别人听？写一句话寄到广场。", pane: "stitch" }
-];
-var stepState = { base: false, make: false, save: false, publish: false };
-try {
-  var savedStep = JSON.parse(localStorage.getItem(STEP_KEY) || "{}");
-  if (savedStep && typeof savedStep === "object") {
-    for (var sk in stepState) {
-      if (Object.prototype.hasOwnProperty.call(savedStep, sk)) stepState[sk] = !!savedStep[sk];
-    }
-  }
-} catch (e) {}
-
-function persistSteps() {
-  try { localStorage.setItem(STEP_KEY, JSON.stringify(stepState)); } catch (e) {}
-}
-
-function currentStepKey() {
-  for (var i = 0; i < STEPS.length; i++) {
-    if (!stepState[STEPS[i].key]) return STEPS[i].key;
-  }
-  return "publish";
-}
-
-function allStepsDone() {
-  for (var i = 0; i < STEPS.length; i++) {
-    if (!stepState[STEPS[i].key]) return false;
-  }
-  return true;
-}
-
-// 演示高光时为真：只改视觉，不写进度、不被真实事件覆盖
-var demoing = false;
-
-function renderPath() {
-  if (demoing) return;
-  // 引导开着时，进度条只跟引导游标（1/4 · 1/2）走；
-  // 子页面上报动作、点步骤条都不能提前把一步标成完成。
-  var inGuide = guideMode === "do" || guideMode === "tell";
-  var active = inGuide ? STEPS[guideIndex].key : currentStepKey();
-  var btns = document.querySelectorAll(".diy-step");
-  for (var i = 0; i < btns.length; i++) {
-    var k = btns[i].getAttribute("data-step");
-    btns[i].classList.toggle("on", k === active);
-    btns[i].classList.toggle("done", inGuide ? i < guideIndex : !!stepState[k]);
-  }
-  var finished = !inGuide && allStepsDone();
-  document.getElementById("diyPath").classList.toggle("finished", finished);
-  document.getElementById("diyPathHint").classList.toggle("finished", finished);
-  var hint = "";
-  for (var j = 0; j < STEPS.length; j++) {
-    if (STEPS[j].key === active) { hint = finished ? "都做完了，想再改就点上面的步骤。" : STEPS[j].hint; break; }
-  }
-  document.getElementById("diyPathHint").textContent = hint;
-}
-
-// 系统检测到用户做了动作只记账，不替他打勾；带着我做时完成只认「我完成了」
-var stepActionSeen = { base: false, make: false, save: false, publish: false };
-function markStepDone(key, fromAction) {
-  if (!stepState.hasOwnProperty(key) || stepState[key]) return;
-  if (guideMode === "do" && fromAction) {
-    stepActionSeen[key] = true;
-    return;
-  }
-  stepState[key] = true;
-  persistSteps();
-  if (demoing) return;
-  // 引导中进度条由 guideShow() 按游标重画，别在这里提前改
-  if (guideMode === "do" || guideMode === "tell") return;
-  renderPath();
-  // 刚完成的那一步扫一次淡光；完成后不弹窗、不遮播放
-  var doneBtn = document.querySelector('.diy-step[data-step="' + key + '"]');
-  if (doneBtn) {
-    doneBtn.classList.remove("flash");
-    void doneBtn.offsetWidth;
-    doneBtn.classList.add("flash");
-    setTimeout(function() { doneBtn.classList.remove("flash"); }, 950);
-  }
-  var hintEl = document.getElementById("diyPathHint");
-  if (allStepsDone()) {
-    hintEl.textContent = "都做完了，想再改就点上面的步骤。";
-  } else {
-    var next = currentStepKey();
-    for (var i = 0; i < STEPS.length; i++) {
-      if (STEPS[i].key === next) { hintEl.textContent = "下一步：" + STEPS[i].hint; break; }
-    }
-  }
-}
-
-var stepBtns = document.querySelectorAll(".diy-step");
-for (var si = 0; si < stepBtns.length; si++) {
-  stepBtns[si].onclick = function() {
-    var key = this.getAttribute("data-step");
-    for (var i = 0; i < STEPS.length; i++) {
-      if (STEPS[i].key === key && STEPS[i].pane && STEPS[i].pane !== currentPane) {
-        switchPane(STEPS[i].pane);
+var GUIDE_STEPS = [
+  {
+    id: "base",
+    pane: "mix",
+    title: "做底层 · 挑声音",
+    focusStep: "base",
+    actionKeys: ["base"],
+    text: function() {
+      if (window.innerWidth <= 619) {
+        return "做底层刚开始也是空的。点下方「选声音 · 调参数 · 作品」挑声音：1 层底幕 + 1~2 层纹理或点缀就够，再点一次取消，顶上模板可一键套用。";
       }
+      return "做底层刚开始也是空的。在右侧「选声音」挑声音：1 层底幕 + 1~2 层纹理或点缀就够，再点一次取消，顶上模板可一键套用。";
     }
-    // 点「创作」直接弹出抽屉并切到调参数，不用再自己找入口
-    if (key === "make") {
-      if (currentPane !== "mix") switchPane("mix");
-      try { panes.mix.contentWindow.postMessage({ type: "yexi-drawer-tune" }, "*"); } catch (e) {}
+  },
+  {
+    id: "make",
+    pane: "mix",
+    title: "做底层 · 调声场",
+    focusStep: "make",
+    actionKeys: ["make"],
+    closeMixDrawer: true,
+    text: "拖声场里的圆点：左右定左右耳，上下定远近轻重。轻点某个圆点可打开「调参数」，改循环/偶发频率或删掉这一层。"
+  },
+  {
+    id: "save",
+    pane: "mix",
+    title: "做底层 · 保存去听",
+    focusStep: "save",
+    actionKeys: ["save"],
+    closeMixDrawer: true,
+    text: "调顺耳了点「保存」存进我的作品。之后去底栏「我的」点「今晚听这个」就能在首页睡前播；想立刻听着睡点「定时入睡」。"
+  },
+  {
+    id: "stitch_sound",
+    pane: "stitch",
+    title: "做拼接 · 给段配声",
+    focusStep: "stitchSound",
+    actionKeys: ["stitchSound", "base", "make"],
+    flashStitchTab: true,
+    text: function() {
+      if (window.innerWidth <= 819) {
+        return "做拼接刚开始是空的。先点右上角「+ 加一段」，再拉起下方「选声音 · 调这段」挑声音，或点「导入做底层配方」直接用上刚才配的。";
+      }
+      return "做拼接刚开始是空的。先点右上角「+ 加一段」，再在右侧给这段加声音、改过渡，或点「导入做底层配方」直接用上刚才配的。";
     }
-    // 让对应视图滚过去并闪一下控件
-    try { panes[currentPane].contentWindow.postMessage({ type: "yexi-goto-step", step: key }, "*"); } catch (e) {}
-  };
-}
-renderPath();
+  },
+  {
+    id: "stitch_timeline",
+    pane: "stitch",
+    title: "做拼接 · 排顺序改时长",
+    focusStep: "make",
+    actionKeys: ["make"],
+    closeStitchDrawer: true,
+    text: "时间线可左右滑动，右上角「+ 加一段」可新增段落。按住某段左右拖改顺序，拖右边缘改时长，点「试听衔接」听两段怎么过渡。"
+  },
+  {
+    id: "stitch_finish",
+    pane: "stitch",
+    title: "保存拼接 · 可选发广场",
+    focusStep: "stitchFinish",
+    actionKeys: ["save", "publish"],
+    closeStitchDrawer: true,
+    text: "拼好后点「保存」会列在上方方便载入。想分享给别人点「发广场」（需登录，发出后可撤回）；只想自己听直接点「完成」即可。"
+  }
+];
 
-// ===== 真引导：带着我做（做完才推进）/ 高亮讲解（自己点下一步） =====
-// 不自动播放、不演戏。高亮的是真实控件，讲的是这一步真正要做的动作。
+function readTutorialDone() {
+  try {
+    var saved = JSON.parse(localStorage.getItem(STEP_KEY) || "{}");
+    if (saved && typeof saved === "object") {
+      if (saved.done === true) return true;
+      if (saved.base && saved.make && saved.save && saved.publish) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+function writeTutorialDone(done) {
+  try { localStorage.setItem(STEP_KEY, JSON.stringify({ done: !!done })); } catch (e) {}
+}
+
+var tutorialDone = readTutorialDone();
+var guideActive = false;
+var guideIndex = 0;
+var stepTried = {};
+var guideTimer = null;
+var stitchTabTimer = null;
+
+var introBar = document.getElementById("diyIntroBar");
+var helpBtn = document.getElementById("diyHelpBtn");
 var guideBtn = document.getElementById("diyGuideBtn");
-var explainBtn = document.getElementById("diyExplainBtn");
-var resetBtn = document.getElementById("diyResetBtn");
+var dismissBtn = document.getElementById("diyDismissBtn");
 var guideBar = document.getElementById("diyGuideBar");
 var guideStepNo = document.getElementById("guideStepNo");
+var guideTitle = document.getElementById("guideTitle");
+var guideSeen = document.getElementById("guideSeen");
 var guideText = document.getElementById("guideText");
+var guidePrev = document.getElementById("guidePrev");
 var guideNext = document.getElementById("guideNext");
-var guideDone = document.getElementById("guideDone");
 var guideClose = document.getElementById("guideClose");
 
-// 一句话讲当前一个动作。铺底拆成两页：先抽屉，再模板。
-var GUIDE_TEXT = {
-  base: [
-    "先自己挑声音：点下面那条「选声音 · 调参数 · 作品」，在「选声音」里点喜欢的。",
-    "顶上的模板是省事的快捷方式，不想挑就点一套，想改随时能改。"
-  ],
-  make: [
-    "拖左边=左耳响，拖右边=右耳响，放中间=两边一样。",
-    "越往上越清楚响亮，越往下越轻、像在远处。",
-    "点上面「做拼接」，把几段接成一夜；拖段落右边改长短。"
-  ],
-  save: "点这里存到「我的作品」，下次回来还能接着听。",
-  publish: "点这里写一句话，就能寄到广场给别人听。"
-};
-var DONE_TEXT = {
-  base: "好，铺底这步算你完成了。下一步：调左右和强弱。",
-  make: "好，创作这步算你完成了。下一步：把它存下来。",
-  save: "好，存好了。最后一步：要不要寄到广场？",
-  publish: "四步都走完了，这条夜色是你自己做出来的。"
-};
-var guideMode = "";       // "do" | "tell" | ""
-var guideIndex = 0;
-var guideSub = 0;         // 同一大步里的第几页讲解（铺底/创作各拆成两页）
-
-function guideTextOf(key) {
-  var t = GUIDE_TEXT[key];
-  if (t && typeof t === "object" && t.length) return t[guideSub] || t[0];
-  return t || "";
-}
-function guideSubCount(key) {
-  var t = GUIDE_TEXT[key];
-  return (t && typeof t === "object" && t.length) ? t.length : 1;
+function syncTutorialChrome() {
+  document.body.classList.toggle("guide-active", guideActive);
+  document.body.classList.toggle("tutorial-done", tutorialDone && !guideActive);
+  if (introBar) introBar.classList.toggle("hide", guideActive || tutorialDone);
+  if (helpBtn) helpBtn.classList.toggle("hide", guideActive || !tutorialDone);
+  if (guideBar) guideBar.classList.toggle("hide", !guideActive);
 }
 
-// 「带着我做」时锁住其它入口：只能点这一步指定的控件，退出按钮永远可用
-function setGuideLock(on) {
-  var segs = document.querySelectorAll(".diy-seg-btn");
-  var i;
-  for (i = 0; i < segs.length; i++) segs[i].disabled = on;
-  var steps = document.querySelectorAll(".diy-step");
-  for (i = 0; i < steps.length; i++) steps[i].disabled = on;
-  guideBtn.disabled = on;
-  explainBtn.disabled = on;
-  resetBtn.disabled = on;
-  document.body.classList.toggle("guide-locked", on);
-  try { panes.mix.contentWindow.postMessage({ type: on ? "yexi-guide-lock" : "yexi-guide-unlock", step: STEPS[guideIndex].key }, "*"); } catch (e) {}
-  try { panes.stitch.contentWindow.postMessage({ type: on ? "yexi-guide-lock" : "yexi-guide-unlock", step: STEPS[guideIndex].key }, "*"); } catch (e) {}
+function clearGuideTimers() {
+  if (guideTimer) { clearTimeout(guideTimer); guideTimer = null; }
+  if (stitchTabTimer) { clearTimeout(stitchTabTimer); stitchTabTimer = null; }
 }
 
-function guideStart(mode) {
-  guideMode = mode;
-  guideIndex = 0;
-  guideSub = 0;
-  for (var i = 0; i < STEPS.length; i++) {
-    if (!stepState[STEPS[i].key]) { guideIndex = i; break; }
-    guideIndex = i; // 全做完了就从最后一步回顾
-  }
-  guideNext.classList.toggle("hide", mode !== "tell");
-  guideDone.classList.toggle("hide", mode !== "do");
-  guideBar.classList.remove("hide");
-  setGuideLock(mode === "do"); // 带着我做才锁；高亮讲解随便点
+function clearTabFocus() {
+  var segs = document.querySelectorAll(".diy-seg-btn.yexi-step-focus");
+  for (var i = 0; i < segs.length; i++) segs[i].classList.remove("yexi-step-focus");
+}
+
+function updateGuideSeenUI(step) {
+  var tried = !!stepTried[step.id];
+  if (guideSeen) guideSeen.classList.toggle("hide", !tried);
+  if (guideNext) guideNext.classList.toggle("ready", tried);
+}
+
+function guideStart(startIdx) {
+  clearGuideTimers();
+  guideActive = true;
+  guideIndex = (typeof startIdx === "number" && startIdx >= 0 && startIdx < GUIDE_STEPS.length) ? startIdx : 0;
+  stepTried = {};
+  try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-unlock" }, "*"); } catch (e) {}
+  try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-unlock" }, "*"); } catch (e) {}
+  syncTutorialChrome();
   guideShow();
 }
 
 function guideShow() {
-  var step = STEPS[guideIndex];
-  var key = step.key;
-  var subTotal = guideSubCount(key);
-  guideStepNo.textContent = (guideIndex + 1) + " / " + STEPS.length + (subTotal > 1 ? " · " + (guideSub + 1) + "/" + subTotal : "");
-  guideText.textContent = guideTextOf(key);
-  guideNext.textContent = (guideIndex === STEPS.length - 1 && guideSub >= subTotal - 1) ? "完成 ›" : "下一步 ›";
-  guideDone.textContent = (guideSub < subTotal - 1) ? "接着讲 ›" : "我完成了";
-  // 高亮必须落在这一步真正所在的 tab 和控件上
+  if (!guideActive) return;
+  clearGuideTimers();
+  clearTabFocus();
+
+  var step = GUIDE_STEPS[guideIndex];
+  guideStepNo.textContent = (guideIndex + 1) + " / " + GUIDE_STEPS.length;
+  guideTitle.textContent = step.title;
+  guideText.textContent = (typeof step.text === "function") ? step.text() : step.text;
+  guidePrev.classList.toggle("hide", guideIndex === 0);
+  guideNext.textContent = (guideIndex === GUIDE_STEPS.length - 1) ? "完成" : "下一步 ›";
+  updateGuideSeenUI(step);
+
   if (step.pane && step.pane !== currentPane) switchPane(step.pane);
-  var pane = panes[currentPane];
-  var focusStep = key;
 
-  // 顶部 tab 的旧高亮先清掉。创作最后一页教「做拼接」，这一页才放行那个 tab。
-  var segBtns = document.querySelectorAll(".diy-seg-btn");
-  var q;
-  for (q = 0; q < segBtns.length; q++) segBtns[q].classList.remove("yexi-step-focus");
-  var teachStitch = (key === "make" && guideSub === 2);
-  if (guideMode === "do") {
-    for (q = 0; q < segBtns.length; q++) {
-      segBtns[q].disabled = !(segBtns[q].getAttribute("data-pane") === "stitch" && teachStitch);
-    }
-  }
-
-  if (key === "base" && guideSub === 1) {
-    // 讲模板前先把抽屉收回去，不然模板条还被压在下面
-    focusStep = "baseTpl";
+  if (step.closeMixDrawer) {
     try { panes.mix.contentWindow.postMessage({ type: "yexi-drawer-close" }, "*"); } catch (e) {}
-  } else if (key === "make" && guideSub < 2) {
-    // 讲左右和远近时直接把抽屉弹到「调参数」，不用用户自己找入口
-    try { panes.mix.contentWindow.postMessage({ type: "yexi-drawer-tune" }, "*"); } catch (e) {}
+  }
+  if (step.closeStitchDrawer) {
+    try { panes.stitch.contentWindow.postMessage({ type: "yexi-drawer-close" }, "*"); } catch (e) {}
   }
 
-  if (teachStitch) {
-    // 高亮的是真的顶部 tab，让用户自己点过去；拼接页时间线也一起亮着
+  if (step.flashStitchTab) {
     var stitchTab = document.querySelector('.diy-seg-btn[data-pane="stitch"]');
     if (stitchTab) {
       stitchTab.classList.remove("yexi-step-focus");
       void stitchTab.offsetWidth;
       stitchTab.classList.add("yexi-step-focus");
+      stitchTabTimer = setTimeout(clearTabFocus, 1800);
     }
-    try { panes.stitch.contentWindow.postMessage({ type: "yexi-goto-step", step: "make", hold: true }, "*"); } catch (e) {}
-  } else {
-    try { pane.contentWindow.postMessage({ type: "yexi-goto-step", step: focusStep, hold: true }, "*"); } catch (e) {}
   }
-  if (guideMode === "do") {
-    var lockStep = teachStitch ? "make" : focusStep;
-    try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-lock", step: lockStep }, "*"); } catch (e) {}
-    try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-lock", step: lockStep }, "*"); } catch (e) {}
-  }
-  var btn = document.querySelector('.diy-step[data-step="' + key + '"]');
-  if (btn) {
-    btn.classList.remove("flash");
-    void btn.offsetWidth;
-    btn.classList.add("flash");
-    setTimeout(function() { btn.classList.remove("flash"); }, 1100);
-  }
-  // 四步条以引导游标为准，每次翻页都重画一次
-  renderPath();
+
+  var otherPane = (step.pane === "mix") ? panes.stitch : panes.mix;
+  var activePane = panes[step.pane] || panes[currentPane];
+  try { otherPane.contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
+  try { activePane.contentWindow.postMessage({ type: "yexi-goto-step", step: step.focusStep, hold: true }, "*"); } catch (e) {}
 }
 
 function guideEnd() {
-  setGuideLock(false);
-  var focusBtns = document.querySelectorAll(".diy-seg-btn.yexi-step-focus");
-  for (var fb = 0; fb < focusBtns.length; fb++) focusBtns[fb].classList.remove("yexi-step-focus");
-  guideMode = "";
-  renderPath();
-  guideBar.classList.add("hide");
-  try { panes[currentPane].contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
+  clearGuideTimers();
+  clearTabFocus();
+  guideActive = false;
+  syncTutorialChrome();
   try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
   try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
 }
 
-function guideAdvance() {
-  var key = STEPS[guideIndex].key;
-  var subTotal = guideSubCount(key);
-  if (guideSub < subTotal - 1) {
-    // 同一大步还有下一页讲解：直接翻页，不标完成、不换 tab
-    guideSub += 1;
-    guideShow();
+function guideGo(delta) {
+  if (!guideActive) return;
+  var nextIdx = guideIndex + delta;
+  if (nextIdx < 0) return;
+  if (nextIdx >= GUIDE_STEPS.length) {
+    tutorialDone = true;
+    writeTutorialDone(true);
+    guideEnd();
     return;
   }
-  guideText.textContent = DONE_TEXT[key] || "好了。";
-  if (guideIndex >= STEPS.length - 1) { setTimeout(guideEnd, 1600); return; }
-  guideIndex += 1;
-  guideSub = 0;
-  setTimeout(guideShow, 900); // 先让"刚做完"这句话被看见，再指下一个控件
+  guideIndex = nextIdx;
+  guideShow();
 }
 
-guideBtn.onclick = function() { guideStart("do"); };
-explainBtn.onclick = function() { guideStart("tell"); };
-guideNext.onclick = function() {
-  if (guideMode !== "tell") return;
-  guideAdvance();
-};
-// 「带着我做」：走没走完由用户自己点，系统只负责指路和记，不替他判断
-guideDone.onclick = function() {
-  if (guideMode !== "do") return;
-  var key = STEPS[guideIndex].key;
-  // 还有下一页讲解时，这个按钮只是"继续讲"，不算完成
-  if (guideSub < guideSubCount(key) - 1) {
-    guideAdvance();
-    return;
-  }
-  markStepDone(key);
-  guideAdvance();
-};
-guideClose.onclick = guideEnd;
+if (guideBtn) guideBtn.onclick = function() { guideStart(0); };
+if (helpBtn) helpBtn.onclick = function() { guideStart(0); };
+if (dismissBtn) {
+  dismissBtn.onclick = function() {
+    tutorialDone = true;
+    writeTutorialDone(true);
+    syncTutorialChrome();
+  };
+}
+if (guidePrev) guidePrev.onclick = function() { guideGo(-1); };
+if (guideNext) guideNext.onclick = function() { guideGo(1); };
+if (guideClose) guideClose.onclick = guideEnd;
 
-resetBtn.onclick = function() {
-  try { localStorage.removeItem(STEP_KEY); } catch (e) {}
-  location.reload();
-};
+syncTutorialChrome();
 
-// 子视图消息桥接：步骤进度 + 「做底层」配方导入「做拼接」
+// 子视图消息桥接：步骤轻反馈 + 「做底层」配方导入「做拼接」
 window.addEventListener("message", function(e) {
   if (!e.data || typeof e.data !== "object") return;
   if (e.data.type === "yexi-step-done") {
-    markStepDone(e.data.step, true);
-    // 门槛完成只记账；「带着我做」的推进由用户点「我完成了」决定，系统不替他推进
+    if (!guideActive) return;
+    var step = GUIDE_STEPS[guideIndex];
+    if (!step) return;
+    var expectedWin = (step.pane === "stitch") ? paneStitch.contentWindow : paneMix.contentWindow;
+    if (e.source && expectedWin && e.source !== expectedWin) return;
+    if (step.actionKeys && step.actionKeys.indexOf(e.data.step) >= 0) {
+      stepTried[step.id] = true;
+      updateGuideSeenUI(step);
+    }
   } else if (e.data.type === "yexi-request-mix") {
     try { paneMix.contentWindow.postMessage({ type: "yexi-get-mix" }, "*"); } catch (err) {}
   } else if (e.data.type === "yexi-mix-reply") {

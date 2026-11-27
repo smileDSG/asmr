@@ -60,15 +60,16 @@ def startup_check():
 
 # ---------------- 商品 ----------------
 # price_cents 用「分」，避免浮点。kind 是权益类型：
-#   full       解锁全部素材 + 不限次生成，按期到期
-#   commercial 商用买断，永久有效
+#   gen_quota    额外生成次数（永不过期、可叠加）+ 可选全库天数（full_library）
+#   full         解锁全部素材 + 不限次生成，按期到期
+#   commercial   商用买断，永久有效
 PRODUCTS = {
     "trial3": {
         "id": "trial3",
         "name": "夜息 · 三次体验",
-        "short": "3 段音频（追问不扣）+ 全库 30 天",
-        "price_cents": 290,
-        "kind": "full",
+        "short": "额外 +3 次 AI 生成（追问不扣，出声才算）+ 全库 30 天",
+        "price_cents": 99,
+        "kind": "gen_quota",
         "quota": 3,
         "days": 30,
         "note": "先过三个晚上试试",
@@ -314,10 +315,16 @@ def grant(out_trade_no, trade_no=""):
     expire_at = 0
     if p["days"] > 0:
         expire_at = time.time() + p["days"] * 86400
-    auth_db.add_entitlement(order["user_id"], p["kind"], p["quota"], expire_at)
-    # 买了商用买断的人，当然也得能用全库素材，否则拿到授权却生成不了东西
-    if p["kind"] == "commercial":
-        auth_db.add_entitlement(order["user_id"], "full", 1, 0)
+    if p["kind"] == "gen_quota":
+        # 体验包：购买次数永不过期且叠加；全库素材只按天解锁（不给无限次生成）
+        auth_db.add_entitlement(order["user_id"], "gen_quota", p["quota"], 0)
+        if expire_at > 0:
+            auth_db.add_entitlement(order["user_id"], "full_library", 1, expire_at)
+    else:
+        auth_db.add_entitlement(order["user_id"], p["kind"], p["quota"], expire_at)
+        # 买了商用买断的人，当然也得能用全库素材，否则拿到授权却生成不了东西
+        if p["kind"] == "commercial":
+            auth_db.add_entitlement(order["user_id"], "full", 1, 0)
     print(
         "[pay] 入账 %s 用户%d %s +%d"
         % (out_trade_no, order["user_id"], p["kind"], p["quota"]),

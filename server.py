@@ -11,8 +11,10 @@ import os
 import random
 import re
 import secrets
+import shutil
 import threading
 import time
+import traceback
 import urllib.parse
 import sys
 
@@ -20,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "bac
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import alerts
 import understanding_brain
 import sound_catalog
 import 素材执行层 as executor
@@ -38,6 +41,7 @@ PORT = int(os.environ.get("PORT", "8000"))
 BASE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(BASE, "agent_output")
 SITE_DIR = os.path.join(BASE, "product_site")
+SERVER_STARTED_AT = time.time()
 
 # 意见箱管理口令：只放服务端环境变量，不写死在前端。
 # 线上用 systemd 的 Environment=YEXI_ADMIN_TOKEN=... 设置；本机没设就用开发口令。
@@ -1130,8 +1134,13 @@ def _voter_key(handler, user):
     return None
 
 
-# 免费用户每天能生成几次。付费解锁全库后不限次。
+# 免费用户每天能生成几次。付费体验包额外叠加次数；时长/商用包不限次。
 FREE_DAILY_GENERATE = 2
+FREE_DAILY_IP_LIMIT = int(os.environ.get("YEXI_FREE_IP_LIMIT", str(FREE_DAILY_GENERATE)))
+INITIAL_LINEAGE_EDITS = 3
+REFILL_LINEAGE_EDITS = 2
+_NOWPAY_LOCK = threading.Lock()
+_NOWPAY_INFLIGHT = {}
 
 
 def _nowpay_products_info():
@@ -1211,59 +1220,238 @@ def _nowpay_quota(buyer_id):
     }
 
 
-def _access(handler):
-    # 一次算清三件事：有没有解锁全库、额度记在谁头上、当前权益。
-    # 全库权益两条来源：① 本地 entitlements（支付宝老流程）；② 即刻收的支付宝托管次数余额。
-    # 即刻收的真相源是支付宝那边的余额，不能在本地缓存，所以每次都查。
-    user = current_user(handler)
+def _free_quota_keys(handler, user=None):
+    """收集当前请求的免费额度维度键与每日上限（账号 + 设备ID + 来源IP）。"""
+    keys = []
+    limits = {}
+    if user and user.get("id"):
+        uk = "u:" + str(user["id"])
+        keys.append(uk)
+        limits[uk] = FREE_DAILY_GENERATE
+    cid = _client_id(handler)
+    if cid:
+        ck = "c:" + cid
+        keys.append(ck)
+        limits[ck] = FREE_DAILY_GENERATE
+    ip = rate_limit.client_ip(handler)
+    if ip and ip != "unknown":
+        ik = "ip:" + ip
+        keys.append(ik)
+        limits[ik] = FREE_DAILY_IP_LIMIT
+    if not keys:
+        keys = ["ip:unknown"]
+        limits["ip:unknown"] = FREE_DAILY_GENERATE
+    return keys, limits
+
+
+def _get_quota_status(handler, user=None):
+    """统一读取当前用户/游客的真实可生成次数与全库解锁状态（单一真相源）。"""
+    if user is None:
+        user = current_user(handler)
     ent = auth_db.list_entitlements(user["id"]) if user else {}
-    full = bool(ent.get("full") and ent["full"].get("active"))
-    owner = _voter_key(handler, user) or "c:anon"
-    buyer = str(user["id"]) if user else owner
-    # 即刻收余额塞进 ent 的副本里（不改原字典），调用方无需改签名
-    if not full and nowpay.ENABLED and nowpay.products_config():
+    unlimited = bool(ent.get("full") and ent["full"].get("active"))
+    local_lib = ent.get("full_library") or {}
+    local_lib_active = bool(local_lib.get("active"))
+    gen_q = ent.get("gen_quota") or {}
+    local_paid = int(gen_q.get("quota") or 0) if gen_q.get("active") else 0
+
+    np_raw = 0
+    np_avail = 0
+    np_window_active = False
+    np_expire_at = 0
+    buyer = str(user["id"]) if user else ""
+    if buyer and nowpay.ENABLED and nowpay.products_config():
         info = _nowpay_quota(buyer)
-        if info.get("available") and int(info.get("remaining", 0)) > 0:
-            # 有余额不等于有全库：还要过 30 天时限（首次付款日起算）
-            if pay_window.mark_and_check(buyer):
-                full = True
-                ent = dict(ent)
-                ent["_nowpay_buyer"] = buyer
+        if info.get("available"):
+            np_raw = max(0, int(info.get("remaining", 0) or 0))
+        if np_raw > 0:
+            pay_window.mark_and_check(buyer)
+        np_window_active = pay_window.is_active(buyer)
+        np_expire_at = pay_window.expire_at_of(buyer) if np_window_active else 0
+        with _NOWPAY_LOCK:
+            np_avail = max(0, np_raw - _NOWPAY_INFLIGHT.get(buyer, 0))
+
+    paid_left = local_paid + np_avail
+    unlocked = bool(unlimited or local_lib_active or np_window_active)
+
+    exp_candidates = []
+    if unlimited:
+        exp_candidates.append(float((ent.get("full") or {}).get("expire_at") or 0))
+    if local_lib_active:
+        exp_candidates.append(float(local_lib.get("expire_at") or 0))
+    if np_window_active and np_expire_at:
+        exp_candidates.append(float(np_expire_at))
+    if any(x == 0 for x in exp_candidates):
+        catalog_expire_at = 0
+    elif exp_candidates:
+        catalog_expire_at = max(exp_candidates)
+    else:
+        catalog_expire_at = 0
+
+    keys, limits = _free_quota_keys(handler, user)
+    free_snap = auth_db.peek_free_quota(keys, limits)
+    free_left = int(free_snap.get("left", 0))
+    free_used = max(0, FREE_DAILY_GENERATE - free_left)
+    total_left = -1 if unlimited else (free_left + paid_left)
+
+    mode = "unlimited" if unlimited else ("paid" if paid_left > 0 else "free")
+    return {
+        "logged_in": user is not None,
+        "free_used": free_used,
+        "free_limit": FREE_DAILY_GENERATE,
+        "free_left": free_left,
+        "paid_left": paid_left,
+        "local_paid_left": local_paid,
+        "nowpay_left": np_avail,
+        "total_left": total_left,
+        "unlimited": unlimited,
+        "unlocked": unlocked,
+        "catalog_expire_at": catalog_expire_at,
+        "mode": mode,
+        # 兼容字段
+        "used": free_used,
+        "limit": FREE_DAILY_GENERATE,
+        "left": total_left,
+    }
+
+
+def _reserve_generation_quota(handler):
+    """按严格顺序原子预占 1 次生成机会：无限包 → 今日免费 → 本地付费 → 即刻收付费。"""
+    user = current_user(handler)
+    status = _get_quota_status(handler, user=user)
+    if status["unlimited"]:
+        return True, {
+            "source": "unlimited",
+            "unlocked": True,
+            "settled": False,
+        }, status
+
+    # 1. 先扣今日免费额度（账号+设备+IP 同步扣）
+    keys, limits = _free_quota_keys(handler, user)
+    ok_free, _ = auth_db.reserve_free_quota(keys, limits)
+    if ok_free:
+        new_status = _get_quota_status(handler, user=user)
+        return True, {
+            "source": "free",
+            "free_keys": keys,
+            "unlocked": new_status["unlocked"],
+            "settled": False,
+        }, new_status
+
+    # 2. 再扣本地已购计次权益（gen_quota）
+    if user and auth_db.consume_entitlement(user["id"], "gen_quota", 1):
+        new_status = _get_quota_status(handler, user=user)
+        return True, {
+            "source": "local_paid",
+            "user_id": user["id"],
+            "unlocked": new_status["unlocked"],
+            "settled": False,
+        }, new_status
+
+    # 3. 再扣即刻收支付宝托管次数（即使 30 天全库期已过，剩余次数依然可用免费素材库）
+    if user and nowpay.ENABLED and nowpay.products_config():
+        buyer = str(user["id"])
+        with _NOWPAY_LOCK:
+            info = _nowpay_quota(buyer)
+            raw_rem = int(info.get("remaining", 0) or 0) if info.get("available") else 0
+            inflight = _NOWPAY_INFLIGHT.get(buyer, 0)
+            if raw_rem - inflight >= 1:
+                _NOWPAY_INFLIGHT[buyer] = inflight + 1
+                reserved_np = True
             else:
-                print("[pay_window] 买家 " + str(buyer) + " 全库已过30天，次数仍保留", flush=True)
-    return full, owner, ent
+                reserved_np = False
+        if reserved_np:
+            np_win = pay_window.mark_and_check(buyer)
+            new_status = _get_quota_status(handler, user=user)
+            return True, {
+                "source": "nowpay",
+                "buyer": buyer,
+                "req_no": nowpay.new_consume_request_no(),
+                "unlocked": bool(np_win or new_status["unlocked"]),
+                "settled": False,
+            }, new_status
+
+    return False, None, status
 
 
-def _nowpay_consume(ent):
-    """生成成功后核销一次即刻收次数。
-    返回 True 表示已扣或无需扣；False 表示扣失败（次数没扣掉，不拦用户，但要记日志）。
-    真相源在支付宝，本地不缓存余额。网络结果不明时用原请求号查，不换号重扣。"""
-    buyer = ent.get("_nowpay_buyer") if isinstance(ent, dict) else ""
-    if not buyer or not nowpay.ENABLED:
-        return True  # 不是即刻收用户（免费/老流程），不用扣
-    try:
-        r = nowpay.quota_verify(buyer, "trial3", 1, "生成一次助眠音频")
-        code = str(r.get("code", ""))
-        if code == "10000":
-            return True
-        # 扣失败也不拦用户——钱已经付了，不能因为核销接口抖动就不让生成。
-        # 注意：nowpay.quota_verify 内部生成的 out_request_no 没返回，
-        # 所以这里没法用 quota_refresh 按原号复查（那是 nowpay.py 的设计缺口）。
-        print("[nowpay] 核销失败：" + str(r.get("sub_msg") or r.get("msg") or code), flush=True)
-        return False
-    except Exception as e:
-        print("[nowpay] 核销异常：" + str(e)[:120], flush=True)
-        return False
+def _refund_generation_quota(resv):
+    """幂等退还预占次数（追问/拦截/渲染报错/未提交退出时调用）。"""
+    if not resv or resv.get("settled"):
+        return
+    resv["settled"] = True
+    src = resv.get("source")
+    if src == "free":
+        auth_db.refund_free_quota(resv.get("free_keys") or [])
+    elif src == "lineage_edit":
+        auth_db.refund_lineage_edit(resv.get("lineage_id"), 1)
+    elif src == "local_paid":
+        auth_db.refund_entitlement(resv.get("user_id"), "gen_quota", 1)
+    elif src == "nowpay":
+        buyer = resv.get("buyer")
+        if buyer:
+            with _NOWPAY_LOCK:
+                cur = _NOWPAY_INFLIGHT.get(buyer, 0)
+                if cur <= 1:
+                    _NOWPAY_INFLIGHT.pop(buyer, None)
+                else:
+                    _NOWPAY_INFLIGHT[buyer] = cur - 1
 
 
-def _quota_exhausted(handler, quota):
-    handler.send_json(
+def _commit_generation_quota(resv):
+    """确认消费本次预占；NowPay 模式下实际调用 quota_verify 并在异常时按原单号复查。"""
+    if not resv:
+        return False, "quota"
+    if resv.get("settled"):
+        return True, ""
+    resv["settled"] = True
+    src = resv.get("source")
+    if src in ("unlimited", "free", "local_paid", "lineage_edit"):
+        return True, ""
+    if src == "nowpay":
+        buyer = resv.get("buyer", "")
+        req_no = resv.get("req_no", "")
+        try:
+            r = nowpay.quota_verify(buyer, "trial3", 1, "生成一次助眠音频", out_request_no=req_no)
+            if str((r or {}).get("code", "")) == "10000":
+                return True, ""
+            print("[nowpay] 核销拒绝：" + str((r or {}).get("sub_msg") or (r or {}).get("msg") or (r or {}).get("code")), flush=True)
+            return False, "quota"
+        except Exception as e:
+            print("[nowpay] 核销异常，尝试同单号复查：" + str(e)[:120], flush=True)
+            try:
+                rr = nowpay.quota_refresh(buyer, "trial3", req_no)
+                status_val = str(
+                    (rr or {}).get("consume_status")
+                    or (rr or {}).get("verify_status")
+                    or (rr or {}).get("status")
+                    or ""
+                ).upper()
+                if str((rr or {}).get("code", "")) == "10000" and any(
+                    tok in status_val for tok in ("SUCCESS", "VERIFIED", "CONSUMED", "DONE")
+                ):
+                    return True, ""
+            except Exception as e2:
+                print("[nowpay] 复查也失败：" + str(e2)[:120], flush=True)
+            return False, "transient"
+        finally:
+            with _NOWPAY_LOCK:
+                cur = _NOWPAY_INFLIGHT.get(buyer, 0)
+                if cur <= 1:
+                    _NOWPAY_INFLIGHT.pop(buyer, None)
+                else:
+                    _NOWPAY_INFLIGHT[buyer] = cur - 1
+    return True, ""
+
+
+def _quota_exhausted(emit_fn, quota):
+    emit_fn(
         {
             "ok": False,
             "action": "quota",
-            "error": "今天的 " + str(FREE_DAILY_GENERATE) + " 次生成用完了",
-            "reply": "今天的免费次数用完了。想再生成，明天还有，或者解锁全库继续。",
+            "error": "免费和已购生成次数都用完了",
+            "reply": "今天的免费次数和已购次数都用完了。明天还有 2 次免费，或者补充体验次数包继续。",
             "need_pay": True,
+            "product_id": "trial3",
             "quota": quota,
             "products": pay.public_products(),
         },
@@ -1453,8 +1641,8 @@ def _run_task(tid, data, capture):
         else:
             _set_task(tid, state="failed", error="生成没有返回结果")
     except Exception as ex:
-        import traceback
         traceback.print_exc()
+        alerts.record_server_error("/api/agent_chat_task", 500, str(ex)[:300])
         _set_task(tid, state="failed", error=str(ex)[:300])
     finally:
         if got_slot:
@@ -1552,202 +1740,252 @@ def run_agent_chat(handler, data, emit):
         )
         return
 
-    # 免费额度：每天 N 次，用完就地拦下；解锁全库后不限
-    full_access, quota_owner, ent = _access(handler)
+    # 1 次生成送 3 次 AI 修改；3 次用完后继续改，每 1 次生成机会算 2 次修改。
+    req_user = current_user(handler)
+    req_cid = _client_id(handler)
+    req_ip = rate_limit.client_ip(handler)
+    req_lineage_id = str(data.get("lineage_id") or "").strip()[:60]
+    has_current = bool(data.get("current_tracks"))
 
-    # 一段音频的 lineage：首次生成时新建，之后每次改都带上同一个 id。
-    # 同一段前 3 次 AI 修改免费，第 4 次起才扣生成次数。
-    lineage_id = str(data.get("lineage_id") or "").strip()[:60]
-    is_edit = bool(lineage_id and data.get("current_tracks"))
-    free_edits_left = lineage.free_left(lineage_id, quota_owner) if is_edit else lineage.FREE_EDITS
-    free_edit = is_edit and free_edits_left > 0
+    billing_mode = "new"
+    active_lineage_id = ""
+    free_edits_left = 0
+    resv = None
 
-    free_rels = None
-    if not full_access:
-        # 免费修改不扣次数，所以也不该被"今日额度用完"拦下
-        if not free_edit:
-            peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
-            if peek["left"] <= 0:
-                _quota_exhausted(handler, peek)
-                return
-        free_rels = sound_catalog.relpaths_for(False)
-
-    try:
-        seconds = max(5, min(60, int(data.get("seconds", 30) or 30)))
-    except (TypeError, ValueError):
-        seconds = 30
-
-    clean_current = map_client_tracks(data.get("current_tracks") or [])
-    current_for_brain = [
-        {
-            "path": os.path.basename(t["rel"]),
-            "weight": round(t["weight"], 2),
-            "pan": round(t["pan"], 2),
-            "mode": t["mode"],
-            "density": round(t["density"], 2),
-        }
-        for t in clean_current
-    ]
-
-    raw_hist = data.get("history")
-    clean_hist = []
-    if isinstance(raw_hist, list):
-        for h in raw_hist[-6:]:
-            if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
-                txt = str(h.get("content") or "").strip()[:300]
-                if txt:
-                    clean_hist.append({"role": h["role"], "content": txt})
-
-    initial_prompt = str(data.get("initial_prompt") or "").strip()[:300]
-    try:
-        qa_round = max(0, min(5, int(data.get("qa_round", 0) or 0)))
-    except (TypeError, ValueError):
-        qa_round = 0
-    force_compose = bool(data.get("force_compose", False))
-
-    ctx = _get_user_agent_context(current_user(handler), handler)
-    used_profile = ""
-    if isinstance(ctx.get("ear_profile"), dict):
-        used_profile = str(ctx["ear_profile"].get("archetype_name") or "")
-
-    design, source = understanding_brain.design_soundscape(
-        say,
-        current_tracks=current_for_brain,
-        history=clean_hist,
-        user_context=ctx,
-        qa_round=qa_round,
-        force_compose=force_compose,
-        initial_prompt=initial_prompt,
-    )
-
-    ai_powered = source in ("Qwen3.8-Flash", "本地模型")
-
-    if design.get("action") == "ask":
-        emit(
-            {
-                "ok": True,
-                "action": "ask",
-                "source": source,
-                "ai_powered": ai_powered,
-                "reply": design.get("reply", ""),
-                "question": design.get("question", ""),
-                "options": design.get("options", []),
-                "collected": design.get("collected", {}),
-                "intent": design.get("intent", {}),
-                "reasoning": design.get("reasoning", []),
-                "tracks": [],
-                "used_profile": used_profile,
+    if req_lineage_id and has_current:
+        edit_state, edits_after = auth_db.reserve_lineage_edit(
+            req_lineage_id,
+            req_user["id"] if req_user else None,
+            req_cid,
+            req_ip,
+        )
+        if edit_state == "ok":
+            q_now = _get_quota_status(handler, user=req_user)
+            resv = {
+                "source": "lineage_edit",
+                "lineage_id": req_lineage_id,
+                "unlocked": q_now["unlocked"],
+                "settled": False,
             }
-        )
-        return
-
-    role_notes = {}
-    for raw_t in design.get("tracks") or []:
-        if isinstance(raw_t, dict) and raw_t.get("path"):
-            role_notes[os.path.basename(str(raw_t["path"]))] = str(
-                raw_t.get("role_note") or ""
-            )
-
-    mapped_tracks = map_client_tracks(design.get("tracks") or [])
-    if not mapped_tracks:
-        fallback_rel = find_relpath("母带_城市夜雨_CC0.mp3")
-        if fallback_rel:
-            mapped_tracks = [
-                _normalize_track_spec({"rel": fallback_rel, "weight": 0.72})
-            ]
-    quota_info = None
-    if free_rels is not None:
-        # 免费用户：把配方里越权的付费素材换掉。
-        # 额度留到音频真正渲染出来之后再扣（出声才算一次）。
-        mapped_tracks = _downgrade_tracks(
-            mapped_tracks, design.get("intent") or {}, free_rels
-        )
-
-    mix, sr = render(mapped_tracks, seconds)
-    aid = _put_temp_audio(mix, sr)
-
-    # 出声才算一次：音频真的生成出来了，现在才扣额度。
-    # 但"生成后前 3 次免费改"这段不扣——只记一次修改。
-    if free_edit:
-        lineage.mark_edit(lineage_id, quota_owner)
-        free_edits_left = max(0, free_edits_left - 1)
-        print("[lineage] 免费修改 " + str(lineage_id[:8]), flush=True)
-        if not full_access and free_rels is not None:
-            quota_info = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+            billing_mode = "free_edit"
+            active_lineage_id = req_lineage_id
+            free_edits_left = edits_after
+        elif edit_state == "empty":
+            ok_resv, resv, quota_snap = _reserve_generation_quota(handler)
+            if not ok_resv:
+                _quota_exhausted(emit, quota_snap)
+                return
+            billing_mode = "refill_edit"
+            active_lineage_id = req_lineage_id
+        else:
+            # 伪造/过期/非本人 lineage_id：按全新生成扣 1 次机会
+            ok_resv, resv, quota_snap = _reserve_generation_quota(handler)
+            if not ok_resv:
+                _quota_exhausted(emit, quota_snap)
+                return
+            billing_mode = "new"
     else:
-        if free_rels is not None:
-            ok_take, quota_info = auth_db.take_daily_quota(
-                quota_owner, FREE_DAILY_GENERATE
-            )
-            if not ok_take:
-                # 并发临界：render 这两秒里最后一次额度被别人抢先用了。
-                # 音频已经生成，按"出声才算"的规矩放行这次，只记日志，不再拦用户。
-                print("[quota] 出声后额度被并发占满，本次放行", flush=True)
-                quota_info = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+        ok_resv, resv, quota_snap = _reserve_generation_quota(handler)
+        if not ok_resv:
+            _quota_exhausted(emit, quota_snap)
+            return
+        billing_mode = "new"
 
-        # 即刻收用户：音频真生成出来了，才核销一次次数
-        _nowpay_consume(ent)
+    try:
+        full_access = bool(resv.get("unlocked"))
+        free_rels = None if full_access else sound_catalog.relpaths_for(False)
 
-        # 第 4 次及以后的修改：额度已扣，也记一笔，下次继续按扣费算
-        if is_edit:
-            lineage.mark_edit(lineage_id, quota_owner)
+        try:
+            seconds = max(5, min(60, int(data.get("seconds", 30) or 30)))
+        except (TypeError, ValueError):
+            seconds = 30
 
-    # 首次生成：建一条 lineage，后续修改都带这个 id
-    if not lineage_id:
-        lineage_id = lineage.create(quota_owner)
-        free_edits_left = lineage.FREE_EDITS
-
-    _set_session(
-        handler,
-        current_user(handler),
-        intent=design["intent"],
-        items=[(t["rel"], t["weight"]) for t in mapped_tracks],
-        say=design.get("final_prompt") or say,
-        last_audio_id=aid,
-    )
-
-    resp_tracks = []
-    for t in mapped_tracks:
-        base = os.path.basename(t["rel"])
-        resp_tracks.append(
+        clean_current = map_client_tracks(data.get("current_tracks") or [])
+        current_for_brain = [
             {
-                "path": base,
+                "path": os.path.basename(t["rel"]),
                 "weight": round(t["weight"], 2),
                 "pan": round(t["pan"], 2),
                 "mode": t["mode"],
                 "density": round(t["density"], 2),
-                "role_note": role_notes.get(base, ""),
             }
+            for t in clean_current
+        ]
+
+        raw_hist = data.get("history")
+        clean_hist = []
+        if isinstance(raw_hist, list):
+            for h in raw_hist[-6:]:
+                if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
+                    txt = str(h.get("content") or "").strip()[:300]
+                    if txt:
+                        clean_hist.append({"role": h["role"], "content": txt})
+
+        initial_prompt = str(data.get("initial_prompt") or "").strip()[:300]
+        try:
+            qa_round = max(0, min(5, int(data.get("qa_round", 0) or 0)))
+        except (TypeError, ValueError):
+            qa_round = 0
+        force_compose = bool(data.get("force_compose", False))
+
+        ctx = _get_user_agent_context(req_user, handler)
+        used_profile = ""
+        if isinstance(ctx.get("ear_profile"), dict):
+            used_profile = str(ctx["ear_profile"].get("archetype_name") or "")
+
+        design, source = understanding_brain.design_soundscape(
+            say,
+            current_tracks=current_for_brain,
+            history=clean_hist,
+            user_context=ctx,
+            qa_round=qa_round,
+            force_compose=force_compose,
+            initial_prompt=initial_prompt,
         )
 
-    emit(
-        {
-            "ok": True,
-            "action": "compose",
-            "source": source,
-            "ai_powered": ai_powered,
-            "title": design["title"],
-            "reply": design["reply"],
-            "final_prompt": design.get("final_prompt", ""),
-            "collected": design.get("collected", {}),
-            "intent": design["intent"],
-            "reasoning": design["reasoning"],
-            "tracks": resp_tracks,
-            "followups": design["followups"],
-            "used_profile": used_profile,
-            "audio": "/api/audio?id=" + aid,
-            "full_access": full_access,
-            "quota": quota_info,
-            "lineage_id": lineage_id,
-            "free_edits_left": free_edits_left,
-        }
-    )
+        ai_powered = source in ("Qwen3.8-Flash", "本地模型")
+
+        if design.get("action") == "ask":
+            _refund_generation_quota(resv)
+            ask_quota = _get_quota_status(handler, user=req_user)
+            emit(
+                {
+                    "ok": True,
+                    "action": "ask",
+                    "source": source,
+                    "ai_powered": ai_powered,
+                    "reply": design.get("reply", ""),
+                    "question": design.get("question", ""),
+                    "options": design.get("options", []),
+                    "collected": design.get("collected", {}),
+                    "intent": design.get("intent", {}),
+                    "reasoning": design.get("reasoning", []),
+                    "tracks": [],
+                    "used_profile": used_profile,
+                    "quota": ask_quota,
+                }
+            )
+            return
+
+        role_notes = {}
+        for raw_t in design.get("tracks") or []:
+            if isinstance(raw_t, dict) and raw_t.get("path"):
+                role_notes[os.path.basename(str(raw_t["path"]))] = str(
+                    raw_t.get("role_note") or ""
+                )
+
+        mapped_tracks = map_client_tracks(design.get("tracks") or [])
+        if not mapped_tracks:
+            fallback_rel = find_relpath("母带_城市夜雨_CC0.mp3")
+            if fallback_rel:
+                mapped_tracks = [
+                    _normalize_track_spec({"rel": fallback_rel, "weight": 0.72})
+                ]
+        catalog_downgraded = False
+        reply_text = design["reply"]
+        if free_rels is not None:
+            # 免费用户：把配方里越权的付费素材换掉，并给出明确替代说明。
+            free_set = set(free_rels)
+            if any(t["rel"] not in free_set for t in mapped_tracks):
+                catalog_downgraded = True
+                mapped_tracks = _downgrade_tracks(
+                    mapped_tracks, design.get("intent") or {}, free_rels
+                )
+                actual_names = " + ".join(_track_label(t["rel"]) for t in mapped_tracks)
+                reply_text = (
+                    f"原配方案包含全库限定素材，本次先用免费素材（{actual_names}）为你替代；"
+                    "解锁全库后 AI 可直接调用全部 41 段素材。"
+                )
+
+        mix, sr = render(mapped_tracks, seconds)
+        ok_commit, commit_err = _commit_generation_quota(resv)
+        if not ok_commit:
+            if commit_err == "transient":
+                emit(
+                    {
+                        "ok": False,
+                        "error": "支付核销确认超时，未扣除次数，请稍后重试",
+                    },
+                    503,
+                )
+            else:
+                _quota_exhausted(emit, _get_quota_status(handler, user=req_user))
+            return
+
+        if billing_mode == "new":
+            active_lineage_id = auth_db.create_audio_lineage(
+                req_user["id"] if req_user else None,
+                req_cid,
+                req_ip,
+                INITIAL_LINEAGE_EDITS,
+            )
+            free_edits_left = INITIAL_LINEAGE_EDITS
+        elif billing_mode == "refill_edit":
+            free_edits_left = auth_db.refill_lineage_edits(
+                active_lineage_id, REFILL_LINEAGE_EDITS - 1
+            )
+
+        aid = _put_temp_audio(mix, sr)
+        quota_info = _get_quota_status(handler, user=req_user)
+
+        _set_session(
+            handler,
+            req_user,
+            intent=design["intent"],
+            items=[(t["rel"], t["weight"]) for t in mapped_tracks],
+            say=design.get("final_prompt") or say,
+            last_audio_id=aid,
+        )
+
+        resp_tracks = []
+        for t in mapped_tracks:
+            base = os.path.basename(t["rel"])
+            resp_tracks.append(
+                {
+                    "path": base,
+                    "weight": round(t["weight"], 2),
+                    "pan": round(t["pan"], 2),
+                    "mode": t["mode"],
+                    "density": round(t["density"], 2),
+                    "role_note": role_notes.get(base, ""),
+                }
+            )
+
+        emit(
+            {
+                "ok": True,
+                "action": "compose",
+                "source": source,
+                "ai_powered": ai_powered,
+                "title": design["title"],
+                "reply": reply_text,
+                "final_prompt": design.get("final_prompt", ""),
+                "collected": design.get("collected", {}),
+                "intent": design["intent"],
+                "reasoning": design["reasoning"],
+                "tracks": resp_tracks,
+                "followups": design["followups"],
+                "used_profile": used_profile,
+                "audio": "/api/audio?id=" + aid,
+                "full_access": full_access,
+                "catalog_downgraded": catalog_downgraded,
+                "quota": quota_info,
+                "consumed_from": resv.get("source", ""),
+                "billing_mode": billing_mode,
+                "lineage_id": active_lineage_id,
+                "free_edits_left": free_edits_left,
+            }
+        )
+    finally:
+        if not resv.get("settled"):
+            _refund_generation_quota(resv)
 
 
 class Handler(BaseHTTPRequestHandler):
     def send_response(self, code, message=None):
         """覆盖基类：所有响应统一带安全头，一处改完全局生效。
         注意：send_response 之后、end_headers 之前是加头的正确时机。"""
+        self._response_started = True
         super().send_response(code, message)
         # 阻止浏览器猜测文件类型（把 JSON 当 JS 执行这类攻击）
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -1792,7 +2030,12 @@ class Handler(BaseHTTPRequestHandler):
             )
             self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 
-    def send_json(self, obj, code=200):
+    def send_json(self, obj, code=200, _alert=True):
+        if code >= 500 and _alert:
+            err_detail = ""
+            if isinstance(obj, dict):
+                err_detail = str(obj.get("error") or obj.get("message") or "")
+            alerts.record_server_error(getattr(self, "path", ""), code, err_detail[:200])
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1808,7 +2051,7 @@ class Handler(BaseHTTPRequestHandler):
         支付宝 notify 回调要放行——它的服务器 IP 不固定，限流会误伤真实付款。"""
         if not path.startswith("/api/"):
             return True
-        if path == "/api/pay/notify":
+        if path in ("/api/pay/notify", "/api/health"):
             return True
         if path in ("/api/asset", "/api/play_audio", "/api/audio", "/api/preview_audio"):
             return True
@@ -1856,6 +2099,49 @@ class Handler(BaseHTTPRequestHandler):
         print("[GET] " + path, flush=True)
         if not self.check_rate_limit(path):
             return
+        try:
+            self._handle_get(path)
+        except Exception as ex:
+            traceback.print_exc()
+            alerts.record_server_error(path, 500, repr(ex))
+            if not getattr(self, "_response_started", False):
+                self.send_json({"error": "服务器内部错误"}, 500, _alert=False)
+
+    def _handle_get(self, path):
+        if path == "/api/health":
+            db_ok = False
+            try:
+                conn = auth_db.connect()
+                try:
+                    row = conn.execute("SELECT 1").fetchone()
+                    db_ok = bool(row and row[0] == 1)
+                finally:
+                    conn.close()
+            except Exception as ex:
+                print("[health] db check failed: " + str(ex), flush=True)
+            catalog_count = len(sound_catalog.ALL_SOUNDS)
+            catalog_ok = catalog_count > 0
+            disk_free_pct = 0.0
+            try:
+                du = shutil.disk_usage(BASE)
+                if du.total > 0:
+                    disk_free_pct = round(du.free * 100.0 / du.total, 1)
+            except Exception:
+                pass
+            healthy = db_ok and catalog_ok
+            payload = {
+                "ok": healthy,
+                "db": db_ok,
+                "catalog_count": catalog_count,
+                "disk_free_pct": disk_free_pct,
+                "uptime_s": int(time.time() - SERVER_STARTED_AT),
+                "started_at": int(SERVER_STARTED_AT),
+                "pay_mode": pay.PAY_MODE,
+            }
+            payload.update(alerts.stats())
+            self.send_json(payload, 200 if healthy else 503)
+            return
+
         if path == "/api/task/status":
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             tid = qs.get("id", [""])[0]
@@ -1900,9 +2186,14 @@ class Handler(BaseHTTPRequestHandler):
                     }
                 )
                 return
+            # 本地/非即刻收模式：线上只卖 trial3，这里也只显示它，避免本地预览
+            # 冒出 day3 ¥2.90 等旧档、和线上不一致（路演时容易困惑）。
+            local_products = [
+                p for p in pay.public_products() if p["id"] == "trial3"
+            ]
             self.send_json(
                 {
-                    "products": pay.public_products(),
+                    "products": local_products,
                     "mode": pay.PAY_MODE,
                     "configured": pay.configured(),
                     "nowpay": np_info,
@@ -1935,6 +2226,12 @@ class Handler(BaseHTTPRequestHandler):
                 "code": r.get("code", ""),
                 "msg": r.get("msg", ""),
             })
+        elif path == "/api/quota":
+            # 统一查询当前生成额度（免费 + 付费）与全库解锁状态，游客与登录用户都能查
+            status = _get_quota_status(self)
+            resp = {"ok": True}
+            resp.update(status)
+            self.send_json(resp)
         elif path == "/api/nowpay/quota":
             # 查即刻收次数余额；未登录按游客标识查（即刻收用 external_buyer_id 认人）
             user = current_user(self)
@@ -1944,23 +2241,24 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/entitlement":
             user = current_user(self)
             if not user:
-                self.send_json({"need_login": True, "entitlements": {}}, 401)
+                self.send_json({"need_login": True, "entitlements": {}, "quota": _get_quota_status(self)}, 401)
                 return
             ent = auth_db.list_entitlements(user["id"])
-            # 即刻收用户的全库权益不写在本地表里，这里把它并进去一起显示，
-            # 否则"我的"页会误显示未解锁。
-            if nowpay.ENABLED and nowpay.products_config() and not ent.get("full", {}).get("active"):
-                buyer = str(user["id"])
-                info = _nowpay_quota(buyer)
-                if info.get("available") and int(info.get("remaining", 0)) > 0:
-                    if pay_window.mark_and_check(buyer):
-                        exp = pay_window.expire_at_of(buyer)
-                        ent["full"] = {
-                            "quota": int(info["remaining"]),
-                            "expire_at": exp,
-                            "active": True,
-                        }
-            self.send_json({"entitlements": ent})
+            q_status = _get_quota_status(self, user=user)
+            # 兼容前端旧结构：合并 full_library / gen_quota / 即刻收余额
+            if q_status["unlocked"] and not (ent.get("full") or {}).get("active"):
+                ent["full"] = {
+                    "quota": int(q_status["paid_left"]),
+                    "expire_at": q_status["catalog_expire_at"],
+                    "active": True,
+                }
+            elif q_status["paid_left"] > 0 and "gen_quota" not in ent:
+                ent["gen_quota"] = {
+                    "quota": int(q_status["paid_left"]),
+                    "expire_at": 0,
+                    "active": True,
+                }
+            self.send_json({"entitlements": ent, "quota": q_status})
         elif path == "/api/pay/return":
             # 同步跳回只用来展示结果，真实状态一律以库里为准
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -2041,14 +2339,14 @@ class Handler(BaseHTTPRequestHandler):
                 {"logged_in": True, "state": st if isinstance(st, dict) else {}}
             )
         elif path == "/api/catalog":
-            full, owner, ent = _access(self)
+            q_status = _get_quota_status(self)
             self.send_json(
                 {
                     "total": len(sound_catalog.ALL_SOUNDS),
                     "items": sound_catalog.ALL_SOUNDS,
                     "free_count": len(sound_catalog.FREE_RELPATHS),
                     "premium_count": sound_catalog.PREMIUM_COUNT,
-                    "unlocked": full,
+                    "unlocked": q_status["unlocked"],
                 }
             )
         elif path == "/api/community_votes":
@@ -2438,6 +2736,33 @@ class Handler(BaseHTTPRequestHandler):
         print("[POST] " + path, flush=True)
         if not self.check_rate_limit(path):
             return
+        try:
+            self._handle_post(path)
+        except Exception as ex:
+            traceback.print_exc()
+            alerts.record_server_error(path, 500, repr(ex))
+            if not getattr(self, "_response_started", False):
+                self.send_json({"error": "服务器内部错误"}, 500, _alert=False)
+
+    def _handle_post(self, path):
+        if path == "/api/client_error":
+            data = read_body(self)
+            kind = str(data.get("kind") or "error").strip()[:32]
+            page = str(data.get("page") or "").strip()[:120]
+            message = str(data.get("message") or "").strip()[:300]
+            source = str(data.get("source") or "").strip()[:200]
+            line = data.get("line") or 0
+            col = data.get("col") or 0
+            stack = str(data.get("stack") or "").strip()[:500]
+            if message:
+                detail = f"{source}:{line}:{col}" + (f"\n{stack}" if stack else "")
+                print(
+                    f"[CLIENT_ERR] {page} | {kind} | {message} ({source}:{line}:{col})",
+                    flush=True,
+                )
+                alerts.record_client_error(page, message, detail, kind=kind)
+            self.send_json({"ok": True})
+            return
 
         if path == "/api/pay/create":
             # 即刻收模式优先：商品和收银台都在支付宝托管
@@ -2554,6 +2879,10 @@ class Handler(BaseHTTPRequestHandler):
             if not user:
                 self.send_json({"ok": False, "message": msg}, 401)
                 return
+            cid = _client_id(self)
+            if cid:
+                auth_db.merge_daily_quota(["c:" + cid], "u:" + str(user["id"]))
+                auth_db.claim_guest_lineages(cid, user["id"])
             token = auth_db.create_session(user["id"])
             self.send_json({"ok": True, "token": token, "username": user["username"]})
 
@@ -2603,6 +2932,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             db_store = memory.DbStore(user["id"])
             cid = _client_id(self)
+            if cid:
+                auth_db.merge_daily_quota(["c:" + cid], "u:" + str(user["id"]))
+                auth_db.claim_guest_lineages(cid, user["id"])
+                auth_db.claim_guest_lineages(cid, user["id"])
             file_store = memory.FileStore(namespace=cid) if cid else memory.FileStore()
             # 四类记忆分别合并
             for name, key in [
@@ -2695,55 +3028,58 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
 
-            full_access, quota_owner, ent = _access(self)
-            free_rels = None
-            if not full_access:
-                peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
-                if peek["left"] <= 0:
-                    _quota_exhausted(self, peek)
-                    return
-                free_rels = sound_catalog.relpaths_for(False)
+            ok_resv, resv, quota_snap = _reserve_generation_quota(self)
+            if not ok_resv:
+                _quota_exhausted(self.send_json, quota_snap)
+                return
 
-            intent, source = understanding_brain.understand(say)
-            items = executor.pick(intent, free_rels)
-            if free_rels is not None:
-                ok_take, quota_info = auth_db.take_daily_quota(
-                    quota_owner, FREE_DAILY_GENERATE
+            try:
+                free_rels = None if resv.get("unlocked") else sound_catalog.relpaths_for(False)
+                intent, source = understanding_brain.understand(say)
+                items = executor.pick(intent, free_rels)
+                mix, sr = render(items, seconds)
+                ok_commit, commit_err = _commit_generation_quota(resv)
+                if not ok_commit:
+                    if commit_err == "transient":
+                        self.send_json({"ok": False, "error": "支付核销确认超时，未扣除次数，请稍后重试"}, 503)
+                    else:
+                        _quota_exhausted(self.send_json, _get_quota_status(self))
+                    return
+
+                aid = _put_temp_audio(mix, sr)
+                quota_info = _get_quota_status(self)
+                _set_session(
+                    self,
+                    current_user(self),
+                    intent=intent,
+                    items=items,
+                    say=say,
+                    last_audio_id=aid,
                 )
-                if not ok_take:
-                    _quota_exhausted(self, quota_info)
-                    return
-            mix, sr = render(items, seconds)
-            aid = _put_temp_audio(mix, sr)
-            _set_session(
-                self,
-                current_user(self),
-                intent=intent,
-                items=items,
-                say=say,
-                last_audio_id=aid,
-            )
-            # 即刻收用户：音频真生成出来了，才核销一次次数
-            _nowpay_consume(ent)
 
-            self.send_json(
-                {
-                    "source": source,
-                    "ai_powered": source in ("Qwen3.8-Flash", "本地模型"),
-                    "scene": intent["scene"],
-                    "scene_detail": intent["scene_detail"],
-                    "mood": intent["mood"],
-                    "warmth": intent["warmth"],
-                    "dynamics": intent["dynamics"],
-                    "avoid": intent.get("avoid", []),
-                    "items": [
-                        {"path": os.path.basename(p), "weight": round(w, 2)}
-                        for p, w in items
-                        if w > 0
-                    ],
-                    "audio": "/api/audio?id=" + aid,
-                }
-            )
+                self.send_json(
+                    {
+                        "source": source,
+                        "ai_powered": source in ("Qwen3.8-Flash", "本地模型"),
+                        "scene": intent["scene"],
+                        "scene_detail": intent["scene_detail"],
+                        "mood": intent["mood"],
+                        "warmth": intent["warmth"],
+                        "dynamics": intent["dynamics"],
+                        "avoid": intent.get("avoid", []),
+                        "items": [
+                            {"path": os.path.basename(p), "weight": round(w, 2)}
+                            for p, w in items
+                            if w > 0
+                        ],
+                        "audio": "/api/audio?id=" + aid,
+                        "quota": quota_info,
+                        "consumed_from": resv.get("source", ""),
+                    }
+                )
+            finally:
+                if not resv.get("settled"):
+                    _refund_generation_quota(resv)
 
         elif path == "/api/preview":
             # 社区配方试听：直接给配比（或 post_id），不调 Qwen
@@ -3250,13 +3586,13 @@ class Handler(BaseHTTPRequestHandler):
             user = require_login(self, "导出整夜版")
             if not user:
                 return
-            ent = auth_db.list_entitlements(user["id"]).get("full")
-            if not ent or not ent.get("active"):
+            q_status = _get_quota_status(self, user=user)
+            if not q_status["unlocked"]:
                 self.send_json(
                     {
                         "error": "导出需要先解锁全库",
                         "need_pay": True,
-                        "product_id": "day3",
+                        "product_id": "trial3",
                         "products": pay.public_products(),
                     },
                     402,
@@ -3435,26 +3771,54 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "还没有可调整的声轨"}, 400)
                 return
 
-            memory.save_bad_case(
-                say_text, fb, [[p, round(w, 3)] for p, w in items], store
-            )
-            new_items, notes = ft.apply_feedback(fb, items)
-            mix, sr = render(new_items, seconds)
-            aid = _put_temp_audio(mix, sr)
-            _set_session(self, user, items=new_items, last_audio_id=aid)
+            ok_resv, resv, quota_snap = _reserve_generation_quota(self)
+            if not ok_resv:
+                _quota_exhausted(self.send_json, quota_snap)
+                return
 
-            self.send_json(
-                {
-                    "ok": True,
-                    "notes": notes,
-                    "items": [
-                        {"path": os.path.basename(p), "weight": round(w, 2)}
-                        for p, w in new_items
-                        if w > 0
-                    ],
-                    "audio": "/api/audio?id=" + aid,
-                }
-            )
+            try:
+                if not resv.get("unlocked"):
+                    allowed_rels = set(sound_catalog.relpaths_for(False))
+                    filtered_items = [(p, w) for p, w in items if p in allowed_rels]
+                    if filtered_items:
+                        items = filtered_items
+                    else:
+                        items = executor.pick(intent, list(allowed_rels))
+
+                memory.save_bad_case(
+                    say_text, fb, [[p, round(w, 3)] for p, w in items], store
+                )
+                new_items, notes = ft.apply_feedback(fb, items)
+                mix, sr = render(new_items, seconds)
+                ok_commit, commit_err = _commit_generation_quota(resv)
+                if not ok_commit:
+                    if commit_err == "transient":
+                        self.send_json({"ok": False, "error": "支付核销确认超时，未扣除次数，请稍后重试"}, 503)
+                    else:
+                        _quota_exhausted(self.send_json, _get_quota_status(self, user=user))
+                    return
+
+                aid = _put_temp_audio(mix, sr)
+                quota_info = _get_quota_status(self, user=user)
+                _set_session(self, user, items=new_items, last_audio_id=aid)
+
+                self.send_json(
+                    {
+                        "ok": True,
+                        "notes": notes,
+                        "items": [
+                            {"path": os.path.basename(p), "weight": round(w, 2)}
+                            for p, w in new_items
+                            if w > 0
+                        ],
+                        "audio": "/api/audio?id=" + aid,
+                        "quota": quota_info,
+                        "consumed_from": resv.get("source", ""),
+                    }
+                )
+            finally:
+                if not resv.get("settled"):
+                    _refund_generation_quota(resv)
 
         elif path == "/api/feedback_submit":
             # 意见箱：允许游客提交（不强制登录，约 30% 用户会因要登录而放弃）

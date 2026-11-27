@@ -287,13 +287,35 @@
     this.updateCursor();
   };
 
+  // 进度條按当前段的真实宽度定位，段边界和播放头才能对齐
+  YexiTimeline.prototype.playheadX = function(sec) {
+    var el = this.strip.querySelector('.tl-seg[data-idx="' + this.index + '"]');
+    if (!el) {
+      var total = this.totalSec() || 1;
+      return (this.strip.scrollWidth || 0) * clamp(sec / total, 0, 1);
+    }
+    var segStart = this.offsetOf(this.index);
+    var dur = this.durationSec(this.index) || 1;
+    var within = clamp((sec - segStart) / dur, 0, 1);
+    return el.offsetLeft + within * el.offsetWidth;
+  };
+
   YexiTimeline.prototype.updateCursor = function() {
     var sec = this.elapsed();
     var total = this.totalSec();
     if (this.playheadEl && total > 0) {
-      var pct = clamp((sec / total) * 100, 0, 100);
-      this.playheadEl.style.left = pct.toFixed(2) + "%";
+      // 播放头必须落在当前段的实际像素位置上：段宽按时长算，但 1 分钟段有 104px 最小宽，
+      // 直接按总时长百分比算会偏到上一段去，用户看到的就是「进度条差得远」。
+      var x = this.playheadX(sec);
+      this.playheadEl.style.left = Math.round(x) + "px";
       this.playheadEl.style.display = "block";
+      // 播放时让播放头留在视野里，别让用户盯着一段静止的长条
+      if (this.isPlaying() && this.strip.clientWidth > 0) {
+        var view = this.strip.clientWidth;
+        if (x < this.strip.scrollLeft + 36 || x > this.strip.scrollLeft + view - 36) {
+          this.strip.scrollLeft = Math.max(0, x - view / 2);
+        }
+      }
     } else if (this.playheadEl) {
       this.playheadEl.style.display = "none";
     }
@@ -333,6 +355,15 @@
     this.startTicker();
   };
 
+  // 把某一段滚到长条中间，方便横向浏览时找到它
+  YexiTimeline.prototype.scrollToSegment = function(idx) {
+    if (!this.strip || idx < 0) return;
+    var el = this.strip.querySelector('.tl-seg[data-idx="' + idx + '"]');
+    if (!el) return;
+    var want = el.offsetLeft - (this.strip.clientWidth - el.offsetWidth) / 2;
+    this.strip.scrollLeft = Math.max(0, want);
+  };
+
   // 立即跳到第 idx 段，并可选设置段内起始秒数
   YexiTimeline.prototype.jumpToSegment = function(idx, offsetInSegSec, autoPlay) {
     if (idx < 0 || idx >= this.segments.length) return;
@@ -342,6 +373,7 @@
     this.startedAt = Date.now();
     this._preloadedForKey = "";
     this.apply(idx, true, { transition: "crossfade", fadeOutSec: 0.45, fadeInSec: 0.45 });
+    this.scrollToSegment(idx);
     if (autoPlay && !this.isPlaying()) {
       this.play();
     } else {
@@ -383,12 +415,13 @@
         base = cloneSegment(ref, "第 " + (this.segments.length + 1) + " 段");
         base.id = genId();
       } else {
+        // 空白轨道上加段：先给一段空壳，让用户自己挑声音，别默认塞雨声
         base = cloneSegment({
-          name: "夜雨微声",
+          name: "第 " + (this.segments.length + 1) + " 段",
           minutes: 3,
           transition: "crossfade",
           fadeSec: 4,
-          tracks: [{ path: "母带_城市夜雨_CC0.mp3", weight: 0.72, pan: 0, mode: "loop", density: 0.4 }]
+          tracks: []
         });
       }
     } else {
@@ -567,6 +600,28 @@
     return false;
   };
 
+  // 空白轨道：不清模板按钮，只清段落和旧状态，等你点「+ 加一段」或选模板
+  YexiTimeline.prototype.startEmpty = function() {
+    this.active = true;
+    this.templateId = "";
+    this.title = "未命名拼接";
+    this.segments = [];
+    this.index = 0;
+    this.elapsedBefore = 0;
+    this.startedAt = Date.now();
+    this._preloadedForKey = "";
+    this.stopTicker();
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(STATE_STORAGE_KEY);
+    } catch (e) {}
+    this.onTitle(this.title);
+    this.onResetWork();
+    this.render();
+    this.onChange(this);
+    this.updateCursor();
+  };
+
   YexiTimeline.prototype.turnOff = function() {
     this.active = false;
     this.templateId = "";
@@ -601,17 +656,16 @@
     strip.innerHTML = "";
     if (!this.active || this.segments.length === 0) {
       this.playheadEl = null;
-      strip.innerHTML = '<div class="timeline-foot" style="padding:10px">选一套上面的模板，就能看到拼好的一夜</div>';
+      strip.innerHTML = '<div class="timeline-foot" style="padding:10px">还没有段落。点「+ 加一段」开始，或选一套模板。</div>';
       this.updateCursor();
       return;
     }
 
-    var total = this.totalSec() || 1;
     var colors = [
-      "rgba(110,160,190,0.22)",
-      "rgba(150,130,190,0.22)",
-      "rgba(190,150,120,0.22)",
-      "rgba(120,170,150,0.22)"
+      "linear-gradient(135deg, rgba(84,132,168,0.32), rgba(58,92,128,0.16))",
+      "linear-gradient(135deg, rgba(132,110,178,0.32), rgba(92,76,136,0.16))",
+      "linear-gradient(135deg, rgba(182,138,104,0.32), rgba(138,98,70,0.16))",
+      "linear-gradient(135deg, rgba(96,154,134,0.32), rgba(66,114,98,0.16))"
     ];
     for (var i = 0; i < this.segments.length; i++) {
       (function(idx) {
@@ -619,7 +673,10 @@
         var el = document.createElement("div");
         el.className = "tl-seg" + (idx === self.index ? " on" : "");
         el.style.background = colors[idx % colors.length];
-        el.style.flex = ((self.durationSec(idx) / total) * 100) + " 1 0";
+        el.setAttribute("data-idx", idx);
+        // 时间线做成可横向滚动的长条：段落按分钟占宽，像剪辑软件一样往右还能接着排
+        var segPx = Math.max(104, Math.min(480, Math.round(self.durationSec(idx) / 60 * 30)));
+        el.style.flex = "0 0 " + segPx + "px";
 
         var nm = document.createElement("span");
         nm.className = "tl-seg-name";
@@ -631,7 +688,65 @@
         el.appendChild(nm);
         el.appendChild(du);
 
+        // 主体验证后固定索引：拖动排序时 render 会重建 DOM，所以拖动中只改样式，松手才真正 moveSegment
+        var dragFrom = idx;
+        el.onpointerdown = function(e) {
+          if (e.button) return;
+          var startX = e.clientX;
+          var moved = false;
+          var target = -1;
+          var blocks = [];
+
+          function collect() {
+            blocks = [];
+            var all = strip.querySelectorAll(".tl-seg");
+            for (var k = 0; k < all.length; k++) {
+              blocks.push({ el: all[k], mid: all[k].getBoundingClientRect().left + all[k].getBoundingClientRect().width / 2 });
+            }
+          }
+          function paint() {
+            for (var k = 0; k < blocks.length; k++) {
+              blocks[k].el.classList.toggle("drop-target", k === target);
+            }
+          }
+          function move(ev) {
+            if (!moved && Math.abs(ev.clientX - startX) < 8) return;
+            if (!moved) {
+              moved = true;
+              collect();
+              el.classList.add("is-sorting");
+            }
+            ev.preventDefault();
+            target = -1;
+            var bestD = 1e9;
+            for (var k = 0; k < blocks.length; k++) {
+              var d = Math.abs(ev.clientX - blocks[k].mid);
+              if (d < bestD) { bestD = d; target = k; }
+            }
+            paint();
+          }
+          function up() {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            window.removeEventListener("pointercancel", up);
+            el.classList.remove("is-sorting");
+            for (var k = 0; k < blocks.length; k++) blocks[k].el.classList.remove("drop-target");
+            if (!moved) return;
+            if (target >= 0 && target !== dragFrom) {
+              self.moveSegment(dragFrom, target);
+              self.toast("已挪到第 " + (target + 1) + " 段");
+            }
+            // 拖动后抑制紧跟的 click，避免又跳段
+            el.dataset.suppressClick = "1";
+            setTimeout(function() { el.dataset.suppressClick = ""; }, 80);
+          }
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+          window.addEventListener("pointercancel", up);
+        };
+
         el.onclick = function() {
+          if (el.dataset.suppressClick === "1") return;
           self.jumpToSegment(idx, 0, true);
           self.toast("选中第 " + (idx + 1) + " 段 · " + seg.name);
         };

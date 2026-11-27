@@ -124,7 +124,7 @@ function yexiPayWall(productId) {
       sub.textContent = "商品还没配好，稍后再试。";
       return;
     }
-    sub.textContent = "解锁后能用全部素材，生成也不限次数。到期自动停，不会自动续费。";
+    sub.textContent = "免费每天 2 次；购买体验包额外叠加 3 次。每次生成附带 3 次免费 AI 修改，用完后每扣 1 次可继续改 2 次（追问不扣，DIY 手动调不限次），并解锁 30 天全库 41 段素材（收藏作品到期后仍永久可听）。";
     var html = "";
     for (var i = 0; i < d.products.length; i++) {
       var p = d.products[i];

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>夜息 · 支付结果</title>
-<link rel="stylesheet" href="theme.css?v=12">
+<link rel="stylesheet" href="theme.css?v=13">
 <style>
   body {
     margin: 0;
@@ -104,17 +104,54 @@ function setWait(text) {
   document.getElementById("desc").textContent = text;
 }
 
-function renderQuota(ent) {
+function renderQuota(ent, quota) {
   var el = document.getElementById("quota");
-  if (!ent) { el.textContent = ""; return; }
+  if (!ent && !quota) { el.textContent = ""; return; }
   var parts = [];
-  if (ent.download && ent.download.quota > 0) {
-    parts.push("剩余导出 " + ent.download.quota + " 次");
+  var paidLeft = (quota && typeof quota.paid_left === "number")
+    ? quota.paid_left
+    : ((ent && ent.gen_quota && ent.gen_quota.active) ? (ent.gen_quota.quota || 0) : 0);
+  if (paidLeft > 0) {
+    parts.push("已购剩余 " + paidLeft + " 次");
   }
-  if (ent.commercial && ent.commercial.active) {
+  if ((quota && quota.unlocked) || (ent && ((ent.full && ent.full.active) || (ent.full_library && ent.full_library.active)))) {
+    parts.push("全库素材已解锁");
+  }
+  if (ent && ent.commercial && ent.commercial.active) {
     parts.push("商用授权已开通");
   }
   el.textContent = parts.join(" · ");
+}
+
+function pollNowpay() {
+  if (!yToken()) {
+    setWait("登录状态掉了，重新登录后可以在「我的」里查看。");
+    return;
+  }
+  yGet("/api/quota")
+    .then(function (r) { return r.json(); })
+    .then(function (q) {
+      renderQuota(null, q);
+      if (q && ((typeof q.paid_left === "number" && q.paid_left > 0) || q.unlimited)) {
+        var cnt = typeof q.paid_left === "number" ? q.paid_left : 0;
+        setDone(cnt > 0
+          ? ("付款成功，当前共有 " + cnt + " 次已购生成次数（并已解锁全库）。")
+          : "付款成功，全库与不限次权益已生效。");
+        return;
+      }
+      tries = tries + 1;
+      if (tries < 8) {
+        setWait("支付刚到，系统在同步到账（" + tries + "/8）…");
+        setTimeout(pollNowpay, 1600);
+      } else {
+        setWait("还没查到即刻收余额同步。如果已扣款，回到「我的」或「AI 配声」刷新即可看到。");
+      }
+    })
+    .catch(function () {
+      tries = tries + 1;
+      if (tries < 8) setTimeout(pollNowpay, 1600);
+      else setWait("网络不稳，暂时查不到结果。");
+    });
 }
 
 function poll() {
@@ -129,9 +166,9 @@ function poll() {
   yGet("/api/pay/query?order=" + encodeURIComponent(orderNo))
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      renderQuota(d.entitlements);
+      renderQuota(d.entitlements, null);
       if (d.status === "paid") {
-        setDone("可以带走这条声音了。次数已经记在你的账号上。");
+        setDone("已到账，次数与全库权益已经记在你的账号上。");
         return;
       }
       tries = tries + 1;
@@ -153,7 +190,11 @@ function poll() {
 }
 
 orderNo = q("order");
-poll();
+if (q("nowpay") === "1") {
+  pollNowpay();
+} else {
+  poll();
+}
 </script>
 </body>
 </html>

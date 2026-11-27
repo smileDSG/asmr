@@ -31,8 +31,24 @@ _ORDER_LOCK = threading.Lock()
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE, "pay_config.json")
 
-# 环境变量开关。不打开就完全不碰支付宝。
-ENABLED = os.environ.get("YEXI_NOWPAY", "").strip().lower() in ("1", "true", "yes")
+def _read_env_file(path):
+    """从 env 文件读 YEXI_NOWPAY——不依赖 systemd 是否显式注入环境变量。"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("YEXI_NOWPAY="):
+                    return line.split("=", 1)[1].strip().strip("'\"")
+    except Exception:
+        pass
+    return ""
+
+
+# 环境变量或 /etc/yexi.env 开关。不打开就完全不碰支付宝。
+_NOWPAY_RAW = os.environ.get("YEXI_NOWPAY", "").strip() or (
+    _read_env_file("/etc/yexi.env") if os.path.exists("/etc/yexi.env") else ""
+)
+ENABLED = _NOWPAY_RAW.lower() in ("1", "true", "yes")
 
 # 官方文档里的 6 个接口名，逐个封装在下面
 M_CHARGE = "alipay.aipay.nowpaydirect.charge.query"
@@ -239,8 +255,13 @@ def quota_query(user_id, product_key):
     )
 
 
+def new_consume_request_no():
+    """生成单次核销幂等请求号，便于异常时用同一单号调 quota_refresh 复查。"""
+    return _request_no("consume")
+
+
 # ---------------- 5. 核销次数 ----------------
-def quota_verify(user_id, product_key, amount=1, reason="生成一次助眠音频"):
+def quota_verify(user_id, product_key, amount=1, reason="生成一次助眠音频", out_request_no=""):
     """
     真正消费时才调这个。光查到余额够，不等于已经扣掉了。
     必须自己保存 out_request_no，结果不确定时用原请求号查。
@@ -248,16 +269,21 @@ def quota_verify(user_id, product_key, amount=1, reason="生成一次助眠音�
     out_product_id = _product_id(product_key)
     if not out_product_id:
         return {"code": "ERROR", "error": "商品还没配置好"}
-    return _call(
+    req_no = str(out_request_no or "").strip() or _request_no("consume")
+    res = _call(
         M_QUOTA_VERIFY,
         {
-            "out_request_no": _request_no("consume"),
+            "out_request_no": req_no,
             "out_product_id": out_product_id,
             "external_buyer_id": str(user_id),
             "amount": amount,
             "consume_reason": reason[:256],
         },
     )
+    if isinstance(res, dict):
+        res = dict(res)
+        res["_out_request_no"] = req_no
+    return res
 
 
 # ---------------- 6. 查核销结果 ----------------

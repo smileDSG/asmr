@@ -16,6 +16,7 @@
 
 import hashlib
 import io
+import json
 import os
 import re
 import sys
@@ -329,6 +330,90 @@ def check_extra(base):
             bad(name + "能打开", "HTTP " + str(code))
 
 
+def _get_json(base, path):
+    code, headers, body, cost = http(base, path, timeout=20)
+    if code != 200:
+        return code, None, cost, "HTTP " + str(code)
+    try:
+        return code, json.loads(body.decode("utf-8")), cost, ""
+    except Exception as e:
+        return code, None, cost, "JSON 解析失败：" + wrap(e)
+
+
+def check_api(base):
+    code, data, cost, err = _get_json(base, "/api/health")
+    if not data or not isinstance(data, dict):
+        bad("服务健康接口", err or "返回格式异常")
+    else:
+        db_ok = bool(data.get("db"))
+        cat_count = int(data.get("catalog_count") or 0)
+        free_pct = float(data.get("disk_free_pct") or 0.0)
+        err_5m = int(data.get("server_5xx_5m") or 0)
+        if data.get("ok") and db_ok and cat_count >= 40:
+            ok("服务健康接口", f"db=ok，音轨={cat_count}，磁盘剩余={free_pct}%，{round(cost * 1000)} ms")
+        else:
+            bad("服务健康接口", f"ok={data.get('ok')} db={db_ok} catalog={cat_count}")
+        if 0 < free_pct < 15:
+            warn("服务器磁盘空间", f"剩余仅 {free_pct}%")
+        if err_5m > 0:
+            warn("近期 5xx 报错", f"最近 5 分钟出现 {err_5m} 次服务端 5xx")
+
+    code, cat_data, _, err = _get_json(base, "/api/catalog")
+    if not cat_data:
+        bad("声音目录接口", err or "返回为空")
+    else:
+        sounds = (cat_data.get("items") or cat_data.get("sounds")) if isinstance(cat_data, dict) else cat_data
+        if isinstance(sounds, list) and len(sounds) >= 40:
+            ok("声音目录接口", f"返回 {len(sounds)} 段音轨")
+        else:
+            bad("声音目录接口", "音轨数量异常：" + str(len(sounds) if isinstance(sounds, list) else type(sounds).__name__))
+
+    code, posts_data, _, err = _get_json(base, "/api/community_posts")
+    if not posts_data or not isinstance(posts_data, dict) or "posts" not in posts_data:
+        bad("广场列表接口", err or "缺少 posts 字段")
+    else:
+        ok("广场列表接口", f"HTTP 200，{len(posts_data.get('posts') or [])} 条")
+
+    code, pay_data, _, err = _get_json(base, "/api/pay/products")
+    if not pay_data or not isinstance(pay_data, dict):
+        bad("支付商品接口", err or "返回格式异常")
+    else:
+        mode = str(pay_data.get("mode") or "")
+        if "47.101.59.166" in base and mode == "mock":
+            bad("支付模式校验", "线上竟处于 mock 模式，请检查 YEXI_PAY_MODE=prod")
+        else:
+            ok("支付商品接口", f"mode={mode or 'default'}，商品数={len(pay_data.get('products') or [])}")
+
+
+def _notify_webhook(base):
+    url = (os.environ.get("YEXI_ALERT_WEBHOOK") or "").strip()
+    if not url or not failures:
+        return
+    title = f"夜息线上巡检失败（{len(failures)} 项）"
+    detail = f"目标：{base}\n" + "\n".join("- " + f for f in failures)
+    text = f"[夜息告警] {title}\n{detail}"
+    low = url.lower()
+    if "feishu.cn" in low or "larksuite.com" in low:
+        payload = {"msg_type": "text", "content": {"text": text}}
+    elif "dingtalk.com" in low or "qyapi.weixin.qq.com" in low:
+        payload = {"msgtype": "text", "text": {"content": text}}
+    elif "api.day.app" in low or "/push" in low:
+        payload = {"title": title, "body": detail[:500]}
+    else:
+        payload = {"text": text, "title": title, "message": detail}
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read(256)
+    except Exception as e:
+        print("[! ] 告警推送失败：" + wrap(e))
+
+
 def main():
     args = sys.argv[1:]
     base = DEFAULT_BASE
@@ -359,6 +444,7 @@ def main():
         check_apk(base)
     check_qr(base)
     check_extra(base)
+    check_api(base)
 
     print("-" * 60)
     print("通过 " + str(pass_count) + " 项，警告 " + str(warn_count) + " 项，失败 " + str(fail_count) + " 项")
@@ -367,6 +453,7 @@ def main():
         print("坏在哪：")
         for f in failures:
             print("  - " + f)
+        _notify_webhook(base)
         sys.exit(1)
     print("安装包链路正常，可以对外发。")
 

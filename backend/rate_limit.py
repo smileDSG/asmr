@@ -34,6 +34,7 @@ STREAM_PATHS = {
 GENERATE_PATHS = {
     "/api/generate",
     "/api/agent_chat",
+    "/api/task/submit",
     "/api/preview",
     "/api/download",
     "/api/export_commercial",

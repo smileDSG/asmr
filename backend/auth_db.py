@@ -7,6 +7,7 @@
 #   - 登录错误统一文案，防用户枚举；失败次数限制，防暴力破解
 # 只用标准库，不装任何包。
 
+from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
@@ -14,6 +15,13 @@ import os
 import secrets
 import sqlite3
 import time
+
+_TZ_CN = timezone(timedelta(hours=8))
+
+
+def _today_str():
+    """统一使用北京时间（UTC+8），避免服务器 UTC 时区导致早上 8 点才重置。"""
+    return datetime.now(_TZ_CN).strftime("%Y-%m-%d")
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE, "data")
@@ -210,6 +218,23 @@ def init_db():
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_feedback_created
         ON feedback(created_at DESC)
+    """)
+    # 音频系谱：记录每次生成附带的 3 次免费修改额度，以及用 1 次机会换 2 次修改的余量
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS audio_lineages (
+            lineage_id  TEXT PRIMARY KEY,
+            user_id     INTEGER,
+            client_id   TEXT NOT NULL DEFAULT '',
+            ip          TEXT NOT NULL DEFAULT '',
+            edits_left  INTEGER NOT NULL DEFAULT 0,
+            total_edits INTEGER NOT NULL DEFAULT 0,
+            created_at  REAL NOT NULL,
+            updated_at  REAL NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audio_lineages_client
+        ON audio_lineages(client_id, user_id)
     """)
     conn.commit()
     conn.close()
@@ -599,6 +624,31 @@ def consume_entitlement(user_id, kind, n=1):
     return ok
 
 
+def refund_entitlement(user_id, kind, n=1):
+    """退还一次预占的计次权益（例如 LLM 追问或渲染异常时退回）。"""
+    if not user_id or n <= 0:
+        return False
+    now = time.time()
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "UPDATE entitlements SET quota = quota + ?, updated_at = ? WHERE user_id=? AND kind=?",
+            (n, now, user_id, kind),
+        )
+        if cur.rowcount == 0:
+            conn.execute(
+                """
+                INSERT INTO entitlements(user_id, kind, quota, expire_at, updated_at)
+                VALUES(?,?,?,0,?)
+            """,
+                (user_id, kind, n, now),
+            )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 def list_entitlements(user_id):
     now = time.time()
     conn = connect()
@@ -619,7 +669,7 @@ def list_entitlements(user_id):
 
 def peek_daily_quota(owner_key, limit):
     # 看一眼今天还剩几次，不消耗
-    day = time.strftime("%Y-%m-%d")
+    day = _today_str()
     conn = connect()
     row = conn.execute(
         "SELECT used FROM daily_quota WHERE owner_key=? AND day=?", (owner_key, day)
@@ -631,7 +681,7 @@ def peek_daily_quota(owner_key, limit):
 
 def take_daily_quota(owner_key, limit):
     # 原子扣一次：只有 used 还没到上限才 +1，并发下也不会超额
-    day = time.strftime("%Y-%m-%d")
+    day = _today_str()
     conn = connect()
     conn.execute(
         "INSERT OR IGNORE INTO daily_quota(owner_key, day, used) VALUES(?,?,0)",
@@ -650,6 +700,321 @@ def take_daily_quota(owner_key, limit):
     conn.close()
     used = row[0] if row else 0
     return ok, {"used": used, "limit": limit, "left": max(0, limit - used)}
+
+
+def _dedup_keys(keys):
+    seen = set()
+    out = []
+    for k in keys or []:
+        s = str(k or "").strip()
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _quota_snapshot(used_map, clean_keys, limits_map):
+    if not clean_keys:
+        return {"used": 0, "limit": 0, "left": 0, "by_key": {}}
+    primary_limit = min(int(limits_map.get(k, 0)) for k in clean_keys)
+    left = min(
+        max(0, int(limits_map.get(k, 0)) - int(used_map.get(k, 0)))
+        for k in clean_keys
+    )
+    used = max(0, primary_limit - left)
+    return {"used": used, "limit": primary_limit, "left": left, "by_key": used_map}
+
+
+def peek_free_quota(keys, limits_map):
+    """查看多维度键（账号/设备/IP）今天还剩几次免费额度，不消耗。"""
+    clean_keys = _dedup_keys(keys)
+    if not clean_keys:
+        return {"used": 0, "limit": 0, "left": 0, "by_key": {}}
+    day = _today_str()
+    marks = ",".join("?" for _ in clean_keys)
+    conn = connect()
+    try:
+        rows = conn.execute(
+            f"SELECT owner_key, used FROM daily_quota WHERE day=? AND owner_key IN ({marks})",
+            tuple([day] + clean_keys),
+        ).fetchall()
+    finally:
+        conn.close()
+    used_map = {k: 0 for k in clean_keys}
+    for ok_key, val in rows:
+        used_map[ok_key] = int(val or 0)
+    return _quota_snapshot(used_map, clean_keys, limits_map)
+
+
+def reserve_free_quota(keys, limits_map):
+    """在单个 SQLite 写事务内原子检查并预占所有键的今日免费额度，防并发超扣。"""
+    clean_keys = _dedup_keys(keys)
+    if not clean_keys:
+        return False, {"used": 0, "limit": 0, "left": 0, "by_key": {}}
+    day = _today_str()
+    marks = ",".join("?" for _ in clean_keys)
+    conn = connect()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        for k in clean_keys:
+            conn.execute(
+                "INSERT OR IGNORE INTO daily_quota(owner_key, day, used) VALUES(?,?,0)",
+                (k, day),
+            )
+        rows = conn.execute(
+            f"SELECT owner_key, used FROM daily_quota WHERE day=? AND owner_key IN ({marks})",
+            tuple([day] + clean_keys),
+        ).fetchall()
+        used_map = {k: int(v or 0) for k, v in rows}
+        for k in clean_keys:
+            if used_map.get(k, 0) >= int(limits_map.get(k, 0)):
+                conn.execute("ROLLBACK")
+                return False, _quota_snapshot(used_map, clean_keys, limits_map)
+        for k in clean_keys:
+            conn.execute(
+                "UPDATE daily_quota SET used = used + 1 WHERE owner_key=? AND day=?",
+                (k, day),
+            )
+            used_map[k] = used_map.get(k, 0) + 1
+        conn.execute("COMMIT")
+        return True, _quota_snapshot(used_map, clean_keys, limits_map)
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def refund_free_quota(keys):
+    """退还一次预占的今日免费额度（例如追问/拦截/渲染报错时）。"""
+    clean_keys = _dedup_keys(keys)
+    if not clean_keys:
+        return
+    day = _today_str()
+    conn = connect()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        for k in clean_keys:
+            conn.execute(
+                "UPDATE daily_quota SET used = MAX(0, used - 1) WHERE owner_key=? AND day=?",
+                (k, day),
+            )
+        conn.execute("COMMIT")
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def merge_daily_quota(from_keys, to_key):
+    """登录或迁移时把游客设备今天已用次数同步给账号，防止用完 2 次再登录白嫖。"""
+    to_k = str(to_key or "").strip()
+    sources = _dedup_keys(from_keys)
+    if not to_k or not sources:
+        return
+    all_keys = _dedup_keys(sources + [to_k])
+    day = _today_str()
+    marks = ",".join("?" for _ in all_keys)
+    conn = connect()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = conn.execute(
+            f"SELECT owner_key, used FROM daily_quota WHERE day=? AND owner_key IN ({marks})",
+            tuple([day] + all_keys),
+        ).fetchall()
+        max_used = max((int(r[1] or 0) for r in rows), default=0)
+        if max_used > 0:
+            conn.execute(
+                """
+                INSERT INTO daily_quota(owner_key, day, used) VALUES(?,?,?)
+                ON CONFLICT(owner_key, day) DO UPDATE SET used = MAX(daily_quota.used, excluded.used)
+            """,
+                (to_k, day, max_used),
+            )
+        conn.execute("COMMIT")
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def create_audio_lineage(user_id, client_id, ip, initial_edits=3):
+    """生成一段新音频后签发 lineage_id，默认附带 3 次免费 AI 修改。"""
+    lid = secrets.token_hex(12)
+    now = time.time()
+    conn = connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO audio_lineages(
+                lineage_id, user_id, client_id, ip, edits_left, total_edits, created_at, updated_at
+            ) VALUES(?,?,?,?,?,0,?,?)
+        """,
+            (
+                lid,
+                user_id if user_id else None,
+                str(client_id or "").strip(),
+                str(ip or "").strip(),
+                max(0, int(initial_edits)),
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        return lid
+    finally:
+        conn.close()
+
+
+def _lineage_owned_by(row_uid, row_cid, row_ip, user_id, client_id, ip):
+    if row_uid is not None:
+        return bool(user_id and int(user_id) == int(row_uid))
+    if row_cid:
+        return bool(client_id and str(client_id) == str(row_cid))
+    return bool(ip and str(ip) == str(row_ip))
+
+
+def reserve_lineage_edit(lineage_id, user_id, client_id, ip):
+    """在写事务内校验归属并原子预占 1 次修改额度。
+    返回 ('ok', edits_left_after) / ('empty', 0) / ('invalid', 0)。
+    """
+    lid = str(lineage_id or "").strip()
+    if not lid:
+        return "invalid", 0
+    now = time.time()
+    conn = connect()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT user_id, client_id, ip, edits_left FROM audio_lineages WHERE lineage_id=?",
+            (lid,),
+        ).fetchone()
+        if not row:
+            conn.execute("ROLLBACK")
+            return "invalid", 0
+        row_uid, row_cid, row_ip, edits_left = row
+        if not _lineage_owned_by(row_uid, row_cid, row_ip, user_id, client_id, ip):
+            conn.execute("ROLLBACK")
+            return "invalid", 0
+        edits_left = int(edits_left or 0)
+        if edits_left <= 0:
+            conn.execute("ROLLBACK")
+            return "empty", 0
+        cur = conn.execute(
+            """
+            UPDATE audio_lineages
+            SET edits_left = edits_left - 1, total_edits = total_edits + 1, updated_at = ?
+            WHERE lineage_id = ? AND edits_left >= 1
+        """,
+            (now, lid),
+        )
+        if cur.rowcount != 1:
+            conn.execute("ROLLBACK")
+            return "empty", 0
+        conn.execute("COMMIT")
+        return "ok", edits_left - 1
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def refund_lineage_edit(lineage_id, n=1):
+    """追问或渲染失败时退还预占的修改次数。"""
+    lid = str(lineage_id or "").strip()
+    if not lid or n <= 0:
+        return
+    now = time.time()
+    conn = connect()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            UPDATE audio_lineages
+            SET edits_left = edits_left + ?, total_edits = MAX(0, total_edits - ?), updated_at = ?
+            WHERE lineage_id = ?
+        """,
+            (n, n, now, lid),
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def refill_lineage_edits(lineage_id, add_left=1):
+    """用 1 次生成机会换 2 次修改时，本次扣掉 1 次、剩余 +add_left 次写入记录。"""
+    lid = str(lineage_id or "").strip()
+    if not lid:
+        return 0
+    now = time.time()
+    conn = connect()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            UPDATE audio_lineages
+            SET edits_left = edits_left + ?, total_edits = total_edits + 1, updated_at = ?
+            WHERE lineage_id = ?
+        """,
+            (max(0, int(add_left)), now, lid),
+        )
+        row = conn.execute(
+            "SELECT edits_left FROM audio_lineages WHERE lineage_id = ?", (lid,)
+        ).fetchone()
+        conn.execute("COMMIT")
+        return int(row[0] or 0) if row else 0
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def claim_guest_lineages(client_id, user_id):
+    """游客登录后把同设备刚生成的音频修改额度绑定到账号，不丢失剩余修改次数。"""
+    cid = str(client_id or "").strip()
+    if not cid or not user_id:
+        return
+    now = time.time()
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE audio_lineages SET user_id = ?, updated_at = ? WHERE user_id IS NULL AND client_id = ?",
+            (int(user_id), now, cid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def save_memory(user_id, kind, data):
