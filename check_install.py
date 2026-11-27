@@ -1,8 +1,10 @@
 # 夜息自检：安装包到底能不能下、下下来是不是好的、页面是不是最新版
 #
 # 用法：
-#   python check_install.py                  # 检查线上（默认地址）
+#   python check_install.py                  # 检查线上（默认地址，全量检查）
 #   python check_install.py http://ip:8000   # 检查别的地址（比如本机起的 8011）
+#   python check_install.py --light          # 轻量巡检：不下载整个 APK（省流量），
+#                                            # 其余照查，适合挂定时任务每小时跑
 #   python check_install.py --make-qr        # 重新生成下载二维码，顺带自检
 #
 # 任何一项打 [X] 就是坏的，脚本退出码 1，方便挂定时任务报警。
@@ -331,13 +333,18 @@ def main():
     args = sys.argv[1:]
     base = DEFAULT_BASE
     do_qr = False
+    light = False
     for a in args:
         if a == "--make-qr":
             do_qr = True
+        elif a == "--light":
+            light = True
         elif a.startswith("http"):
             base = a.rstrip("/")
 
     print("检查地址：" + base)
+    if light:
+        print("模式：轻量巡检（不下载 APK 本体）")
     print("-" * 60)
 
     if do_qr:
@@ -346,7 +353,10 @@ def main():
 
     check_page(base)
     check_head(base)
-    check_apk(base)
+    if not light:
+        # 全量下载 APK 校验很耗服务器带宽，定时巡检用 --light 跳过，
+        # 但部署后自检必须跑（保证新部署的包是完整的）
+        check_apk(base)
     check_qr(base)
     check_extra(base)
 

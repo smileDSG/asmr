@@ -1,0 +1,35 @@
+name: 线上巡检（每小时）
+
+# 定时从外网检查线上安装链路是否还活着：
+# 安装页 / HEAD 探文件 / 二维码 / m.html / home.html。
+# 轻量模式不下载 APK 本体（几十 MB，每小时下一次太耗服务器带宽）；
+# APK 全量校验放在 deploy.yml 的部署后自检里做。
+#
+# 失败时 GitHub Actions 自动给仓库所有者发邮件，
+# 不用再手动跑 python check_install.py 了。
+
+on:
+  schedule:
+    # 每小时第 23 分钟跑一次（避开整点高峰）
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+jobs:
+  selfcheck:
+    name: 轻量巡检
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 拉取代码（要 check_install.py）
+        uses: actions/checkout@v4
+
+      - name: 安装 Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 安装二维码校验依赖
+        run: python -m pip install pillow qrcode
+
+      - name: 运行轻量巡检
+        run: python check_install.py --light
