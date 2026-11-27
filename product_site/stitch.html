@@ -793,10 +793,29 @@
       cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
     }
     #stitchDrawer.dragging .stitch-drawer-handle { cursor: grabbing; }
-    .sd-grip { width: 40px; height: 4px; flex: 0 0 40px; border-radius: 2px; background: rgba(255,255,255,0.34); }
-    .sd-label { flex: 1; text-align: left; }
-    .sd-arrow { font-size: 18px; line-height: 1; color: var(--y-warm); transition: transform 0.3s ease; }
+    .sd-grip {
+      width: 40px; height: 4px; flex: 0 0 40px; border-radius: 2px;
+      background: rgba(233,183,131,0.65);
+      box-shadow: 0 0 8px rgba(233,183,131,0.45);
+    }
+    /* 收起时的把手要一眼能看到：暖色文字 + 微微呼吸 */
+    .sd-label {
+      flex: 1; text-align: left; font-weight: 500;
+      color: var(--y-warm);
+      animation: y-breathe 2.8s ease-in-out infinite;
+      transform-origin: left center;
+    }
+    .sd-arrow {
+      font-size: 18px; line-height: 1; color: var(--y-warm);
+      transition: transform 0.3s ease;
+      animation: y-breathe 2.8s ease-in-out infinite;
+    }
+    #stitchDrawer.open .sd-label,
+    #stitchDrawer.open .sd-arrow { animation: none; }
     #stitchDrawer.open .sd-arrow { transform: rotate(180deg); }
+    @media (prefers-reduced-motion: reduce) {
+      .sd-label, .sd-arrow { animation: none; }
+    }
     .stitch-drawer-tabs {
       flex: 0 0 auto;
       display: grid;
@@ -1864,7 +1883,7 @@ soundPickerModal.onclick = function(e) { if (e.target === soundPickerModal) soun
 // ===== 底部两页抽屉：选声音 / 调这段 =====
 var sdDrawer = document.getElementById("stitchDrawer");
 var sdHandle = document.getElementById("stitchDrawerHandle");
-var SD_PEEK = 50;
+var SD_PEEK = 58;
 var sdVisible = SD_PEEK;
 var sdDrag = null;
 var sdMoved = false;
