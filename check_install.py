@@ -259,6 +259,11 @@ def check_qr(base):
         bad("下载二维码", "不是 PNG，文件坏了")
         return
     try:
+        from PIL import Image
+    except Exception:
+        warn("下载二维码", "图片能访问，但本机没装 Pillow，跳过内容校验（pip install pillow qrcode）")
+        return
+    try:
         got, mods, box = qr_matrix_from_png(body)
     except Exception as e:
         bad("下载二维码", "读不出模块：" + wrap(e))
@@ -266,9 +271,14 @@ def check_qr(base):
 
     expect_url = base + APK_PATH
     try:
+        import qrcode
+    except Exception:
+        warn("下载二维码", str(mods) + "x" + str(mods) + " 模块，但本机没装 qrcode 库，跳过内容校验")
+        return
+    try:
         want = qr_matrix_for(expect_url)
     except Exception as e:
-        warn("下载二维码", str(mods) + "x" + str(mods) + " 模块，但本机没装 qrcode 库，跳过内容校验")
+        warn("下载二维码", str(mods) + "x" + str(mods) + " 模块，内容校验失败：" + wrap(e))
         return
 
     if len(want) != mods:
