@@ -1915,12 +1915,8 @@
         </div>
 
         <div class="stage-box" id="soundStage">
-          <svg class="stage-svg" viewBox="0 0 400 276" preserveAspectRatio="none" aria-hidden="true">
-            <circle cx="200" cy="240" r="62" fill="none" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 6" />
-            <circle cx="200" cy="240" r="124" fill="none" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3 6" />
-            <circle cx="200" cy="240" r="188" fill="none" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4 7" />
-            <line x1="200" y1="240" x2="200" y2="22" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 6" />
-          </svg>
+          <!-- 弧线由 renderStageArcs() 按舞台实际尺寸画，和节点用同一个圆心 -->
+          <svg class="stage-svg" id="stageSvg" viewBox="0 0 400 276" preserveAspectRatio="none" aria-hidden="true"></svg>
           <span class="stage-axis-label top">正前</span>
           <span class="stage-axis-label left">左窗</span>
           <span class="stage-axis-label right">右侧</span>
@@ -2201,22 +2197,22 @@ function guideLockStep(step) {
   for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
   var list = [];
   if (step === "base") {
-    // 第 1 页：先讲抽屉。自动拉开，只放行抽屉里的声音卡，不看模板
-    var handle = document.getElementById("drawerHandle");
-    if (handle && handle.offsetParent !== null) handle.click();
+    // 第 1 页：先讲抽屉。只拉开一次，不能 click 把手（会二次触发 onclick 又收回去）
+    if (window.yexiDrawer) window.yexiDrawer.open();
     list = document.querySelectorAll(".lib-item:not(.locked), #drawerHandle, .panel-tab, #mobileDrawer .panel-view, #mobileDrawer button, #mobileDrawer input");
   } else if (step === "baseTpl") {
-    // 第 2 页：再讲模板这个快捷方式。只放行模板条和换一组
-    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn");
+    // 第 2 页：讲模板。抽屉强制收起，但把手仍允许用户自己拉
+    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn, #drawerHandle");
   } else if (step === "make") {
     list = document.querySelectorAll(".stage-node, .panel-view input[type=range], .panel-view .seg-btn, .panel-view .density-btn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
   } else if (step === "save") {
-    var b = document.getElementById("saveWorkBtn");
-    if (b) list = [b];
+    list = document.querySelectorAll("#saveWorkBtn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
   } else if (step === "publish") {
-    var p = document.getElementById("publishBtn");
-    if (p) list = [p];
+    list = document.querySelectorAll("#publishBtn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
   }
+  // 把手任何时候都要能上下拉，不然用户调着调着就卡住
+  var handle = document.getElementById("drawerHandle");
+  if (handle && Array.prototype.indexOf.call(list, handle) < 0) list = Array.prototype.slice.call(list).concat([handle]);
   for (var j = 0; j < list.length; j++) list[j].classList.add("guide-allowed");
 }
 function guideUnlockAll() {
@@ -2261,6 +2257,12 @@ if (IS_EMBEDDED) {
       guideLockStep(e.data.step);
     } else if (e.data.type === "yexi-guide-unlock") {
       guideUnlockAll();
+    } else if (e.data.type === "yexi-drawer-close") {
+      if (window.yexiDrawer) window.yexiDrawer.close();
+    } else if (e.data.type === "yexi-drawer-open") {
+      if (window.yexiDrawer) window.yexiDrawer.open();
+    } else if (e.data.type === "yexi-drawer-tune") {
+      if (window.yexiDrawer) window.yexiDrawer.openTune();
     } else if (e.data.type === "yexi-get-mix") {
       try {
         var payload = typeof currentItemsPayload === "function" ? currentItemsPayload() : [];
@@ -2819,35 +2821,93 @@ function stageMetrics() {
   var w = stageEl.clientWidth || 360;
   var h = stageEl.clientHeight || 276;
   var cx = w * 0.5;
-  // 嵌在 tab 壳里时底部抽屉会盖住舞台下沿，把节点整体上移，保证拉满抽屉时也能拖到
-  var cy = h * (IS_EMBEDDED && window.innerWidth <= 619 ? 0.62 : 0.87);
-  var rMax = Math.min(w * 0.43, h * 0.72);
-  var rMin = Math.max(30, Math.min(w * 0.13, 44));
-  var maxAngle = (74 * Math.PI) / 180;
-  return { w: w, h: h, cx: cx, cy: cy, rMax: rMax, rMin: rMin, maxAngle: maxAngle };
+  // 弧线、监听者和节点必须共用这一个圆心。以前嵌入模式把节点圆心单独挪到 0.62h，
+  // 弧线还在 0.87h，节点看着就跑到边界外，也够不到「你」。
+  var cy = h * 0.87;
+  // 不画边界框，范围放到最大：只保证节点标签不出舞台
+  var rMax = Math.min(w * 0.5, cy - 24);
+  var rMin = 14;
+  var maxAngle = (88 * Math.PI) / 180;
+  var sideRoom = Math.max(28, w * 0.5 - 58 - 4);
+  return { w: w, h: h, cx: cx, cy: cy, rMax: rMax, rMin: rMin, maxAngle: maxAngle, sideRoom: sideRoom };
 }
 
-function trackToStageXY(tr, m) {
-  var angle = clamp(tr.pan, -1, 1) * m.maxAngle;
-  var wNorm = clamp((tr.weight - 0.05) / 0.95, 0, 1);
-  var r = m.rMin + (1 - wNorm) * (m.rMax - m.rMin);
+function stagePoint(m, r, angle) {
   return {
     x: m.cx + r * Math.sin(angle),
     y: m.cy - r * Math.cos(angle)
   };
 }
 
+// 靠两侧时自动缩短半径，保证节点标签不出舞台；正中间能拉到最远
+function stageRadiusLimit(m, angle) {
+  var s = Math.abs(Math.sin(angle));
+  if (s < 0.02) return m.rMax;
+  return Math.min(m.rMax, m.sideRoom / s);
+}
+
+// 弧线按真实几何画，边界就是节点能被拖到的最外圈
+function renderStageArcs(m) {
+  var svg = document.getElementById("stageSvg");
+  if (!svg) return;
+  var ns = "http://www.w3.org/2000/svg";
+  svg.setAttribute("viewBox", "0 0 " + m.w + " " + m.h);
+  svg.innerHTML = "";
+
+  // 不画范围框：只留几圈极淡的虚线当远近参考，边界靠拖动时的吸附感传达
+  var steps = 40;
+  function angleAt(i) { return -m.maxAngle + (2 * m.maxAngle) * i / steps; }
+
+  for (var k = 0; k < 3; k++) {
+    var frac = k / 2;
+    var ringD = "";
+    for (var t = 0; t <= steps; t++) {
+      var ang = angleAt(t);
+      var limit = stageRadiusLimit(m, ang);
+      var rr = m.rMin + (limit - m.rMin) * frac;
+      var pt = stagePoint(m, rr, ang);
+      ringD += (t === 0 ? "M " : " L ") + pt.x.toFixed(1) + " " + pt.y.toFixed(1);
+    }
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", ringD);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "rgba(255,255,255,0.05)");
+    path.setAttribute("stroke-dasharray", "3 8");
+    svg.appendChild(path);
+  }
+
+  var line = document.createElementNS(ns, "line");
+  line.setAttribute("x1", m.cx);
+  line.setAttribute("y1", m.cy - m.rMax);
+  line.setAttribute("x2", m.cx);
+  line.setAttribute("y2", m.cy - m.rMin);
+  line.setAttribute("stroke", "rgba(255,255,255,0.05)");
+  line.setAttribute("stroke-dasharray", "2 6");
+  svg.appendChild(line);
+}
+
+function trackToStageXY(tr, m) {
+  var angle = clamp(tr.pan, -1, 1) * m.maxAngle;
+  var wNorm = clamp((tr.weight - 0.05) / 0.95, 0, 1);
+  var limit = stageRadiusLimit(m, angle);
+  var r = m.rMin + (1 - wNorm) * (limit - m.rMin);
+  return stagePoint(m, r, angle);
+}
+
 function stageXYToTrackParams(px, py, m) {
   var dx = px - m.cx;
-  var dy = Math.max(8, m.cy - py);
-  var angle = clamp(Math.atan2(dx, dy), -m.maxAngle, m.maxAngle);
-  var pan = clamp(angle / m.maxAngle, -1, 1);
+  var dy = m.cy - py;   // 舞台上方为正，允许拖到「你」以下再投影回来
   var dist = Math.sqrt(dx * dx + dy * dy);
-  var wNorm = clamp(1 - (dist - m.rMin) / (m.rMax - m.rMin), 0, 1);
-  var weight = clamp(0.05 + wNorm * 0.95, 0.05, 1);
+  var angle = Math.atan2(dx, dy);
+  // 先把手指位置投影进整个上半场，再换算 pan/weight；反算回来正好落在这个点上
+  angle = clamp(angle, -m.maxAngle, m.maxAngle);
+  var limit = stageRadiusLimit(m, angle);
+  dist = clamp(dist, m.rMin, limit);
+  var pan = angle / m.maxAngle;
+  var wNorm = 1 - (dist - m.rMin) / (limit - m.rMin);
   return {
     pan: Math.round(pan * 100) / 100,
-    weight: Math.round(weight * 100) / 100
+    weight: Math.round((0.05 + wNorm * 0.95) * 100) / 100
   };
 }
 
@@ -2872,6 +2932,7 @@ function syncStageSelectionClass() {
 function renderStageNodes() {
   stageEmptyEl.style.display = tracks.length === 0 ? "flex" : "none";
   stageNodesEl.innerHTML = "";
+  renderStageArcs(stageMetrics());
   if (tracks.length === 0) {
     stageHudEl.classList.remove("show");
     return;
@@ -2916,8 +2977,8 @@ function renderStageNodes() {
           if (Math.abs(ev.clientX - startX) > 6 || Math.abs(ev.clientY - startY) > 6) didMove = true;
           var rect = stageEl.getBoundingClientRect();
           var mNow = stageMetrics();
-          var px = clamp(ev.clientX - rect.left, 16, mNow.w - 16);
-          var py = clamp(ev.clientY - rect.top, 16, mNow.h - 28);
+          var px = clamp(ev.clientX - rect.left, 8, mNow.w - 8);
+          var py = clamp(ev.clientY - rect.top, 8, mNow.h - 8);
           var next = stageXYToTrackParams(px, py, mNow);
 
           tracks[idx].weight = next.weight;
@@ -4487,6 +4548,7 @@ if (drawerHandleBtn && mobileDrawerBox) {
   var drawerVisible = DRAWER_PEEK;
   var drawerDrag = null;       // 拖动中：{ y, from }
   var drawerMoved = false;     // 这次是不是真拖了（避免松手又触发 click）
+  var drawerWasOpen = false;   // 记录上次状态，只在刚拉开时滚一次
 
   function drawerMax() {
     return Math.max(mobileDrawerBox.offsetHeight, DRAWER_PEEK + 2);
@@ -4500,6 +4562,12 @@ if (drawerHandleBtn && mobileDrawerBox) {
     var opened = drawerVisible > DRAWER_PEEK + 4;
     mobileDrawerBox.classList.toggle("open", opened);
     drawerHandleBtn.setAttribute("aria-expanded", opened ? "true" : "false");
+    // 抽屉从下往上盖住声场时，把声场滚到可见区；只做一次，拖动中绝不自动滚（会把把手从手指下挪走）
+    if (!drawerDrag && IS_EMBEDDED && window.innerWidth <= 619 && opened && !drawerWasOpen) {
+      var stageTop = stageEl.getBoundingClientRect().top + window.scrollY - 8;
+      if (stageTop > 4) window.scrollTo({ top: stageTop, behavior: "smooth" });
+    }
+    drawerWasOpen = opened;
   }
   function drawerSet(v) {
     drawerVisible = Math.max(DRAWER_PEEK, Math.min(v, drawerMax()));
@@ -4514,6 +4582,17 @@ if (drawerHandleBtn && mobileDrawerBox) {
     drawerSet(best);
   }
   drawerPaint();
+  // 给外框引导用：讲模板前强制收起，讲创作时直接弹出到调参数
+  window.yexiDrawer = {
+    close: function() { drawerSet(DRAWER_PEEK); },
+    // 只升高抽屉，不换面板：铺底第 1 页还要留在「选声音」
+    open: function() { drawerSet(drawerMax()); },
+    // 创作步骤用：升抽屉并切到「调参数」
+    openTune: function() {
+      switchPanelTab("tune");
+      drawerSet(drawerMax());
+    }
+  };
 
   drawerHandleBtn.addEventListener("pointerdown", function(e) {
     if (e.button) return;

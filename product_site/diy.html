@@ -54,6 +54,15 @@
     background: rgba(233,183,131,0.14);
     color: var(--y-warm);
   }
+  /* 引导要用户点「做拼接」时，把真 tab 高亮出来（不是假按钮） */
+  .diy-seg-btn.yexi-step-focus {
+    outline: 2px solid #ffd39a;
+    outline-offset: 3px;
+    background: rgba(233,183,131,0.24);
+    color: #ffe0b4;
+    box-shadow: 0 0 18px rgba(255,190,120,0.5);
+    animation: diy-step-breathe 2s ease-in-out infinite;
+  }
   .diy-caption {
     margin: 10px 0 2px;
     font-size: 12px;
@@ -385,14 +394,17 @@ var demoing = false;
 
 function renderPath() {
   if (demoing) return;
-  var active = currentStepKey();
+  // 引导开着时，进度条只跟引导游标（1/4 · 1/2）走；
+  // 子页面上报动作、点步骤条都不能提前把一步标成完成。
+  var inGuide = guideMode === "do" || guideMode === "tell";
+  var active = inGuide ? STEPS[guideIndex].key : currentStepKey();
   var btns = document.querySelectorAll(".diy-step");
   for (var i = 0; i < btns.length; i++) {
     var k = btns[i].getAttribute("data-step");
     btns[i].classList.toggle("on", k === active);
-    btns[i].classList.toggle("done", !!stepState[k]);
+    btns[i].classList.toggle("done", inGuide ? i < guideIndex : !!stepState[k]);
   }
-  var finished = allStepsDone();
+  var finished = !inGuide && allStepsDone();
   document.getElementById("diyPath").classList.toggle("finished", finished);
   document.getElementById("diyPathHint").classList.toggle("finished", finished);
   var hint = "";
@@ -402,11 +414,19 @@ function renderPath() {
   document.getElementById("diyPathHint").textContent = hint;
 }
 
-function markStepDone(key) {
+// 系统检测到用户做了动作只记账，不替他打勾；带着我做时完成只认「我完成了」
+var stepActionSeen = { base: false, make: false, save: false, publish: false };
+function markStepDone(key, fromAction) {
   if (!stepState.hasOwnProperty(key) || stepState[key]) return;
+  if (guideMode === "do" && fromAction) {
+    stepActionSeen[key] = true;
+    return;
+  }
   stepState[key] = true;
   persistSteps();
   if (demoing) return;
+  // 引导中进度条由 guideShow() 按游标重画，别在这里提前改
+  if (guideMode === "do" || guideMode === "tell") return;
   renderPath();
   // 刚完成的那一步扫一次淡光；完成后不弹窗、不遮播放
   var doneBtn = document.querySelector('.diy-step[data-step="' + key + '"]');
@@ -436,6 +456,11 @@ for (var si = 0; si < stepBtns.length; si++) {
         switchPane(STEPS[i].pane);
       }
     }
+    // 点「创作」直接弹出抽屉并切到调参数，不用再自己找入口
+    if (key === "make") {
+      if (currentPane !== "mix") switchPane("mix");
+      try { panes.mix.contentWindow.postMessage({ type: "yexi-drawer-tune" }, "*"); } catch (e) {}
+    }
     // 让对应视图滚过去并闪一下控件
     try { panes[currentPane].contentWindow.postMessage({ type: "yexi-goto-step", step: key }, "*"); } catch (e) {}
   };
@@ -462,7 +487,8 @@ var GUIDE_TEXT = {
   ],
   make: [
     "拖左边=左耳响，拖右边=右耳响，放中间=两边一样。",
-    "越往上越清楚响亮，越往下越轻、像在远处。"
+    "越往上越清楚响亮，越往下越轻、像在远处。",
+    "点上面「做拼接」，把几段接成一夜；拖段落右边改长短。"
   ],
   save: "点这里存到「我的作品」，下次回来还能接着听。",
   publish: "点这里写一句话，就能寄到广场给别人听。"
@@ -529,12 +555,43 @@ function guideShow() {
   if (step.pane && step.pane !== currentPane) switchPane(step.pane);
   var pane = panes[currentPane];
   var focusStep = key;
-  // 铺底第 1 页指抽屉，第 2 页指模板；创作第 1 页指声场、第 2 页也指声场
-  if (key === "base" && guideSub === 1) focusStep = "baseTpl";
-  try { pane.contentWindow.postMessage({ type: "yexi-goto-step", step: focusStep, hold: true }, "*"); } catch (e) {}
+
+  // 顶部 tab 的旧高亮先清掉。创作最后一页教「做拼接」，这一页才放行那个 tab。
+  var segBtns = document.querySelectorAll(".diy-seg-btn");
+  var q;
+  for (q = 0; q < segBtns.length; q++) segBtns[q].classList.remove("yexi-step-focus");
+  var teachStitch = (key === "make" && guideSub === 2);
   if (guideMode === "do") {
-    try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-lock", step: focusStep }, "*"); } catch (e) {}
-    try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-lock", step: focusStep }, "*"); } catch (e) {}
+    for (q = 0; q < segBtns.length; q++) {
+      segBtns[q].disabled = !(segBtns[q].getAttribute("data-pane") === "stitch" && teachStitch);
+    }
+  }
+
+  if (key === "base" && guideSub === 1) {
+    // 讲模板前先把抽屉收回去，不然模板条还被压在下面
+    focusStep = "baseTpl";
+    try { panes.mix.contentWindow.postMessage({ type: "yexi-drawer-close" }, "*"); } catch (e) {}
+  } else if (key === "make" && guideSub < 2) {
+    // 讲左右和远近时直接把抽屉弹到「调参数」，不用用户自己找入口
+    try { panes.mix.contentWindow.postMessage({ type: "yexi-drawer-tune" }, "*"); } catch (e) {}
+  }
+
+  if (teachStitch) {
+    // 高亮的是真的顶部 tab，让用户自己点过去；拼接页时间线也一起亮着
+    var stitchTab = document.querySelector('.diy-seg-btn[data-pane="stitch"]');
+    if (stitchTab) {
+      stitchTab.classList.remove("yexi-step-focus");
+      void stitchTab.offsetWidth;
+      stitchTab.classList.add("yexi-step-focus");
+    }
+    try { panes.stitch.contentWindow.postMessage({ type: "yexi-goto-step", step: "make", hold: true }, "*"); } catch (e) {}
+  } else {
+    try { pane.contentWindow.postMessage({ type: "yexi-goto-step", step: focusStep, hold: true }, "*"); } catch (e) {}
+  }
+  if (guideMode === "do") {
+    var lockStep = teachStitch ? "make" : focusStep;
+    try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-lock", step: lockStep }, "*"); } catch (e) {}
+    try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-lock", step: lockStep }, "*"); } catch (e) {}
   }
   var btn = document.querySelector('.diy-step[data-step="' + key + '"]');
   if (btn) {
@@ -543,11 +600,16 @@ function guideShow() {
     btn.classList.add("flash");
     setTimeout(function() { btn.classList.remove("flash"); }, 1100);
   }
+  // 四步条以引导游标为准，每次翻页都重画一次
+  renderPath();
 }
 
 function guideEnd() {
   setGuideLock(false);
+  var focusBtns = document.querySelectorAll(".diy-seg-btn.yexi-step-focus");
+  for (var fb = 0; fb < focusBtns.length; fb++) focusBtns[fb].classList.remove("yexi-step-focus");
   guideMode = "";
+  renderPath();
   guideBar.classList.add("hide");
   try { panes[currentPane].contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
   try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
@@ -599,7 +661,7 @@ resetBtn.onclick = function() {
 window.addEventListener("message", function(e) {
   if (!e.data || typeof e.data !== "object") return;
   if (e.data.type === "yexi-step-done") {
-    markStepDone(e.data.step);
+    markStepDone(e.data.step, true);
     // 门槛完成只记账；「带着我做」的推进由用户点「我完成了」决定，系统不替他推进
   } else if (e.data.type === "yexi-request-mix") {
     try { paneMix.contentWindow.postMessage({ type: "yexi-get-mix" }, "*"); } catch (err) {}

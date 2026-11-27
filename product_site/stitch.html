@@ -1488,7 +1488,7 @@ function renderSavedWorks() {
 }
 
 function loadRemoteStitchWorks() {
-  fetch(API + "/api/recipes", { headers: authHeaders() })
+  yGet("/api/recipes")
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(d) {
       if (d && Array.isArray(d.recipes)) {
