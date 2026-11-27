@@ -55,13 +55,17 @@
     color: #fce5c8;
   }
   /* 引导要用户点「做拼接」时，把真 tab 高亮出来（不是假按钮） */
-  .diy-seg-btn.yexi-step-focus {
-    outline: 2px solid #ffd39a;
-    outline-offset: 3px;
-    background: rgba(233,183,131,0.24);
-    color: #ffe0b4;
-    box-shadow: 0 0 18px rgba(255,190,120,0.5);
-    animation: diy-step-breathe 2s ease-in-out infinite;
+  .diy-seg-btn.yexi-step-focus,
+  .diy-seg-btn.yexi-step-hold {
+    outline: 3px solid #ffd39a !important;
+    outline-offset: 3px !important;
+    background: rgba(233,183,131,0.32) !important;
+    color: #fff0d8 !important;
+    box-shadow: 0 0 0 5px rgba(255,190,120,0.3),
+                0 0 28px rgba(255,190,120,0.75) !important;
+    animation: diy-step-breathe 1.8s ease-in-out infinite !important;
+    position: relative;
+    z-index: 2;
   }
   .diy-caption-row {
     display: flex;
@@ -156,9 +160,10 @@
     gap: 6px;
     margin-top: 8px;
     padding: 9px 11px;
-    border: 1px solid rgba(255, 198, 130, 0.45);
+    border: 2px solid rgba(255, 198, 130, 0.9);
     border-radius: 10px;
-    background: rgba(233, 183, 131, 0.12);
+    background: rgba(233, 183, 131, 0.16);
+    box-shadow: 0 0 18px rgba(255, 190, 120, 0.3), inset 0 0 12px rgba(255, 190, 120, 0.12);
     font-size: 11.5px;
     line-height: 1.55;
   }
@@ -207,6 +212,16 @@
     color: #e9dcc7;
     width: 100%;
   }
+  /* 每步一句「为什么要这么做」，跟操作句分开，读起来不闷 */
+  .diy-guide-bar .g-tip {
+    width: 100%;
+    padding-left: 8px;
+    border-left: 2px solid rgba(255, 198, 130, 0.55);
+    color: #bfb2a0;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .diy-guide-bar .g-tip.hide { display: none; }
   .diy-guide-bar .g-actions {
     display: flex;
     justify-content: flex-end;
@@ -228,9 +243,9 @@
   .diy-guide-bar .g-prev.hide { display: none; }
   .diy-guide-bar .g-next-btn {
     flex: 0 0 auto;
-    border: 1px solid rgba(255, 198, 130, 0.6);
+    border: 2px solid rgba(255, 198, 130, 0.85);
     border-radius: 999px;
-    background: rgba(255, 198, 130, 0.16);
+    background: rgba(255, 198, 130, 0.22);
     color: #ffd39a;
     font-family: inherit;
     font-size: 11px;
@@ -244,11 +259,21 @@
     color: #ffe6c6;
   }
   @keyframes diy-step-breathe {
-    0%, 100% { box-shadow: 0 0 12px rgba(255,190,120,0.35); }
-    50% { box-shadow: 0 0 28px rgba(255,190,120,0.8); }
+    0%, 100% {
+      outline-color: rgba(255,211,154,0.9);
+      box-shadow: 0 0 0 4px rgba(255,190,120,0.22), 0 0 20px rgba(255,190,120,0.6);
+    }
+    50% {
+      outline-color: #fff0d8;
+      box-shadow: 0 0 0 7px rgba(255,190,120,0.45), 0 0 40px rgba(255,190,120,0.95);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .diy-seg-btn.yexi-step-focus { animation: none; box-shadow: 0 0 18px rgba(255,190,120,0.6); }
+    .diy-seg-btn.yexi-step-focus, .diy-seg-btn.yexi-step-hold {
+      animation: none;
+      outline: 3px solid #ffd39a !important;
+      outline-offset: 3px !important;
+    }
   }
 
   .diy-panes {
@@ -293,7 +318,7 @@
       <button type="button" class="diy-help-btn hide" id="diyHelpBtn">看教程</button>
     </div>
     <div class="diy-intro-bar" id="diyIntroBar">
-      <span class="diy-intro-text">第一次来？6 步带你从铺底走到拼接</span>
+      <span class="diy-intro-text">第一次来？10 步带你从铺底走到拼接，一步一个动作</span>
       <span class="diy-intro-acts">
         <button type="button" class="diy-intro-start" id="diyGuideBtn">开始教程</button>
         <button type="button" class="diy-intro-dismiss" id="diyDismissBtn" aria-label="暂不需要">×</button>
@@ -307,6 +332,7 @@
         <button type="button" class="g-close" id="guideClose" aria-label="退出引导">×</button>
       </div>
       <div class="g-text" id="guideText"></div>
+      <div class="g-tip" id="guideTip"></div>
       <div class="g-actions">
         <button type="button" class="g-prev hide" id="guidePrev">‹ 上一步</button>
         <button type="button" class="g-next-btn" id="guideNext">下一步 ›</button>
@@ -399,62 +425,104 @@ if (paneMix.getAttribute("src") !== mixSrc) {
 }
 if (wanted === "stitch") switchPane("stitch");
 
-// ===== 6 步线性引导：先「做底层」闭环，再「做拼接」延展；不弹窗、不锁页面 =====
-var STEP_KEY = "yexi_diy_path_v1";
+// ===== 10 步引导：先「做底层」一层层铺，再「做拼接」一段段接 =====
+// 每一步只讲一个动作，配一句「为什么要这么做」，控件持续高亮等用户做完。
+var STEP_KEY = "yexi_diy_path_v2";
 var GUIDE_STEPS = [
   {
-    id: "base",
+    id: "drawer",
     pane: "mix",
-    title: "做底层 · 挑声音",
-    focusStep: "base",
-    actionKeys: ["base"],
+    title: "做底层 · 先把抽屉拉起来",
+    focusStep: "drawer",
+    actionKeys: ["drawer"],
     text: function() {
       if (window.innerWidth <= 619) {
-        return "做底层刚开始也是空的。点下方「选声音 · 调参数 · 作品」挑声音：1 层底幕 + 1~2 层纹理或点缀就够，再点一次取消，顶上模板可一键套用。";
+        return "加声音全靠屏幕最下面那条「选声音 · 调参数 · 作品」。轻点它一下，抽屉就升起来；按住把手上下拖能自己定露多高，再点一下收回。";
       }
-      return "做底层刚开始也是空的。在右侧「选声音」挑声音：1 层底幕 + 1~2 层纹理或点缀就够，再点一次取消，顶上模板可一键套用。";
-    }
+      return "加声音全靠右边这块面板。它顶上三个页签：「选声音」找素材、「调参数」改这一层、「作品」翻你存过的。";
+    },
+    tip: "抽屉里的声音分三类：底幕打底、纹理加细节、点缀偶尔响一下。下面三步一类一个，别一次点一堆。"
+  },
+  {
+    id: "bed",
+    pane: "mix",
+    title: "第 1 类 · 底幕选一个",
+    focusStep: "layerBed",
+    actionKeys: ["layer:bed", "base"],
+    text: "先看「底幕」这一格（已经替你切好了）。在下面的素材里点 1 个：雨声、海浪、溪流、炉火都在这层，它整晚垫在最底下。",
+    tip: "点一下变亮打勾就是选中，声场里会多出一个圆点；点错了再点一次就取消。"
+  },
+  {
+    id: "texture",
+    pane: "mix",
+    title: "第 2 类 · 纹理选一个",
+    focusStep: "layerTexture",
+    actionKeys: ["layer:texture"],
+    text: "切到「纹理」，再挑 1 个：采耳、梳发、翻书这类带动作感的声音，给耳朵一点可以跟着走的细节。",
+    tip: "0~2 层就够。叠太多会互相盖住，反而听不清谁是谁。"
+  },
+  {
+    id: "accent",
+    pane: "mix",
+    title: "第 3 类 · 点缀选一个",
+    focusStep: "layerAccent",
+    actionKeys: ["layer:accent"],
+    text: "最后切「点缀」，挑 1 个：羽毛、轻敲、虫鸣——它们只在偶尔响一下，负责提神，不抢戏。",
+    tip: "只想要纯雨声的话，这一步可以直接跳过；后面随时能回来补。"
   },
   {
     id: "make",
     pane: "mix",
-    title: "做底层 · 调声场",
+    title: "把每一层拖到该在的位置",
     focusStep: "make",
     actionKeys: ["make"],
     closeMixDrawer: true,
-    text: "拖声场里的圆点：左右定左右耳，上下定远近轻重。轻点某个圆点可打开「调参数」，改循环/偶发频率或删掉这一层。"
+    text: "看中间的声场：每层声音是一个圆点。按住圆点拖——左右决定偏哪只耳朵，上下决定远还是近。",
+    tip: "轻点某个圆点会打开「调参数」，在那儿改音量、循环、偶发频率，或把这一层删掉。"
   },
   {
     id: "save",
     pane: "mix",
-    title: "做底层 · 保存去听",
+    title: "存下来，或现在就听着睡",
     focusStep: "save",
     actionKeys: ["save"],
     closeMixDrawer: true,
-    text: "调顺耳了点「保存」存进我的作品。之后去底栏「我的」点「今晚听这个」就能在首页睡前播；想立刻听着睡点「定时入睡」。"
+    text: "听着顺耳了就点「保存」，它会进「我的作品」；想现在就睡，点旁边的「定时入睡」，到点自动淡出。",
+    tip: "保存后去底栏「我的」→「今晚听这个」，也能直接在首页睡前播。"
+  },
+  {
+    id: "stitch_drawer",
+    pane: "stitch",
+    title: "做拼接 · 先认识控制台",
+    focusStep: "stitchDrawer",
+    actionKeys: ["drawer"],
+    flashStitchTab: true,
+    text: function() {
+      if (window.innerWidth <= 819) {
+        return "切到「做拼接」了。先看最下面那条抽屉：轻点把手升起来，按住能拖高。里面两个页签——「选声音」给这一段加声，「调这段」管音量、过渡和时长。";
+      }
+      return "切到「做拼接」了。右边那块设置卡片就是控制台：上半截加这一段的声层，下半截管这一段播多久、怎么跟下一段过渡。";
+    },
+    tip: "拼接是把几段不同的夜接成一整晚：段与段之间平滑交叉，不改原始录音音色。"
   },
   {
     id: "stitch_sound",
     pane: "stitch",
-    title: "做拼接 · 给段配声",
+    title: "建第一段，给它配声",
     focusStep: "stitchSound",
     actionKeys: ["stitchSound", "base", "make"],
-    flashStitchTab: true,
-    text: function() {
-      if (window.innerWidth <= 819) {
-        return "做拼接刚开始是空的。先点右上角「+ 加一段」，再拉起下方「选声音 · 调这段」挑声音，或点「导入做底层配方」直接用上刚才配的。";
-      }
-      return "做拼接刚开始是空的。先点右上角「+ 加一段」，再在右侧给这段加声音、改过渡，或点「导入做底层配方」直接用上刚才配的。";
-    }
+    text: "点「+ 加一段」建出第一段，再拉抽屉「选声音」给它挑 1~4 层；嫌麻烦就点「导入做底层配方」，把刚配好的那套整段搬过来。",
+    tip: "每段建议 2~4 层：一层底幕托住，再叠 1~2 层纹理或点缀，太少会显得空。"
   },
   {
     id: "stitch_timeline",
     pane: "stitch",
-    title: "做拼接 · 排顺序改时长",
+    title: "排顺序、改时长、听衔接",
     focusStep: "make",
     actionKeys: ["make"],
     closeStitchDrawer: true,
-    text: "时间线可左右滑动，右上角「+ 加一段」可新增段落。按住某段左右拖改顺序，拖右边缘改时长，点「试听衔接」听两段怎么过渡。"
+    text: "时间线可以左右滑。按住某一段左右拖能改顺序，拖它的右边缘能改时长，点两段中间「试听衔接」听听过渡顺不顺。",
+    tip: "右上角「+ 加一段」随时能补段落；先排顺序再改时长，比反过来省事。"
   },
   {
     id: "stitch_finish",
@@ -463,7 +531,8 @@ var GUIDE_STEPS = [
     focusStep: "stitchFinish",
     actionKeys: ["save", "publish"],
     closeStitchDrawer: true,
-    text: "拼好后点「保存」会列在上方方便载入。想分享给别人点「发广场」（需登录，发出后可撤回）；只想自己听直接点「完成」即可。"
+    text: "拼好点「保存」，会列在上方方便下次载入；想给别人听点「发广场」（需登录，发出后可撤回）；只想自己听，点「完成」就行。",
+    tip: "发广场前记得先试听整条时间线——它按顺序连着播，不是各段各放一遍。"
   }
 ];
 
@@ -497,6 +566,7 @@ var guideStepNo = document.getElementById("guideStepNo");
 var guideTitle = document.getElementById("guideTitle");
 var guideSeen = document.getElementById("guideSeen");
 var guideText = document.getElementById("guideText");
+var guideTip = document.getElementById("guideTip");
 var guidePrev = document.getElementById("guidePrev");
 var guideNext = document.getElementById("guideNext");
 var guideClose = document.getElementById("guideClose");
@@ -545,6 +615,11 @@ function guideShow() {
   guideStepNo.textContent = (guideIndex + 1) + " / " + GUIDE_STEPS.length;
   guideTitle.textContent = step.title;
   guideText.textContent = (typeof step.text === "function") ? step.text() : step.text;
+  if (guideTip) {
+    var tipText = (typeof step.tip === "function") ? step.tip() : (step.tip || "");
+    guideTip.textContent = tipText;
+    guideTip.classList.toggle("hide", !tipText);
+  }
   guidePrev.classList.toggle("hide", guideIndex === 0);
   guideNext.textContent = (guideIndex === GUIDE_STEPS.length - 1) ? "完成" : "下一步 ›";
   updateGuideSeenUI(step);

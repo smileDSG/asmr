@@ -1839,25 +1839,42 @@
   /* 嵌在 tab 壳里时抽屉和独立页保持同样舒展高度 */
   body.embedded #mobileDrawer { max-height: min(74dvh, calc(100dvh - 96px)); }
   body.embedded #mobileDrawer .panel-view { max-height: calc(min(74dvh, calc(100dvh - 96px)) - 122px); }
-  /* 点步骤条=闪一下；引导 hold=一直呼吸，直到这一步做完 */
-  .yexi-step-focus { animation: yexi-step-glow 1.6s ease-out 1; }
+  /* 6步引导高亮：3px 实线描边 + 双层光晕 + 持续呼吸，绝不能让用户找不到要点哪里 */
+  .yexi-step-focus,
   .yexi-step-hold {
-    outline: 2px solid rgba(255,211,154,0.9) !important;
+    outline: 3px solid #ffd39a !important;
     outline-offset: 3px !important;
-    box-shadow: 0 0 22px rgba(255,190,120,0.55) !important;
+    border-radius: 10px;
+    box-shadow: 0 0 0 5px rgba(255,190,120,0.3),
+                0 0 28px rgba(255,190,120,0.75),
+                inset 0 0 18px rgba(255,190,120,0.22) !important;
     animation: yexi-step-breathe 1.8s ease-in-out infinite !important;
-  }
-  @keyframes yexi-step-glow {
-    0%, 100% { outline: 0 solid rgba(233,183,131,0); box-shadow: 0 0 0 rgba(233,183,131,0); }
-    20%, 60% { outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; box-shadow: 0 0 18px rgba(233,183,131,0.25); }
+    position: relative;
+    z-index: 2;
   }
   @keyframes yexi-step-breathe {
-    0%, 100% { box-shadow: 0 0 14px rgba(255,190,120,0.35); }
-    50% { box-shadow: 0 0 30px rgba(255,190,120,0.8); }
+    0%, 100% {
+      outline-color: rgba(255,211,154,0.85);
+      box-shadow: 0 0 0 4px rgba(255,190,120,0.22),
+                  0 0 20px rgba(255,190,120,0.55),
+                  inset 0 0 12px rgba(255,190,120,0.16);
+    }
+    50% {
+      outline-color: #fff0d8;
+      box-shadow: 0 0 0 7px rgba(255,190,120,0.42),
+                  0 0 40px rgba(255,190,120,0.95),
+                  inset 0 0 24px rgba(255,190,120,0.3);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .yexi-step-focus, .yexi-step-hold { animation: none; outline: 2px solid rgba(255,211,154,0.9); outline-offset: 3px; }
+    .yexi-step-focus, .yexi-step-hold {
+      animation: none;
+      outline: 3px solid #ffd39a !important;
+      outline-offset: 3px !important;
+    }
   }
+  /* 素材格里被指到的那个，名字也跟着变暖色，一眼看出「从这里挑一个」 */
+  .lib-item.yexi-step-hold .li-name { color: #ffd39a; }
   /* 带着我做：这一步只允许指定控件可点，其它控件变暗且不响应 */
   body.guide-locked button:not(.guide-allowed),
   body.guide-locked input:not(.guide-allowed),
@@ -2185,13 +2202,15 @@ function reportDiyStep(step) {
 
 // 创作路径：外壳引导时滚过去并高亮对应控件。
 // hold=true 时保持高亮，等用户真的做完这一步；不是闪一下就没。
-var guideHoldEl = null;
+// 一步可能同时指多个控件（页签 + 头几个素材格），所以按数组存。
+var guideHoldEls = [];
 function clearGuideFocus() {
-  if (guideHoldEl) {
-    guideHoldEl.classList.remove("yexi-step-focus");
-    guideHoldEl.classList.remove("yexi-step-hold");
-    guideHoldEl = null;
+  for (var g = 0; g < guideHoldEls.length; g++) {
+    if (!guideHoldEls[g]) continue;
+    guideHoldEls[g].classList.remove("yexi-step-focus");
+    guideHoldEls[g].classList.remove("yexi-step-hold");
   }
+  guideHoldEls = [];
 }
 
 // 当前引导步骤；用来判断「从声音库挑声音」算铺底还是算微调
@@ -2230,28 +2249,54 @@ function guideUnlockAll() {
   var allowed = document.querySelectorAll(".guide-allowed");
   for (var i = 0; i < allowed.length; i++) allowed[i].classList.remove("guide-allowed");
 }
-function focusDiyStep(step, hold) {
-  var id = "";
-  if (step === "base") id = (window.innerWidth <= 619) ? "drawerHandle" : "mobileDrawer";
-  else if (step === "baseTpl") id = "presetsPanel";
-  else if (step === "make") id = "soundStage";
-  else if (step === "save") id = "saveWorkBtn";
-  else if (step === "publish") id = "publishBtn";
-  clearGuideFocus();
-  var el = document.getElementById(id);
-  if (!el) return;
-  try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { el.scrollIntoView(); }
-  el.classList.remove("yexi-step-focus");
-  el.classList.remove("yexi-step-hold");
-  void el.offsetWidth;
-  el.classList.add("yexi-step-focus");
-  if (hold) {
-    // 引导中持续呼吸，不能只靠一次性动画——播完就没等于没高亮
-    el.classList.add("yexi-step-hold");
-    guideHoldEl = el;
-  } else {
-    setTimeout(function() { el.classList.remove("yexi-step-focus"); }, 1700);
+// 这一步该指给用户看哪些控件。返回数组，第一个负责滚动定位。
+function guideTargetsOf(step) {
+  var list = [];
+  var mobile = window.innerWidth <= 619;
+  if (step === "drawer" || step === "base") {
+    list.push(document.getElementById(mobile ? "drawerHandle" : "mobileDrawer"));
+  } else if (step === "baseTpl") {
+    list.push(document.getElementById("presetsPanel"));
+  } else if (step === "layerBed" || step === "layerTexture" || step === "layerAccent") {
+    var key = step === "layerBed" ? "bed" : (step === "layerTexture" ? "texture" : "accent");
+    // 先把抽屉拉到最高、切到这一层，再同时指页签和第一个素材格：
+    // 只指页签用户还得自己找格子，只指格子又不知道要切分类。
+    // 拉满而不是半开：手机上一行素材格在抽屉中部以下，半开正好被切掉。
+    if (mobile && window.yexiDrawer) window.yexiDrawer.open();
+    if (typeof switchLayerTab === "function") switchLayerTab(key);
+    list.push(document.querySelector('#layerTabs .layer-pill[data-layer="' + key + '"]'));
+    var items = document.querySelectorAll("#layeredLibrary .lib-item:not(.locked)");
+    // 只指第一个：两个同时发光用户会犹豫「到底点哪个」，一个才是最明确的落点
+    if (items.length) list.push(items[0]);
+  } else if (step === "make") {
+    list.push(document.getElementById("soundStage"));
+  } else if (step === "save") {
+    list.push(document.getElementById("saveWorkBtn"));
+  } else if (step === "publish") {
+    list.push(document.getElementById("publishBtn"));
   }
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && out.indexOf(list[i]) < 0) out.push(list[i]);
+  }
+  return out;
+}
+
+function focusDiyStep(step, hold) {
+  clearGuideFocus();
+  var els = guideTargetsOf(step);
+  if (!els.length) return;
+  try { els[0].scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { els[0].scrollIntoView(); }
+  for (var i = 0; i < els.length; i++) {
+    els[i].classList.remove("yexi-step-focus");
+    els[i].classList.remove("yexi-step-hold");
+    void els[i].offsetWidth;   // 重置动画，重新开始呼吸
+    els[i].classList.add("yexi-step-focus");
+    // 高亮一直保持，直到 clearGuideFocus() 在下一步/退出引导时清除。
+    // 之前闪 1.7 秒就没了，用户根本注意不到。
+    els[i].classList.add("yexi-step-hold");
+  }
+  guideHoldEls = els;
 }
 
 if (IS_EMBEDDED) {
@@ -3170,6 +3215,10 @@ function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint, us
 function toggleLibrarySound(sound) {
   // 从声音库挑声音属于「铺底」；引导已走到创作以后再加层才算微调
   reportDiyStep(guideStepNow === "base" || guideStepNow === "baseTpl" || guideStepNow === "" ? "base" : "make");
+  // 引导按「底幕 / 纹理 / 点缀」分步讲，所以把点的是哪一层也报上去，
+  // 外壳才知道用户是不是真的在这一类里选了一个。
+  var layerOfSound = ySoundMeta(sound.path).layer;
+  if (layerOfSound) reportDiyStep("layer:" + layerOfSound);
   if (hasTrack(sound.path)) {
     removeTrack(sound.path);
     return;
@@ -4620,6 +4669,8 @@ if (drawerHandleBtn && mobileDrawerBox) {
   drawerHandleBtn.onclick = function() {
     if (drawerMoved) { drawerMoved = false; return; }
     drawerSet(drawerVisible > DRAWER_PEEK + 4 ? DRAWER_PEEK : drawerMax());
+    // 引导第 1 步就是「把抽屉拉起来」，用户点了/拉开了就该打勾
+    if (drawerVisible > DRAWER_PEEK + 4) reportDiyStep("drawer");
   };
   // 换 tab 后内容高度会变，露出的高度跟着夹回合法区间
   if (window.ResizeObserver) {

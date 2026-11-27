@@ -710,23 +710,39 @@
   body.embedded .page-hero { display: none !important; }
   body.embedded .wrap-wide { padding-top: 10px; padding-bottom: 26px; }
   body.embedded .stitch-layout { margin-top: 4px; }
-  .yexi-step-focus { animation: yexi-step-glow 1.6s ease-out 1; }
+  /* 6步引导高亮：3px 实线描边 + 双层光晕 + 持续呼吸，绝不能让用户找不到要点哪里 */
+  .yexi-step-focus,
   .yexi-step-hold {
-    outline: 2px solid rgba(255,211,154,0.9) !important;
+    outline: 3px solid #ffd39a !important;
     outline-offset: 3px !important;
-    box-shadow: 0 0 22px rgba(255,190,120,0.55) !important;
+    border-radius: 10px;
+    box-shadow: 0 0 0 5px rgba(255,190,120,0.3),
+                0 0 28px rgba(255,190,120,0.75),
+                inset 0 0 18px rgba(255,190,120,0.22) !important;
     animation: yexi-step-breathe 1.8s ease-in-out infinite !important;
-  }
-  @keyframes yexi-step-glow {
-    0%, 100% { outline: 0 solid rgba(233,183,131,0); box-shadow: 0 0 0 rgba(233,183,131,0); }
-    20%, 60% { outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; box-shadow: 0 0 18px rgba(233,183,131,0.25); }
+    position: relative;
+    z-index: 2;
   }
   @keyframes yexi-step-breathe {
-    0%, 100% { box-shadow: 0 0 14px rgba(255,190,120,0.35); }
-    50% { box-shadow: 0 0 30px rgba(255,190,120,0.8); }
+    0%, 100% {
+      outline-color: rgba(255,211,154,0.85);
+      box-shadow: 0 0 0 4px rgba(255,190,120,0.22),
+                  0 0 20px rgba(255,190,120,0.55),
+                  inset 0 0 12px rgba(255,190,120,0.16);
+    }
+    50% {
+      outline-color: #fff0d8;
+      box-shadow: 0 0 0 7px rgba(255,190,120,0.42),
+                  0 0 40px rgba(255,190,120,0.95),
+                  inset 0 0 24px rgba(255,190,120,0.3);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .yexi-step-focus, .yexi-step-hold { animation: none; outline: 2px solid rgba(255,211,154,0.9); outline-offset: 3px; }
+    .yexi-step-focus, .yexi-step-hold {
+      animation: none;
+      outline: 3px solid #ffd39a !important;
+      outline-offset: 3px !important;
+    }
   }
   /* 带着我做：这一步只允许指定控件可点，其它控件变暗且不响应 */
   body.guide-locked button:not(.guide-allowed),
@@ -1069,13 +1085,15 @@ function reportDiyStep(step) {
   }
 }
 
-var guideHoldEl = null;
+// 一步可能同时指多个控件（把手 + 页签 + 头几个声音格），所以按数组存
+var guideHoldEls = [];
 function clearGuideFocus() {
-  if (guideHoldEl) {
-    guideHoldEl.classList.remove("yexi-step-focus");
-    guideHoldEl.classList.remove("yexi-step-hold");
-    guideHoldEl = null;
+  for (var g = 0; g < guideHoldEls.length; g++) {
+    if (!guideHoldEls[g]) continue;
+    guideHoldEls[g].classList.remove("yexi-step-focus");
+    guideHoldEls[g].classList.remove("yexi-step-hold");
   }
+  guideHoldEls = [];
 }
 
 // 「带着我做」：这一步只放行指定控件，其它一律点不动
@@ -1115,32 +1133,68 @@ function guideUnlockAll() {
   var allowed = document.querySelectorAll(".guide-allowed");
   for (var i = 0; i < allowed.length; i++) allowed[i].classList.remove("guide-allowed");
 }
+// 这一步该指给用户看哪些控件。返回数组，第一个负责滚动定位。
+function guideTargetsOf(step) {
+  var list = [];
+  var mobile = window.innerWidth <= 819;
+  if (step === "drawer" || step === "stitchDrawer") {
+    // 先把抽屉拉起来（里面就是用户要知道的两个页签），再指把手和页签
+    if (mobile && window.yexiStitchDrawer) window.yexiStitchDrawer.open();
+    if (mobile) {
+      list.push(document.getElementById("stitchDrawerHandle"));
+      // 两个页签一起框住（分别描边会连成一整块，看着像一个控件）
+      list.push(document.querySelector("#stitchDrawer .stitch-drawer-tabs"));
+    } else {
+      list.push(document.getElementById("segEditorCard"));
+    }
+  } else if (step === "base" || step === "baseTpl") {
+    list.push(document.getElementById("timelineTpls"));
+  } else if (step === "stitchSound") {
+    if (timeline && timeline.segments.length === 0) {
+      list.push(document.getElementById("tlAddBtn"));
+    } else if (mobile) {
+      // 已经建好第一段：抽屉拉开、停在「选声音」页，指把手 + 头两个声音格
+      if (window.yexiStitchDrawer) window.yexiStitchDrawer.open();
+      list.push(document.getElementById("stitchDrawerHandle"));
+      list.push(document.getElementById("stitchTabSounds"));
+      var items = document.querySelectorAll("#drawerSoundBody .pk-item:not(.locked)");
+      for (var g = 0; g < items.length && g < 2; g++) list.push(items[g]);
+    } else {
+      list.push(document.getElementById("segEditorCard"));
+      var btn = document.getElementById("segAddSoundBtn");
+      if (btn) list.push(btn);
+    }
+  } else if (step === "make") {
+    list.push(document.getElementById("timelineStrip"));
+  } else if (step === "save") {
+    list.push(document.getElementById("stitchSaveBtn"));
+  } else if (step === "publish") {
+    list.push(document.getElementById("stitchPublishBtn"));
+  } else if (step === "stitchFinish") {
+    list.push(document.getElementById("stitchActions"));
+  }
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && out.indexOf(list[i]) < 0) out.push(list[i]);
+  }
+  return out;
+}
+
 function focusDiyStep(step, hold) {
-  var id = "";
-  if (step === "base" || step === "baseTpl") id = "timelineTpls";
-  else if (step === "stitchSound") {
-    // 空轨道时先指「+ 加一段」；加出第一段后再指抽屉/右栏
-    id = (timeline && timeline.segments.length === 0) ? "tlAddBtn" : ((window.innerWidth <= 819) ? "stitchDrawerHandle" : "segEditorCard");
-  }
-  else if (step === "make") id = "timelineStrip";
-  else if (step === "save") id = "stitchSaveBtn";
-  else if (step === "publish") id = "stitchPublishBtn";
-  else if (step === "stitchFinish") id = "stitchActions";
   clearGuideFocus();
-  var el = document.getElementById(id);
-  if (!el) return;
-  try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { el.scrollIntoView(); }
-  el.classList.remove("yexi-step-focus");
-  el.classList.remove("yexi-step-hold");
-  void el.offsetWidth;
-  el.classList.add("yexi-step-focus");
-  if (hold) {
-    // 引导中持续呼吸，不能只靠一次性动画
-    el.classList.add("yexi-step-hold");
-    guideHoldEl = el;
-  } else {
-    setTimeout(function() { el.classList.remove("yexi-step-focus"); }, 1700);
+  var els = guideTargetsOf(step);
+  if (!els.length) return;
+  try { els[0].scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { els[0].scrollIntoView(); }
+  for (var i = 0; i < els.length; i++) {
+    els[i].classList.remove("yexi-step-focus");
+    els[i].classList.remove("yexi-step-hold");
+    void els[i].offsetWidth;   // 重置动画，重新开始呼吸
+    els[i].classList.add("yexi-step-focus");
+    // 高亮一直保持，直到 clearGuideFocus() 在下一步/退出引导时清除。
+    // 之前闪 1.7 秒就没了，用户根本注意不到。
+    els[i].classList.add("yexi-step-hold");
   }
+  guideHoldEls = els;
 }
 
 var mixer = null;
@@ -1683,7 +1737,14 @@ function renderSoundPicker(targetId) {
   var body = document.getElementById(targetId || "soundPickerBody");
   if (!body) return;
   body.innerHTML = "";
-  if (!timeline || !timeline.segments[timeline.index]) return;
+  if (!timeline || !timeline.segments[timeline.index]) {
+    // 抽屉里没有段落时别留一块纯黑，告诉用户先去建第一段
+    var hint = document.createElement("div");
+    hint.className = "pk-empty";
+    hint.textContent = "还没有段落可选声音。先在时间线上点「+ 加一段」，再回来给这一段挑声音。";
+    body.appendChild(hint);
+    return;
+  }
 
   var sourceTabs = document.createElement("div");
   sourceTabs.className = "pk-tabs";
@@ -1940,9 +2001,12 @@ sdHandle.addEventListener("pointerdown", function(e) {
 sdHandle.onclick = function() {
   if (sdMoved) return;
   sdSet(sdVisible > SD_PEEK + 4 ? SD_PEEK : sdMax());
+  // 引导里有一步专门教拉这条抽屉，拉开了就算学会了
+  if (sdVisible > SD_PEEK + 4) reportDiyStep("drawer");
 };
 
 function sdSwitchTab(name) {
+  reportDiyStep("drawer");   // 会切页签说明抽屉已经认识了
   var tabs = [
     { id: "stitchTabSounds", view: "stitchViewSounds", key: "sounds" },
     { id: "stitchTabTune", view: "stitchViewTune", key: "tune" }
