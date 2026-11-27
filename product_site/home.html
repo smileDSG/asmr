@@ -1125,6 +1125,17 @@ function setAccent(rgb) {
   document.documentElement.style.setProperty("--acc-rgb", rgb);
   FX.rgb = rgb;
 }
+/* 「今晚听这个」带回的 accent 是 #8e74e8 这种十六进制，这里要的是 142,116,232 这种 rgb 串 */
+function accentToRgb(val, fallback) {
+  var s = String(val || "").trim();
+  if (/^\d+\s*,\s*\d+\s*,\s*\d+$/.test(s)) return s;   // 已经是 rgb 串
+  var m = s.match(/^#?([0-9a-f]{6})$/i);
+  if (m) {
+    var n = parseInt(m[1], 16);
+    return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255);
+  }
+  return fallback;
+}
 
 /* =========================================================
    音频：主播放 + 分析器（让画面听得见声音）
@@ -1340,7 +1351,7 @@ function getInitialSelected() {
         desc: "你存下的声音 · 今晚就听这段",
         img: saved.img || DEFAULT_HERO,
         fx: saved.fx || "rain",
-        acc: saved.acc || "142,116,232",
+        acc: accentToRgb(saved.acc || saved.accent, "142,116,232"),
         scene: saved.scene || "rain",
         tracks: saved.items,
         fromSaved: true
@@ -1353,6 +1364,7 @@ function getInitialSelected() {
 
 var selected = getInitialSelected();
 var loadedKey = "";
+var playSeq = 0;
 
 function itemKey(s) { return s.id || s.path || s.name; }
 function isPlaying() { return !!(sceneAudio.src && !sceneAudio.paused); }
@@ -1425,11 +1437,18 @@ setInterval(tickDwell, 1000);
 function playScene(s, forceRestart) {
   stopPreview(true);
   ensureAnalyser();
+  var mySeq = ++playSeq;
   var key = itemKey(s);
   if (key === itemKey(selected) && loadedKey === key && !forceRestart) {
     if (sceneAudio.paused) {
       listenTickLast = Date.now();
-      sceneAudio.play().catch(function() {});
+      sceneAudio.play().catch(function(err) {
+        if (mySeq !== playSeq) return;
+        if (err && err.name === "AbortError") return;
+        document.getElementById("nowMeta").textContent = (err && err.name === "NotAllowedError")
+          ? "请再轻点一下播放按钮"
+          : "音频加载失败，请稍后再试";
+      });
     } else {
       tickDwell();
       sceneAudio.pause();
@@ -1445,13 +1464,26 @@ function playScene(s, forceRestart) {
 
   var tracks = s.tracks ? s.tracks : [{ path: s.path, weight: 1.0 }];
   yPost("/api/play", { items: tracks, title: s.name })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.error) { document.getElementById("nowMeta").textContent = d.error; return; }
+    .then(function(r) {
+      return r.json().catch(function() { return {}; }).then(function(d) {
+        return { ok: r.ok, status: r.status, data: d };
+      });
+    })
+    .then(function(res) {
+      if (mySeq !== playSeq) return;
+      var d = res.data || {};
+      if (!res.ok || d.error || !d.audio) {
+        document.getElementById("nowMeta").textContent = d.error || ("加载失败 (" + res.status + ")");
+        return;
+      }
       loadedKey = key;
       sceneAudio.src = API + d.audio;
       applyVol();
+      if (audioCtx && audioCtx.state === "suspended") {
+        try { audioCtx.resume(); } catch (e) {}
+      }
       return sceneAudio.play().then(function() {
+        if (mySeq !== playSeq) return;
         listenTickLast = Date.now();
         document.getElementById("nowMeta").textContent = metaText();
         render();
@@ -1460,12 +1492,21 @@ function playScene(s, forceRestart) {
         } catch (e) {}
       });
     })
-    .catch(function() {
-      document.getElementById("nowMeta").textContent = "音频服务没有回应，稍后再试";
+    .catch(function(err) {
+      if (mySeq !== playSeq) return;
+      if (err && err.name === "AbortError") return;
+      document.getElementById("nowMeta").textContent = (err && err.name === "NotAllowedError")
+        ? "请再轻点一下播放按钮"
+        : "音频加载失败，请稍后再试";
     });
 }
 sceneAudio.addEventListener("play", function() { listenTickLast = Date.now(); render(); });
 sceneAudio.addEventListener("pause", function() { tickDwell(); render(); });
+sceneAudio.addEventListener("error", function() {
+  if (!sceneAudio.src) return;
+  document.getElementById("nowMeta").textContent = "音频加载失败，请稍后再试";
+  render();
+});
 
 function refillIfNeeded(skippedId) {
   var skips = Number(queueState.real_skips[skippedId] || 0);
@@ -1576,7 +1617,9 @@ yGet("/api/queue_state").then(function(r) { return r.json(); }).then(function(d)
   if (hasRemote) {
     queueState = normalizeQueueState(remote);
     try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queueState)); } catch (e) {}
-    if (!isPlaying() && !loadedKey) {
+    // 从「听我保存的」刚回来时，selected 已经是用户点选的配方。
+    // 不能用服务端队列状态把它覆盖成默认第一条，否则「今晚听这个」就白点了。
+    if (!isPlaying() && !loadedKey && !selected.fromSaved) {
       selected = getInitialSelected();
       selectScene(selected);
       render();
@@ -2081,7 +2124,10 @@ var initCat = selected.scene === "asmr" ? "asmr" : (selected.scene === "fire" ? 
 renderCards(initCat);
 // 从「听我保存的」带回来时，直接开始播，不用再点一次播放键
 if (selected.fromSaved) {
-  setTimeout(function() { playScene(selected, true); }, 400);
+  // 固化用户点选的那一条：异步的队列同步即使改了全局 selected，
+  // 这里也要播「今晚听这个」带回来的配方，而不是默认声音。
+  var savedPick = selected;
+  setTimeout(function() { playScene(savedPick, true); }, 400);
 }
 (function() {
   var cats = document.querySelectorAll("#cats .cat");
