@@ -492,7 +492,7 @@
     this.persist();
   };
 
-  YexiTimeline.prototype.load = function(id, autoStart) {
+  YexiTimeline.prototype.load = function(id, autoStart, userChosen) {
     var tpl = null;
     for (var i = 0; i < TEMPLATES.length; i++) {
       if (TEMPLATES[i].id === id) { tpl = TEMPLATES[i]; break; }
@@ -513,7 +513,8 @@
     this.onResetWork();
     this.persist();
     this.apply(0, true);
-    this.onTemplate(tpl.id);
+    // 只有用户主动点模板才算铺底完成；恢复/默认铺的不替用户打勾
+    if (userChosen) this.onTemplate(tpl.id);
     this.onChange(this);
     if (autoStart) this.play();
   };
@@ -592,7 +593,7 @@
         b.type = "button";
         b.className = "timeline-tpl" + (self.active && self.templateId === tpl.id ? " on" : "");
         b.textContent = tpl.name;
-        b.onclick = function() { self.load(tpl.id, false); };
+        b.onclick = function() { self.load(tpl.id, false, true); };
         tpls.appendChild(b);
       })(TEMPLATES[t]);
     }

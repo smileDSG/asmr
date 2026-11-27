@@ -1851,6 +1851,19 @@
   @media (prefers-reduced-motion: reduce) {
     .yexi-step-focus { animation: none; outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; }
   }
+  /* 带着我做：这一步只允许指定控件可点，其它控件变暗且不响应 */
+  body.guide-locked button:not(.guide-allowed),
+  body.guide-locked input:not(.guide-allowed),
+  body.guide-locked .stage-node:not(.guide-allowed),
+  body.guide-locked a:not(.guide-allowed) {
+    pointer-events: none !important;
+    opacity: 0.42 !important;
+  }
+  body.guide-locked .guide-allowed { pointer-events: auto !important; }
+  /* 弹窗里的内容始终可操作（发布/导出需要填写和提交） */
+  body.guide-locked .y-modal-mask.open button,
+  body.guide-locked .y-modal-mask.open input,
+  body.guide-locked .y-modal-mask.open textarea { pointer-events: auto !important; opacity: 1 !important; }
 </style>
 </head>
 <body>
@@ -2176,6 +2189,31 @@ var guideHoldEl = null;
 function clearGuideFocus() {
   if (guideHoldEl) { guideHoldEl.classList.remove("yexi-step-focus"); guideHoldEl = null; }
 }
+
+// 「带着我做」：这一步只放行指定控件，其它一律点不动
+function guideLockStep(step) {
+  document.body.classList.add("guide-locked");
+  var old = document.querySelectorAll(".guide-allowed");
+  for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
+  var list = [];
+  if (step === "base") {
+    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn");
+  } else if (step === "make") {
+    list = document.querySelectorAll(".stage-node, .panel-view input[type=range], .panel-view .seg-btn, .panel-view .density-btn");
+  } else if (step === "save") {
+    var b = document.getElementById("saveWorkBtn");
+    if (b) list = [b];
+  } else if (step === "publish") {
+    var p = document.getElementById("publishBtn");
+    if (p) list = [p];
+  }
+  for (var j = 0; j < list.length; j++) list[j].classList.add("guide-allowed");
+}
+function guideUnlockAll() {
+  document.body.classList.remove("guide-locked");
+  var allowed = document.querySelectorAll(".guide-allowed");
+  for (var i = 0; i < allowed.length; i++) allowed[i].classList.remove("guide-allowed");
+}
 function focusDiyStep(step, hold) {
   var id = "";
   if (step === "base") id = "presetsPanel";
@@ -2206,6 +2244,11 @@ if (IS_EMBEDDED) {
       focusDiyStep(e.data.step, !!e.data.hold);
     } else if (e.data.type === "yexi-guide-clear") {
       clearGuideFocus();
+      guideUnlockAll();
+    } else if (e.data.type === "yexi-guide-lock") {
+      guideLockStep(e.data.step);
+    } else if (e.data.type === "yexi-guide-unlock") {
+      guideUnlockAll();
     } else if (e.data.type === "yexi-get-mix") {
       try {
         var payload = typeof currentItemsPayload === "function" ? currentItemsPayload() : [];
@@ -3007,7 +3050,7 @@ function updatePlayerSummary() {
   sumEl.textContent = tracks.length + " 层 · " + names.join("、");
 }
 
-function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint) {
+function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint, userChosen) {
   tracks = [];
   var seen = {};
   for (var i = 0; i < (newItems || []).length; i++) {
@@ -3022,8 +3065,8 @@ function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint) {
   currentWorkId = workIdHint || "";
   activePresetId = presetIdHint || "";
   ensureSelectedTrackValid();
-  // 铺好声音了，第一步完成（包括进来时默认铺好的那套）
-  if (tracks.length > 0) reportDiyStep("base");
+  // 只有用户自己选的那套才算「铺底」完成；默认铺好的不算，不能替用户打勾
+  if (userChosen && tracks.length > 0) reportDiyStep("base");
 
   if (typeof titleHint === "string" && titleHint.trim()) {
     titleInputEl.value = titleHint.trim();
@@ -3374,7 +3417,7 @@ function renderAiPicks() {
         '<span class="ai-pick-name">' + yEscape(aiPickLabel(r)) + '</span>' +
         '<span class="ai-pick-sub">' + yEscape(sub) + '</span>';
       card.onclick = function() {
-        loadTracks(r.items, true, aiPickLabel(r), "", "");
+        loadTracks(r.items, true, aiPickLabel(r), "", "", true);
         showToast("已载入 AI 配方，可继续手改");
       };
       box.appendChild(card);
@@ -3552,7 +3595,7 @@ function renderPresets() {
       btn.textContent = p.title;
       btn.title = p.desc;
       btn.onclick = function() {
-        loadTracks(p.tracks, true, p.title, "", p.id);
+        loadTracks(p.tracks, true, p.title, "", p.id, true);
         showToast("已载入模板「" + p.title + "」");
       };
       box.appendChild(btn);
@@ -3604,7 +3647,7 @@ function renderSavedWorks() {
           '<button type="button" class="work-act-btn" data-act="del">删</button>' +
         '</div>';
       item.querySelector('[data-act="load"]').onclick = function() {
-        loadTracks(w.tracks || [], true, w.title || "", w.id || "");
+        loadTracks(w.tracks || [], true, w.title || "", w.id || "", true);
         showToast("已载入作品「" + (w.title || "夜息配方") + "」");
       };
       item.querySelector('[data-act="share"]').onclick = function() {
@@ -3751,7 +3794,7 @@ var randIdx = 1;
 document.getElementById("randBtn").onclick = function() {
   var pick = YEXI_STUDIO_PRESETS[randIdx % YEXI_STUDIO_PRESETS.length];
   randIdx += 1;
-  loadTracks(pick.tracks, true, pick.title, "", pick.id);
+  loadTracks(pick.tracks, true, pick.title, "", pick.id, true);
   showToast("已为你换上一组模板：「" + pick.title + "」");
 };
 

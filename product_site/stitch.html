@@ -587,6 +587,18 @@
   @media (prefers-reduced-motion: reduce) {
     .yexi-step-focus { animation: none; outline: 2px solid rgba(233,183,131,0.65); outline-offset: 3px; }
   }
+  /* 带着我做：这一步只允许指定控件可点，其它控件变暗且不响应 */
+  body.guide-locked button:not(.guide-allowed),
+  body.guide-locked input:not(.guide-allowed),
+  body.guide-locked a:not(.guide-allowed) {
+    pointer-events: none !important;
+    opacity: 0.42 !important;
+  }
+  body.guide-locked .guide-allowed { pointer-events: auto !important; }
+  /* 弹窗里的内容始终可操作（发布/导出需要填写和提交） */
+  body.guide-locked .y-modal-mask.open button,
+  body.guide-locked .y-modal-mask.open input,
+  body.guide-locked .y-modal-mask.open textarea { pointer-events: auto !important; opacity: 1 !important; }
 </style>
 </head>
 <body>
@@ -805,6 +817,31 @@ function reportDiyStep(step) {
 var guideHoldEl = null;
 function clearGuideFocus() {
   if (guideHoldEl) { guideHoldEl.classList.remove("yexi-step-focus"); guideHoldEl = null; }
+}
+
+// 「带着我做」：这一步只放行指定控件，其它一律点不动
+function guideLockStep(step) {
+  document.body.classList.add("guide-locked");
+  var old = document.querySelectorAll(".guide-allowed");
+  for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
+  var list = [];
+  if (step === "base") {
+    list = document.querySelectorAll(".timeline-tpl");
+  } else if (step === "make") {
+    list = document.querySelectorAll(".tl-seg, .tl-seg-grip, .panel-view input[type=range], .seg-edit input, .seg-edit button");
+  } else if (step === "save") {
+    var b = document.getElementById("stitchSaveBtn");
+    if (b) list = [b];
+  } else if (step === "publish") {
+    var p = document.getElementById("stitchPublishBtn");
+    if (p) list = [p];
+  }
+  for (var j = 0; j < list.length; j++) list[j].classList.add("guide-allowed");
+}
+function guideUnlockAll() {
+  document.body.classList.remove("guide-locked");
+  var allowed = document.querySelectorAll(".guide-allowed");
+  for (var i = 0; i < allowed.length; i++) allowed[i].classList.remove("guide-allowed");
 }
 function focusDiyStep(step, hold) {
   var id = "";
@@ -1335,6 +1372,11 @@ if (IS_EMBEDDED) {
       focusDiyStep(e.data.step, !!e.data.hold);
     } else if (e.data.type === "yexi-guide-clear") {
       clearGuideFocus();
+      guideUnlockAll();
+    } else if (e.data.type === "yexi-guide-lock") {
+      guideLockStep(e.data.step);
+    } else if (e.data.type === "yexi-guide-unlock") {
+      guideUnlockAll();
     } else if (e.data.type === "yexi-mix-data") {
       var list = Array.isArray(e.data.tracks) ? e.data.tracks : [];
       if (list.length === 0) {

@@ -182,6 +182,7 @@
   }
   .diy-guide-bar .g-next.hide { display: none; }
   .diy-guide-bar .g-close { color: #8f8a9c; font-size: 15px; }
+  body.guide-locked .diy-panes { cursor: not-allowed; }
   @media (prefers-reduced-motion: reduce) {
     .diy-step.on { animation: none; box-shadow: 0 0 18px rgba(255,190,120,0.6); }
     .diy-step.flash::before { animation: none; background: none; }
@@ -450,6 +451,21 @@ var DONE_TEXT = {
 var guideMode = "";       // "do" | "tell" | ""
 var guideIndex = 0;
 
+// 「带着我做」时锁住其它入口：只能点这一步指定的控件，退出按钮永远可用
+function setGuideLock(on) {
+  var segs = document.querySelectorAll(".diy-seg-btn");
+  var i;
+  for (i = 0; i < segs.length; i++) segs[i].disabled = on;
+  var steps = document.querySelectorAll(".diy-step");
+  for (i = 0; i < steps.length; i++) steps[i].disabled = on;
+  guideBtn.disabled = on;
+  explainBtn.disabled = on;
+  resetBtn.disabled = on;
+  document.body.classList.toggle("guide-locked", on);
+  try { panes.mix.contentWindow.postMessage({ type: on ? "yexi-guide-lock" : "yexi-guide-unlock", step: STEPS[guideIndex].key }, "*"); } catch (e) {}
+  try { panes.stitch.contentWindow.postMessage({ type: on ? "yexi-guide-lock" : "yexi-guide-unlock", step: STEPS[guideIndex].key }, "*"); } catch (e) {}
+}
+
 function guideStart(mode) {
   guideMode = mode;
   guideIndex = 0;
@@ -459,6 +475,7 @@ function guideStart(mode) {
   }
   guideNext.classList.toggle("hide", mode !== "tell");
   guideBar.classList.remove("hide");
+  setGuideLock(mode === "do"); // 带着我做才锁；高亮讲解随便点
   guideShow();
 }
 
@@ -466,12 +483,16 @@ function guideShow() {
   var step = STEPS[guideIndex];
   var key = step.key;
   guideStepNo.textContent = (guideIndex + 1) + " / " + STEPS.length;
-  guideText.textContent = GUIDE_TEXT[key];
+  guideText.textContent = GUIDE_TEXT[key] + (guideMode === "do" ? "（其它按钮暂时锁住了，先做这一步）" : "");
   guideNext.textContent = guideIndex === STEPS.length - 1 ? "完成 ›" : "下一步 ›";
   // 高亮必须落在这一步真正所在的 tab 和控件上
   if (step.pane && step.pane !== currentPane) switchPane(step.pane);
   var pane = panes[currentPane];
   try { pane.contentWindow.postMessage({ type: "yexi-goto-step", step: key, hold: true }, "*"); } catch (e) {}
+  if (guideMode === "do") {
+    try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-lock", step: key }, "*"); } catch (e) {}
+    try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-lock", step: key }, "*"); } catch (e) {}
+  }
   var btn = document.querySelector('.diy-step[data-step="' + key + '"]');
   if (btn) {
     btn.classList.remove("flash");
@@ -482,6 +503,7 @@ function guideShow() {
 }
 
 function guideEnd() {
+  setGuideLock(false);
   guideMode = "";
   guideBar.classList.add("hide");
   try { panes[currentPane].contentWindow.postMessage({ type: "yexi-guide-clear" }, "*"); } catch (e) {}
