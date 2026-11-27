@@ -175,12 +175,20 @@
   .diy-guide-bar.hide { display: none; }
   .diy-guide-bar .g-step { color: #ffd39a; flex: 0 0 auto; font-weight: 400; }
   .diy-guide-bar .g-text { flex: 1 1 auto; color: #e9dcc7; }
+  .diy-guide-bar .g-done {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255,198,130,0.6);
+    border-radius: 999px;
+    background: rgba(255,198,130,0.16);
+    color: #ffd39a; font-family: inherit; font-size: 11px;
+    padding: 3px 10px; cursor: pointer;
+  }
   .diy-guide-bar .g-next, .diy-guide-bar .g-close {
     flex: 0 0 auto; border: 0; background: transparent;
     color: #ffd39a; font-family: inherit; font-size: 11px; cursor: pointer;
     padding: 0 2px;
   }
-  .diy-guide-bar .g-next.hide { display: none; }
+  .diy-guide-bar .g-done.hide, .diy-guide-bar .g-next.hide { display: none; }
   .diy-guide-bar .g-close { color: #8f8a9c; font-size: 15px; }
   body.guide-locked .diy-panes { cursor: not-allowed; }
   @media (prefers-reduced-motion: reduce) {
@@ -244,6 +252,7 @@
     <div class="diy-guide-bar hide" id="diyGuideBar" role="status" aria-live="polite">
       <span class="g-step" id="guideStepNo">1 / 4</span>
       <span class="g-text" id="guideText"></span>
+      <button type="button" class="g-done hide" id="guideDone">我完成了</button>
       <button type="button" class="g-next hide" id="guideNext">下一步 ›</button>
       <button type="button" class="g-close" id="guideClose" aria-label="退出引导">×</button>
     </div>
@@ -434,18 +443,19 @@ var guideBar = document.getElementById("diyGuideBar");
 var guideStepNo = document.getElementById("guideStepNo");
 var guideText = document.getElementById("guideText");
 var guideNext = document.getElementById("guideNext");
+var guideDone = document.getElementById("guideDone");
 var guideClose = document.getElementById("guideClose");
 
 var GUIDE_TEXT = {
-  base: "先挑一套铺底。已经帮你铺好一套了，想换就点模板。",
-  make: "把声音拖近拖远、左右摆一摆，或者在拼接页拖段落的长短。",
-  save: "点这里存到「我的作品」，下次回来还能接着听。",
-  publish: "想给别人听，就点这里写一句话寄到广场。"
+  base: "铺底 = 自己挑几层声音垫在背景里。点屏幕下方那条「选声音 · 调参数 · 作品」把抽屉拉起来，在「选声音」里点喜欢的声音；顶上的模板只是省事的快捷方式，不用它也能做。挑好了点右边「我完成了」。",
+  make: "每一层都能调：拖到左边=左耳响，拖到右边=右耳响，放在中间=两边一样；越靠「正前」（往上）声音越清楚响亮，越往下越轻、像在远处。调好了点「我完成了」。",
+  save: "点这里存到「我的作品」，下次回来还能接着听；存好了点「我完成了」。",
+  publish: "想给别人听，就点这里写一句话寄到广场；寄好了点「我完成了」。"
 };
 var DONE_TEXT = {
-  base: "铺好了。下一步：让它更像你要的夜。",
-  make: "改好了。下一步：把它存下来。",
-  save: "存好了。最后一步：要不要寄到广场？",
+  base: "好，铺底这步算你完成了。下一步：调左右和强弱。",
+  make: "好，创作这步算你完成了。下一步：把它存下来。",
+  save: "好，存好了。最后一步：要不要寄到广场？",
   publish: "四步都走完了，这条夜色是你自己做出来的。"
 };
 var guideMode = "";       // "do" | "tell" | ""
@@ -474,6 +484,7 @@ function guideStart(mode) {
     guideIndex = i; // 全做完了就从最后一步回顾
   }
   guideNext.classList.toggle("hide", mode !== "tell");
+  guideDone.classList.toggle("hide", mode !== "do");
   guideBar.classList.remove("hide");
   setGuideLock(mode === "do"); // 带着我做才锁；高亮讲解随便点
   guideShow();
@@ -525,6 +536,12 @@ guideNext.onclick = function() {
   if (guideMode !== "tell") return;
   guideAdvance();
 };
+// 「带着我做」：走没走完由用户自己点，系统只负责指路和记，不替他判断
+guideDone.onclick = function() {
+  if (guideMode !== "do") return;
+  markStepDone(STEPS[guideIndex].key);
+  guideAdvance();
+};
 guideClose.onclick = guideEnd;
 
 resetBtn.onclick = function() {
@@ -537,8 +554,7 @@ window.addEventListener("message", function(e) {
   if (!e.data || typeof e.data !== "object") return;
   if (e.data.type === "yexi-step-done") {
     markStepDone(e.data.step);
-    // 「带着我做」：只有用户真的做完这一步才推进，点下一步没用
-    if (guideMode === "do" && e.data.step === STEPS[guideIndex].key) guideAdvance();
+    // 门槛完成只记账；「带着我做」的推进由用户点「我完成了」决定，系统不替他推进
   } else if (e.data.type === "yexi-request-mix") {
     try { paneMix.contentWindow.postMessage({ type: "yexi-get-mix" }, "*"); } catch (err) {}
   } else if (e.data.type === "yexi-mix-reply") {

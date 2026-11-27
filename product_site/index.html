@@ -2190,16 +2190,24 @@ function clearGuideFocus() {
   if (guideHoldEl) { guideHoldEl.classList.remove("yexi-step-focus"); guideHoldEl = null; }
 }
 
+// 当前引导步骤；用来判断「从声音库挑声音」算铺底还是算微调
+var guideStepNow = "";
+
 // 「带着我做」：这一步只放行指定控件，其它一律点不动
 function guideLockStep(step) {
+  guideStepNow = step;
   document.body.classList.add("guide-locked");
   var old = document.querySelectorAll(".guide-allowed");
   for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
   var list = [];
   if (step === "base") {
-    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn");
+    // 铺底要真能自己挑：自动拉开抽屉，放行声音卡 / 模板 / 换一组
+    // 抽屉靠 drawerSet 控高度（局部函数），派发一次把手点击把它拉开
+    var handle = document.getElementById("drawerHandle");
+    if (handle && handle.offsetParent !== null) handle.click();
+    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn, .lib-item:not(.locked), #drawerHandle, .panel-tab, #mobileDrawer .panel-view, #mobileDrawer button, #mobileDrawer input");
   } else if (step === "make") {
-    list = document.querySelectorAll(".stage-node, .panel-view input[type=range], .panel-view .seg-btn, .panel-view .density-btn");
+    list = document.querySelectorAll(".stage-node, .panel-view input[type=range], .panel-view .seg-btn, .panel-view .density-btn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
   } else if (step === "save") {
     var b = document.getElementById("saveWorkBtn");
     if (b) list = [b];
@@ -2210,13 +2218,14 @@ function guideLockStep(step) {
   for (var j = 0; j < list.length; j++) list[j].classList.add("guide-allowed");
 }
 function guideUnlockAll() {
+  guideStepNow = "";
   document.body.classList.remove("guide-locked");
   var allowed = document.querySelectorAll(".guide-allowed");
   for (var i = 0; i < allowed.length; i++) allowed[i].classList.remove("guide-allowed");
 }
 function focusDiyStep(step, hold) {
   var id = "";
-  if (step === "base") id = "presetsPanel";
+  if (step === "base") id = "drawerHandle";
   else if (step === "make") id = "soundStage";
   else if (step === "save") id = "saveWorkBtn";
   else if (step === "publish") id = "publishBtn";
@@ -3090,7 +3099,8 @@ function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint, us
 }
 
 function toggleLibrarySound(sound) {
-  reportDiyStep("make");
+  // 从声音库挑声音属于「铺底」；引导已走到创作以后再加层才算微调
+  reportDiyStep(guideStepNow === "base" || guideStepNow === "" ? "base" : "make");
   if (hasTrack(sound.path)) {
     removeTrack(sound.path);
     return;
