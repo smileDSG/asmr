@@ -21,6 +21,31 @@
   --y-lvl: 0;
 }
 
+/* ===== 呼吸高亮：让关键元素"轻轻脉动"，引导注意但不烦躁 =====
+   幅度克制（缩放 1→1.05、亮度小幅起伏），周期 2.4 秒偏慢，适合睡前氛围。
+   只对「需要用户注意到」的元素用：播放状态、当前页签、展开面板。
+   系统开了「减少动态效果」时自动关闭，避免晕眩。 */
+@keyframes y-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50%      { transform: scale(1.05); opacity: 1; }
+}
+@keyframes y-breathe-glow {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(var(--y-warm-rgb), 0.55), 0 4px 14px rgba(var(--y-warm-rgb), 0.24); }
+  50%      { box-shadow: 0 0 0 2px rgba(var(--y-warm-rgb), 0.95), 0 4px 22px rgba(var(--y-warm-rgb), 0.48); }
+}
+/* 抽屉用 outline 呼吸，避免覆盖它自己的黑影 box-shadow */
+@keyframes y-breathe-drawer {
+  0%, 100% { outline: 1px solid rgba(var(--y-warm-rgb), 0.32); outline-offset: -1px; }
+  50%      { outline: 1.5px solid rgba(var(--y-warm-rgb), 0.8); outline-offset: -1px; }
+}
+.y-breathe {
+  animation: y-breathe 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .y-breathe { animation: none !important; }
+  * { scroll-behavior: auto !important; }
+}
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -613,7 +638,7 @@ input[type="range"].y-slider::-moz-range-thumb {
 }
 
 .tabbar a.on {
-  color: var(--y-text);
+  color: var(--y-warm);
   font-weight: 500;
 }
 
@@ -648,9 +673,13 @@ input[type="range"].y-slider::-moz-range-thumb {
 }
 
 .tabbar a.on .ti {
-  background: rgba(var(--y-warm-rgb), 0.18);
+  background: rgba(var(--y-warm-rgb), 0.28);
   color: var(--y-warm);
-  box-shadow: 0 4px 14px rgba(var(--y-warm-rgb), 0.18);
+  /* 暖色描边 + 呼吸光晕：深色底上一眼能看到当前在哪个页 */
+  animation: y-breathe-glow 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabbar a.on .ti { animation: none; box-shadow: 0 0 0 1.5px rgba(var(--y-warm-rgb), 0.75); }
 }
 
 .y-thumb {
