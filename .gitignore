@@ -122,6 +122,9 @@ product_site/_pay_qr.png
 # 即刻收下单记录（含请求号，用于查交易号）
 data/nowpay_orders.json
 
+# 一段音频的免费修改记账（运行时生成，含用户标识，不进仓库）
+data/lineage_edits.json
+
 # 浏览器自动化测试产物与临时截图，不进仓库
 tmp/
 paste-images/

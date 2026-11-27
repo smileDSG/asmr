@@ -935,7 +935,7 @@
     <div class="ai-capsule">
       <span class="ai-capsule-ico"><svg class="y-ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>
       <input id="say" type="text" placeholder="可直接点选项，或自己打字回答…" autocomplete="off">
-      <button type="button" class="ai-go" id="genBtn">回答</button>
+      <button type="button" class="ai-go" id="genBtn" title="生成一段扣 1 次，这段可免费让 AI 改 3 次；想不限次自己调，点『去 DIY 微调』">回答</button>
     </div>
     <div class="chat-dock-status" id="status"></div>
   </div>
@@ -1692,7 +1692,7 @@ function appendAiTurnCard(ver) {
     (ver.reply ? '<div class="ver-reply-note">' + yEscape(ver.reply) + '</div>' : '') +
     '<div class="ver-actions">' +
       '<button type="button" class="ver-act-btn" data-act="keep">收藏配方</button>' +
-      '<button type="button" class="ver-act-btn primary" data-act="diy">去 DIY 微调</button>' +
+      '<button type="button" class="ver-act-btn primary" data-act="diy" title="自己拖滑块调，不限次数、不扣次数">去 DIY 微调</button>' +
       '<button type="button" class="ver-act-btn" data-act="player">全屏助眠</button>' +
     '</div>';
 
@@ -1716,6 +1716,7 @@ function appendAiTurnCard(ver) {
         chip.type = "button";
         chip.className = "y-chip";
         chip.textContent = txt;
+        chip.title = "让 AI 按这句改，这段前 3 次免费，之后每次扣 1 次";
         chip.onclick = function() { sendTurn(txt, true); };
         fStrip.appendChild(chip);
       })(ver.followups[fi]);
@@ -1766,6 +1767,7 @@ function sendTurn(rawSay, forceCompose) {
 
   var curVer = getActiveVersion() || (versions.length > 0 ? versions[versions.length - 1] : null);
   var currentTracksPayload = curVer ? curVer.tracks : [];
+  var currentLineageId = curVer ? (curVer.lineageId || "") : "";
 
   // 提交后台任务：服务器接着跑，页面跳转/关闭都不影响
   bgContext = { say: say, forceCompose: !!forceCompose };
@@ -1777,6 +1779,7 @@ function sendTurn(rawSay, forceCompose) {
     qa_round: qaRound,
     force_compose: !!forceCompose,
     current_tracks: currentTracksPayload,
+    lineage_id: currentLineageId,
     history: chatHistory.slice(-6),
     seconds: 30
   })
@@ -1790,6 +1793,7 @@ function sendTurn(rawSay, forceCompose) {
         qa_round: qaRound,
         force_compose: !!forceCompose,
         current_tracks: currentTracksPayload,
+        lineage_id: currentLineageId,
         history: chatHistory.slice(-6),
         seconds: 30
       }).then(function(r2) { return r2.json(); }).then(function(d2) { handleGenResult(d2); });
@@ -1879,6 +1883,7 @@ function handleGenResult(d) {
       intent: d.intent || {},
       tracks: tracks,
       followups: d.followups || ["再轻柔一点", "加点夜风", "稳一点"],
+      lineageId: d.lineage_id || "",
       kept: false
     };
     versions.push(ver);
@@ -1888,12 +1893,18 @@ function handleGenResult(d) {
     appendAiTurnCard(ver);
     playVersion(versions.length - 1);
 
-    // 出声才算一次：把这次扣减后的剩余次数告诉用户，形成闭环。
-    // 付费用户没有 quota 字段，不显示。
-    if (d.quota && typeof d.quota.left === "number") {
-      setStatus("今天还可生成 " + d.quota.left + " 次");
+    // 告诉用户这次的额度情况，形成闭环。
+    // 修改时优先显示"这段还能免费改 N 次"；生成时显示"今天还可生成 N 次"。
+    var msg = "";
+    if (typeof d.free_edits_left === "number" && d.free_edits_left > 0) {
+      msg = "这段还能免费改 " + d.free_edits_left + " 次";
+    } else if (d.quota && typeof d.quota.left === "number") {
+      msg = "今天还可生成 " + d.quota.left + " 次";
+    }
+    if (msg) {
+      setStatus(msg);
       setTimeout(function() {
-        if (statusEl.textContent.indexOf("今天还可生成") === 0) setStatus("");
+        if (statusEl.textContent === msg) setStatus("");
       }, 4000);
     }
 }

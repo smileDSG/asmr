@@ -25,6 +25,7 @@ import memory_system as memory
 import auth_db
 import rate_limit
 import pay_window
+import lineage
 import input_guard
 import pay
 import nowpay
@@ -1547,12 +1548,22 @@ def run_agent_chat(handler, data, emit):
 
     # 免费额度：每天 N 次，用完就地拦下；解锁全库后不限
     full_access, quota_owner, ent = _access(handler)
+
+    # 一段音频的 lineage：首次生成时新建，之后每次改都带上同一个 id。
+    # 同一段前 3 次 AI 修改免费，第 4 次起才扣生成次数。
+    lineage_id = str(data.get("lineage_id") or "").strip()[:60]
+    is_edit = bool(lineage_id and data.get("current_tracks"))
+    free_edits_left = lineage.free_left(lineage_id, quota_owner) if is_edit else lineage.FREE_EDITS
+    free_edit = is_edit and free_edits_left > 0
+
     free_rels = None
     if not full_access:
-        peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
-        if peek["left"] <= 0:
-            _quota_exhausted(handler, peek)
-            return
+        # 免费修改不扣次数，所以也不该被"今日额度用完"拦下
+        if not free_edit:
+            peek = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+            if peek["left"] <= 0:
+                _quota_exhausted(handler, peek)
+                return
         free_rels = sound_catalog.relpaths_for(False)
 
     try:
@@ -1649,19 +1660,36 @@ def run_agent_chat(handler, data, emit):
     mix, sr = render(mapped_tracks, seconds)
     aid = _put_temp_audio(mix, sr)
 
-    # 出声才算一次：音频真的生成出来了，现在才扣免费额度。
-    if free_rels is not None:
-        ok_take, quota_info = auth_db.take_daily_quota(
-            quota_owner, FREE_DAILY_GENERATE
-        )
-        if not ok_take:
-            # 并发临界：render 这两秒里最后一次额度被别人抢先用了。
-            # 音频已经生成，按"出声才算"的规矩放行这次，只记日志，不再拦用户。
-            print("[quota] 出声后额度被并发占满，本次放行", flush=True)
+    # 出声才算一次：音频真的生成出来了，现在才扣额度。
+    # 但"生成后前 3 次免费改"这段不扣——只记一次修改。
+    if free_edit:
+        lineage.mark_edit(lineage_id, quota_owner)
+        free_edits_left = max(0, free_edits_left - 1)
+        print("[lineage] 免费修改 " + str(lineage_id[:8]), flush=True)
+        if not full_access and free_rels is not None:
             quota_info = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
+    else:
+        if free_rels is not None:
+            ok_take, quota_info = auth_db.take_daily_quota(
+                quota_owner, FREE_DAILY_GENERATE
+            )
+            if not ok_take:
+                # 并发临界：render 这两秒里最后一次额度被别人抢先用了。
+                # 音频已经生成，按"出声才算"的规矩放行这次，只记日志，不再拦用户。
+                print("[quota] 出声后额度被并发占满，本次放行", flush=True)
+                quota_info = auth_db.peek_daily_quota(quota_owner, FREE_DAILY_GENERATE)
 
-    # 即刻收用户：音频真生成出来了，才核销一次次数
-    _nowpay_consume(ent)
+        # 即刻收用户：音频真生成出来了，才核销一次次数
+        _nowpay_consume(ent)
+
+        # 第 4 次及以后的修改：额度已扣，也记一笔，下次继续按扣费算
+        if is_edit:
+            lineage.mark_edit(lineage_id, quota_owner)
+
+    # 首次生成：建一条 lineage，后续修改都带这个 id
+    if not lineage_id:
+        lineage_id = lineage.create(quota_owner)
+        free_edits_left = lineage.FREE_EDITS
 
     _set_session(
         handler,
@@ -1704,6 +1732,8 @@ def run_agent_chat(handler, data, emit):
             "audio": "/api/audio?id=" + aid,
             "full_access": full_access,
             "quota": quota_info,
+            "lineage_id": lineage_id,
+            "free_edits_left": free_edits_left,
         }
     )
 
@@ -3468,6 +3498,7 @@ if __name__ == "__main__":
     os.makedirs(WEB_ASSET_DIR, exist_ok=True)
     # 支付配置自检：缺 key 时喊出来，但不阻断听声服务
     pay.startup_check()
+    lineage.cleanup()
     # 部署平台要求监听 0.0.0.0，本机开发这样也能访问
     print("夜息已启动：http://0.0.0.0:" + str(PORT), flush=True)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
