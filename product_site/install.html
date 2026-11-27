@@ -71,7 +71,7 @@
 
   <div class="card">
     <a class="dl-btn" id="dlBtn" href="/download/yexi.apk" download="夜息.apk">下载安卓安装包</a>
-    <div class="dl-meta" id="dlMeta">Android 安装包 · 约 7 MB</div>
+    <div class="dl-meta" id="dlMeta">Android 安装包 · 约 7.5 MB · 直连服务器，慢的话等十几秒</div>
     <div class="qr-row">
       <div class="qr-box"><img src="/download/qr-download.png" alt="下载二维码"></div>
       <div class="qr-text">手机打开相机或微信<br><b>扫一扫</b>这个二维码<br>就能直接下载安装</div>
@@ -103,30 +103,12 @@
 </div>
 <script>
 // 安装地址跟随当前域名，换服务器不用改这页
+// 下载按钮就是普通 <a href download>，点一下交给浏览器自己去下。
+// 以前这里先发 HEAD 探文件，但后端没实现 HEAD（一律 501），
+// 结果 r.ok 永远是 false，按钮点下去只会显示"正在准备中"、从不下载。
 (function () {
   var el = document.getElementById("mUrl");
   if (el) el.textContent = location.host + "/m.html";
-  var dlBtn = document.getElementById("dlBtn");
-  var dlMeta = document.getElementById("dlMeta");
-  if (dlBtn) {
-    dlBtn.onclick = function (e) {
-      e.preventDefault();
-      var href = dlBtn.getAttribute("href");
-      fetch(href, { method: "HEAD" })
-        .then(function (r) {
-          if (r.ok) {
-            location.href = href;
-          } else if (dlMeta) {
-            dlMeta.textContent = "安卓安装包正在准备中，可先用下方浏览器添加到主屏幕";
-          }
-        })
-        .catch(function () {
-          if (dlMeta) {
-            dlMeta.textContent = "安卓安装包正在准备中，可先用下方浏览器添加到主屏幕";
-          }
-        });
-    };
-  }
 })();
 </script>
 </body>

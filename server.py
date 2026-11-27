@@ -162,6 +162,9 @@ def serve_static(handler, path):
     if gzipped:
         handler.send_header("Content-Encoding", "gzip")
     handler.end_headers()
+    if getattr(handler, "_head_only", False):
+        # HEAD 请求：头已经发完（Content-Length 也给了），内容一个字都不写
+        return
     handler.wfile.write(body)
 
 
@@ -1793,6 +1796,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
+        if getattr(self, "_head_only", False):
+            return  # HEAD 只回头，不写 JSON 正文
         self.wfile.write(body)
 
     def check_rate_limit(self, path):
@@ -2406,6 +2411,24 @@ class Handler(BaseHTTPRequestHandler):
         else:
             # 非 API 路径交给静态文件服务：前端页面、图片、js/css 都从这里出
             serve_static(self, path)
+
+    def do_HEAD(self):
+        """HEAD：只要响应头，不要内容。
+        浏览器、微信、CDN、监控探活都会先发 HEAD 探文件在不在。
+        之前没实现这个方法，所有 HEAD 一律 501，安装页"下载前先探一下"的
+        检查因此永远失败，按钮点了不下载——所以这里补上。"""
+        path = urllib.parse.urlparse(self.path).path
+        if path.startswith("/api/"):
+            self.send_response(405)
+            self.send_header("Allow", "GET, POST")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self._head_only = True
+        try:
+            serve_static(self, path)
+        finally:
+            self._head_only = False
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
