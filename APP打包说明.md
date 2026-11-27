@@ -83,3 +83,21 @@ gradlew assembleDebug
 | `app/assets/` | 图标源文件（被 .gitignore 排除，不进仓库） |
 | `app/android/` | Android 原生工程 |
 | `.github/workflows/build-apk.yml` | 云端自动编译 APK |
+
+---
+
+## 七、装完/发出去之前先自检
+
+```bash
+python check_install.py                # 查线上（默认 47.101.59.166:8000）
+python check_install.py http://ip:8000 # 查别的地址，比如本机起的 8011
+python check_install.py --make-qr      # 重新生成下载二维码，然后自检
+```
+
+一次跑完 12 项：页面能不能打开、按钮地址对不对、页面有没有退回 HEAD 预检、
+服务器支不支持 HEAD、安装包能不能下、字节数对不对、是不是合法 APK（zip+MANIFEST）、
+二维码扫出来是不是当前下载地址、线上文件和本地是否同一份。
+任何一项 `[X]` 退出码就是 1，可以直接挂定时任务当探活。
+
+2026-11-27 那次「按钮点了不下载」就是这套检查里第 4 项（HEAD 501）和第 9 项（二维码指向别处）同时坏了，
+人眼看不出来，脚本一跑全现形。
