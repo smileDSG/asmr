@@ -142,6 +142,12 @@ docs/
 *.md
 *.docx
 # 一次性辅助脚本与配置样例（不是运行时依赖；归位在 legacy/scripts/）
+# 运维脚本也只留在本地，不进 GitHub（服务器备份脚本已挪到 /opt/yexi-ops/）
+ops.sh
+ops_remote_backup.sh
+update_server.sh
+git_update.sh
+sync_deploy.py
 get_trade_no.py
 make_webp.py
 nowpay_check.py
