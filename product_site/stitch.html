@@ -825,7 +825,7 @@ function guideLockStep(step) {
   var old = document.querySelectorAll(".guide-allowed");
   for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
   var list = [];
-  if (step === "base") {
+  if (step === "base" || step === "baseTpl") {
     list = document.querySelectorAll(".timeline-tpl");
   } else if (step === "make") {
     list = document.querySelectorAll(".tl-seg, .tl-seg-grip, .panel-view input[type=range], .seg-edit input, .seg-edit button");
@@ -845,7 +845,7 @@ function guideUnlockAll() {
 }
 function focusDiyStep(step, hold) {
   var id = "";
-  if (step === "base") id = "timelineTpls";
+  if (step === "base" || step === "baseTpl") id = "timelineTpls";
   else if (step === "make") id = "timelineStrip";
   else if (step === "save") id = "stitchSaveBtn";
   else if (step === "publish") id = "stitchPublishBtn";

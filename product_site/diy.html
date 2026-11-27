@@ -165,7 +165,7 @@
   .diy-path-test:disabled { opacity: 0.45; cursor: default; }
   /* 引导条：贴着路径下面，讲这一步做什么；不遮播放器、不弹窗 */
   .diy-guide-bar {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
     margin-top: 8px; padding: 8px 10px;
     border: 1px solid rgba(255,198,130,0.45);
     border-radius: 8px;
@@ -174,7 +174,13 @@
   }
   .diy-guide-bar.hide { display: none; }
   .diy-guide-bar .g-step { color: #ffd39a; flex: 0 0 auto; font-weight: 400; }
-  .diy-guide-bar .g-text { flex: 1 1 auto; color: #e9dcc7; }
+  .diy-guide-bar .g-text { flex: 1 1 calc(100% - 40px); color: #e9dcc7; }
+  /* 按钮单独一行，别挤在文字里 */
+  .diy-guide-bar .g-actions {
+    flex: 0 0 100%;
+    display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+    margin-top: 4px;
+  }
   .diy-guide-bar .g-done {
     flex: 0 0 auto;
     border: 1px solid rgba(255,198,130,0.6);
@@ -252,9 +258,11 @@
     <div class="diy-guide-bar hide" id="diyGuideBar" role="status" aria-live="polite">
       <span class="g-step" id="guideStepNo">1 / 4</span>
       <span class="g-text" id="guideText"></span>
-      <button type="button" class="g-done hide" id="guideDone">我完成了</button>
-      <button type="button" class="g-next hide" id="guideNext">下一步 ›</button>
-      <button type="button" class="g-close" id="guideClose" aria-label="退出引导">×</button>
+      <span class="g-actions">
+        <button type="button" class="g-done hide" id="guideDone">我完成了</button>
+        <button type="button" class="g-next hide" id="guideNext">下一步 ›</button>
+        <button type="button" class="g-close" id="guideClose" aria-label="退出引导">×</button>
+      </span>
     </div>
   </div>
 </div>
@@ -446,11 +454,18 @@ var guideNext = document.getElementById("guideNext");
 var guideDone = document.getElementById("guideDone");
 var guideClose = document.getElementById("guideClose");
 
+// 一句话讲当前一个动作。铺底拆成两页：先抽屉，再模板。
 var GUIDE_TEXT = {
-  base: "铺底 = 自己挑几层声音垫在背景里。点屏幕下方那条「选声音 · 调参数 · 作品」把抽屉拉起来，在「选声音」里点喜欢的声音；顶上的模板只是省事的快捷方式，不用它也能做。挑好了点右边「我完成了」。",
-  make: "每一层都能调：拖到左边=左耳响，拖到右边=右耳响，放在中间=两边一样；越靠「正前」（往上）声音越清楚响亮，越往下越轻、像在远处。调好了点「我完成了」。",
-  save: "点这里存到「我的作品」，下次回来还能接着听；存好了点「我完成了」。",
-  publish: "想给别人听，就点这里写一句话寄到广场；寄好了点「我完成了」。"
+  base: [
+    "先自己挑声音：点下面那条「选声音 · 调参数 · 作品」，在「选声音」里点喜欢的。",
+    "顶上的模板是省事的快捷方式，不想挑就点一套，想改随时能改。"
+  ],
+  make: [
+    "拖左边=左耳响，拖右边=右耳响，放中间=两边一样。",
+    "越往上越清楚响亮，越往下越轻、像在远处。"
+  ],
+  save: "点这里存到「我的作品」，下次回来还能接着听。",
+  publish: "点这里写一句话，就能寄到广场给别人听。"
 };
 var DONE_TEXT = {
   base: "好，铺底这步算你完成了。下一步：调左右和强弱。",
@@ -460,6 +475,17 @@ var DONE_TEXT = {
 };
 var guideMode = "";       // "do" | "tell" | ""
 var guideIndex = 0;
+var guideSub = 0;         // 同一大步里的第几页讲解（铺底/创作各拆成两页）
+
+function guideTextOf(key) {
+  var t = GUIDE_TEXT[key];
+  if (t && typeof t === "object" && t.length) return t[guideSub] || t[0];
+  return t || "";
+}
+function guideSubCount(key) {
+  var t = GUIDE_TEXT[key];
+  return (t && typeof t === "object" && t.length) ? t.length : 1;
+}
 
 // 「带着我做」时锁住其它入口：只能点这一步指定的控件，退出按钮永远可用
 function setGuideLock(on) {
@@ -479,6 +505,7 @@ function setGuideLock(on) {
 function guideStart(mode) {
   guideMode = mode;
   guideIndex = 0;
+  guideSub = 0;
   for (var i = 0; i < STEPS.length; i++) {
     if (!stepState[STEPS[i].key]) { guideIndex = i; break; }
     guideIndex = i; // 全做完了就从最后一步回顾
@@ -493,16 +520,21 @@ function guideStart(mode) {
 function guideShow() {
   var step = STEPS[guideIndex];
   var key = step.key;
-  guideStepNo.textContent = (guideIndex + 1) + " / " + STEPS.length;
-  guideText.textContent = GUIDE_TEXT[key] + (guideMode === "do" ? "（其它按钮暂时锁住了，先做这一步）" : "");
-  guideNext.textContent = guideIndex === STEPS.length - 1 ? "完成 ›" : "下一步 ›";
+  var subTotal = guideSubCount(key);
+  guideStepNo.textContent = (guideIndex + 1) + " / " + STEPS.length + (subTotal > 1 ? " · " + (guideSub + 1) + "/" + subTotal : "");
+  guideText.textContent = guideTextOf(key);
+  guideNext.textContent = (guideIndex === STEPS.length - 1 && guideSub >= subTotal - 1) ? "完成 ›" : "下一步 ›";
+  guideDone.textContent = (guideSub < subTotal - 1) ? "接着讲 ›" : "我完成了";
   // 高亮必须落在这一步真正所在的 tab 和控件上
   if (step.pane && step.pane !== currentPane) switchPane(step.pane);
   var pane = panes[currentPane];
-  try { pane.contentWindow.postMessage({ type: "yexi-goto-step", step: key, hold: true }, "*"); } catch (e) {}
+  var focusStep = key;
+  // 铺底第 1 页指抽屉，第 2 页指模板；创作第 1 页指声场、第 2 页也指声场
+  if (key === "base" && guideSub === 1) focusStep = "baseTpl";
+  try { pane.contentWindow.postMessage({ type: "yexi-goto-step", step: focusStep, hold: true }, "*"); } catch (e) {}
   if (guideMode === "do") {
-    try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-lock", step: key }, "*"); } catch (e) {}
-    try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-lock", step: key }, "*"); } catch (e) {}
+    try { panes.mix.contentWindow.postMessage({ type: "yexi-guide-lock", step: focusStep }, "*"); } catch (e) {}
+    try { panes.stitch.contentWindow.postMessage({ type: "yexi-guide-lock", step: focusStep }, "*"); } catch (e) {}
   }
   var btn = document.querySelector('.diy-step[data-step="' + key + '"]');
   if (btn) {
@@ -524,9 +556,17 @@ function guideEnd() {
 
 function guideAdvance() {
   var key = STEPS[guideIndex].key;
+  var subTotal = guideSubCount(key);
+  if (guideSub < subTotal - 1) {
+    // 同一大步还有下一页讲解：直接翻页，不标完成、不换 tab
+    guideSub += 1;
+    guideShow();
+    return;
+  }
   guideText.textContent = DONE_TEXT[key] || "好了。";
   if (guideIndex >= STEPS.length - 1) { setTimeout(guideEnd, 1600); return; }
   guideIndex += 1;
+  guideSub = 0;
   setTimeout(guideShow, 900); // 先让"刚做完"这句话被看见，再指下一个控件
 }
 
@@ -539,7 +579,13 @@ guideNext.onclick = function() {
 // 「带着我做」：走没走完由用户自己点，系统只负责指路和记，不替他判断
 guideDone.onclick = function() {
   if (guideMode !== "do") return;
-  markStepDone(STEPS[guideIndex].key);
+  var key = STEPS[guideIndex].key;
+  // 还有下一页讲解时，这个按钮只是"继续讲"，不算完成
+  if (guideSub < guideSubCount(key) - 1) {
+    guideAdvance();
+    return;
+  }
+  markStepDone(key);
   guideAdvance();
 };
 guideClose.onclick = guideEnd;

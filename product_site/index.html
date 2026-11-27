@@ -2201,11 +2201,13 @@ function guideLockStep(step) {
   for (var i = 0; i < old.length; i++) old[i].classList.remove("guide-allowed");
   var list = [];
   if (step === "base") {
-    // 铺底要真能自己挑：自动拉开抽屉，放行声音卡 / 模板 / 换一组
-    // 抽屉靠 drawerSet 控高度（局部函数），派发一次把手点击把它拉开
+    // 第 1 页：先讲抽屉。自动拉开，只放行抽屉里的声音卡，不看模板
     var handle = document.getElementById("drawerHandle");
     if (handle && handle.offsetParent !== null) handle.click();
-    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn, .lib-item:not(.locked), #drawerHandle, .panel-tab, #mobileDrawer .panel-view, #mobileDrawer button, #mobileDrawer input");
+    list = document.querySelectorAll(".lib-item:not(.locked), #drawerHandle, .panel-tab, #mobileDrawer .panel-view, #mobileDrawer button, #mobileDrawer input");
+  } else if (step === "baseTpl") {
+    // 第 2 页：再讲模板这个快捷方式。只放行模板条和换一组
+    list = document.querySelectorAll("#presetsPanel .preset-chip, #randBtn");
   } else if (step === "make") {
     list = document.querySelectorAll(".stage-node, .panel-view input[type=range], .panel-view .seg-btn, .panel-view .density-btn, #drawerHandle, .panel-tab, #mobileDrawer .panel-view");
   } else if (step === "save") {
@@ -2226,6 +2228,7 @@ function guideUnlockAll() {
 function focusDiyStep(step, hold) {
   var id = "";
   if (step === "base") id = "drawerHandle";
+  else if (step === "baseTpl") id = "presetsPanel";
   else if (step === "make") id = "soundStage";
   else if (step === "save") id = "saveWorkBtn";
   else if (step === "publish") id = "publishBtn";
@@ -3100,7 +3103,7 @@ function loadTracks(newItems, autoStart, titleHint, workIdHint, presetIdHint, us
 
 function toggleLibrarySound(sound) {
   // 从声音库挑声音属于「铺底」；引导已走到创作以后再加层才算微调
-  reportDiyStep(guideStepNow === "base" || guideStepNow === "" ? "base" : "make");
+  reportDiyStep(guideStepNow === "base" || guideStepNow === "baseTpl" || guideStepNow === "" ? "base" : "make");
   if (hasTrack(sound.path)) {
     removeTrack(sound.path);
     return;
