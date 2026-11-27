@@ -12,7 +12,7 @@ import re
 import secrets
 import threading
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEM_DIR = os.path.join(BASE, "memory")
 _FILE_LOCK = threading.Lock()
 

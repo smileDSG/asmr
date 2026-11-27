@@ -13,7 +13,7 @@ import secrets
 import threading
 import time
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE, "data")
 STORE = os.path.join(DATA_DIR, "nowpay_first_paid.json")
 DAYS = 30

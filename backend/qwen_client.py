@@ -231,7 +231,7 @@ def get_key():
     key = os.environ.get("DASHSCOPE_API_KEY", "")
     if key:
         return key.strip()
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qwen_key.txt")
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "qwen_key.txt")
     if os.path.exists(path):
         with open(path, "r") as f:
             return f.read().strip()

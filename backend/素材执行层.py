@@ -69,7 +69,7 @@ def write_mp3(target, data, sr):
     write_wav(target, data, sr)
     return "wav"
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 素材库：从单一真相源 sound_catalog 动态构建按场景分布的候选权重表
 LIBRARY = sound_catalog.build_library_by_scene()

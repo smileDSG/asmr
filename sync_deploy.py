@@ -15,12 +15,10 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DEPLOY = os.path.join(ROOT, "deploy")
 
 # 需要同步的单文件（代码 + 配置 + 说明）
-FILES = [
-    "server.py", "auth_db.py", "qwen_client.py", "understanding_brain.py",
-    "feedback_translate.py", "memory_system.py", "input_guard.py", "rate_limit.py",
-    "素材执行层.py", "sound_catalog.py", "sound_catalog.json",
-    "pay.py", "nowpay.py", "pay_window.py", "requirements.txt",
-]
+FILES = ["server.py", "sound_catalog.json", "requirements.txt"]
+
+# 运行时模块统一放在 backend/，整目录同步
+DIRS = ["backend"]
 
 # 前端目录：只同步这个目录里的正式页面
 SITE = "product_site"
@@ -50,7 +48,16 @@ def main():
             shutil.copy2(src, os.path.join(DEPLOY, name))
             print("  代码：" + name)
 
-    # 2. 前端目录
+    # 2. 运行时模块目录
+    for name in DIRS:
+        src = os.path.join(ROOT, name)
+        dst = os.path.join(DEPLOY, name)
+        if os.path.isdir(dst):
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst)
+        print("  模块目录：" + name + "/")
+
+    # 3. 前端目录
     src_site = os.path.join(ROOT, SITE)
     dst_site = os.path.join(DEPLOY, SITE)
     if not os.path.isdir(dst_site):
@@ -69,7 +76,7 @@ def main():
             shutil.copy2(src, dst)
             print("  前端：" + name)
 
-    # 3. 删除实验产物（只删 deploy 里的，不动根目录）
+    # 4. 删除实验产物（只删 deploy 里的，不动根目录）
     for name in JUNK_DIRS:
         junk = os.path.join(DEPLOY, name)
         if os.path.isdir(junk):

@@ -19,7 +19,7 @@ import time
 
 import auth_db
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE, "pay_config.json")
 
 # 安全默认：sandbox（没配支付宝 key 就付不了，但绝不会白送权益）。

@@ -12,7 +12,7 @@ import os
 import threading
 import time
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE, "data")
 STORE = os.path.join(DATA_DIR, "lineage_edits.json")
 FREE_EDITS = 3

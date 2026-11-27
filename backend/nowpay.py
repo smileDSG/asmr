@@ -28,7 +28,7 @@ import auth_db
 
 _ORDER_LOCK = threading.Lock()
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE, "pay_config.json")
 
 # 环境变量开关。不打开就完全不碰支付宝。
